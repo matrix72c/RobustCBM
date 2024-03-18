@@ -7,6 +7,7 @@ def Standard(
     label,
     attr,
     model,
+    model_base,
     label_loss_meter,
     label_acc_meter,
     attr_loss_meter,
@@ -17,10 +18,11 @@ def Standard(
     scheduler_args,
     loss_fn,
     attr_loss_fn,
+    attr_loss_weight,
 ):
     img, label, attr = img.cuda(), label.cuda(), attr.cuda()
     attr_losses = []
-    if model.base == "inceptionv3":
+    if model_base == "inceptionv3":
         attr_logits_pred, label_pred = model(img)
         attr_pred, logits_pred = attr_logits_pred
         for i in range(attr_pred.shape[1]):

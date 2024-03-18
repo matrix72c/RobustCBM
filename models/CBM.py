@@ -45,37 +45,43 @@ class CBM(nn.Module):
         base,
         num_attributes,
         num_classes,
-        attr_loss_weight=1,
         use_pretrained=False,
         use_adv=False,
     ):
         super(CBM, self).__init__()
 
         if base == "resnet50":
-            if use_pretrained:
+            if use_pretrained is True:
                 self.model = torchvision.models.resnet50(
                     weights=torchvision.models.ResNet50_Weights.DEFAULT
                 )
                 self.model.fc = nn.Linear(2048, num_attributes)
-            else:
+            elif use_pretrained is False:
                 self.model = torchvision.models.resnet50(
                     num_classes=num_attributes, weights=None
                 )
+            else:
+                self.model = torchvision.models.resnet50(weights=None)
+                model_weights_path = use_pretrained
+                self.model.load_state_dict(torch.load(model_weights_path, map_location='cuda'))
+                self.model.fc = nn.Linear(2048, num_attributes)
         elif base == "inceptionv3":
-            if use_pretrained:
+            if use_pretrained is True:
                 self.model = torchvision.models.inception_v3(
                     weights=torchvision.models.Inception_V3_Weights.DEFAULT
                 )
                 self.model.fc = nn.Linear(2048, num_attributes)
-            else:
+            elif use_pretrained is False:
                 self.model = torchvision.models.inception_v3(
                     num_classes=num_attributes, aux_logits=True, weights=None
                 )
-        self.base = base
-        self.num_attributes = num_attributes
-        self.num_classes = num_classes
-        self.attr_loss_weight = attr_loss_weight
-        self.use_pretrained = use_pretrained
+            else:
+                self.model = torchvision.models.inception_v3(aux_logits=True, weights=None)
+                model_weights_path = use_pretrained
+                self.model.load_state_dict(torch.load(model_weights_path, map_location='cuda'))
+                self.model.fc = nn.Linear(2048, num_attributes)
+        else:
+            raise ValueError("Unknown base model")
         self.use_adv = use_adv
         self.fc = FC(num_attributes, num_classes)
 

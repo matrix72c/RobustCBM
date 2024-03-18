@@ -12,8 +12,6 @@ from utils import AverageMeter, set_seed, test_acc
 def main(config):
     f = open(config, "r", encoding="utf-8")
     conf = yaml.load(f.read(), Loader=yaml.FullLoader)
-    run = Run(experiment=conf["experiment"], repo=os.getenv("AIM_REPO"))
-    run["hparams"] = conf
 
     # set seed
     set_seed(conf["seed"])
@@ -53,15 +51,24 @@ def main(config):
 
     # load loss function
     loss_fn = getattr(nn, conf["loss_fn"])()
-    attr_loss_fn = [
-        getattr(nn, conf["attr_loss_fn"])(weight=torch.FloatTensor([ratio]).cuda())
-        for ratio in train_dataset.imbalance_ratio
-    ]
+    if conf["use_imbalance_ratio"]:
+        attr_loss_fn = [
+            getattr(nn, conf["attr_loss_fn"])(weight=torch.FloatTensor([ratio]).cuda())
+            for ratio in train_dataset.imbalance_ratio
+        ]
+    else:
+        attr_loss_fn = [
+            getattr(nn, conf["attr_loss_fn"])()
+            for _ in train_dataset.imbalance_ratio
+        ]
 
     # train
     model.cuda()
     best_model = None
     best_acc = 0
+
+    run = Run(experiment=conf["experiment"], repo=os.getenv("AIM_REPO"))
+    run["hparams"] = conf
     run_hash = run.hash
     for epoch in range(conf["epochs"]):
         model.train()
@@ -94,6 +101,7 @@ def main(config):
                 label,
                 attr,
                 model,
+                conf["model_args"]["base"],
                 label_loss_meter,
                 label_acc_meter,
                 attr_loss_meter,
@@ -104,28 +112,35 @@ def main(config):
                 conf["scheduler_args"],
                 loss_fn,
                 attr_loss_fn,
+                conf["attr_loss_weight"],
             )
         run.track(name="label_loss", value=label_loss_meter.avg, epoch=epoch)
         run.track(name="label_acc", value=label_acc_meter.avg, epoch=epoch)
         run.track(name="attr_loss", value=attr_loss_meter.avg, epoch=epoch)
         run.track(name="attr_acc", value=attr_acc_meter.avg, epoch=epoch)
-        if (epoch + 1) % 200 == 0:
+        if (epoch + 1) % 100 == 0:
             acc, attr_acc = test_acc(model, test_loader)
             run.track(name="test_acc", value=acc, epoch=epoch)
             run.track(name="test_attr_acc", value=attr_acc, epoch=epoch)
             if acc > best_acc:
                 best_acc = acc
                 best_model = model.state_dict()
-        if (epoch + 1) % 1000 == 0:
+        if (epoch + 1) % 500 == 0:
             # delete previous checkpoints
             for file in os.listdir("checkpoints"):
                 if file.endswith(run_hash + ".pth"):
                     os.remove(os.path.join("checkpoints", file))
+            if conf["model_args"]["use_pretrained"] is True:
+                pretrained_mode = "pretrained_"
+            elif conf["model_args"]["use_pretrained"] is False:
+                pretrained_mode = ""
+            else:
+                pretrained_mode = "selfpretrained_"
             torch.save(
                 best_model,
                 "checkpoints/"
-                + ("pretrained_" if model.use_pretrained else "")
-                + model.base
+                + pretrained_mode
+                + conf["model_args"]["base"]
                 + "_"
                 + ("adv_" if conf["use_adv"] else "")
                 + ("noise_" if conf["add_noise"] else "")

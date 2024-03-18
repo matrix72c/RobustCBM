@@ -12,6 +12,9 @@ class CUB(Dataset):
         self.data = []
         self.is_train = is_train
         self.image_dir = "images"
+        if data_path[-1] != "/":
+            data_path += "/"
+        data_path += "CUB_200_2011/"
         self.data_path = data_path
         self.data.extend(
             pickle.load(
@@ -27,8 +30,7 @@ class CUB(Dataset):
                     # transforms.ColorJitter(brightness=32 / 255, saturation=(0.5, 1.5)),
                     # transforms.RandomResizedCrop(resol),
                     # transforms.RandomHorizontalFlip(),
-                    transforms.ToTensor(),  # implicitly divides by 255
-                    # transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[2, 2, 2])
+                    transforms.ToTensor(),
                     transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ], std = [ 0.229, 0.224, 0.225 ]),
                 ]
             )
@@ -38,8 +40,7 @@ class CUB(Dataset):
                 [
                     transforms.Resize((resol, resol)),
                     transforms.CenterCrop(resol),
-                    transforms.ToTensor(),  # implicitly divides by 255
-                    # transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[2, 2, 2])
+                    transforms.ToTensor(),
                     transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ], std = [ 0.229, 0.224, 0.225 ]),
                 ]
             )
