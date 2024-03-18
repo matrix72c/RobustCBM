@@ -124,7 +124,7 @@ def main(config):
             pretrained_mode = ""
         else:
             pretrained_mode = "selfpretrained_"
-        if label_acc_meter.avg > 85:
+        if label_acc_meter.avg > 0.85:
             torch.save(
                 model.state_dict(),
                 "checkpoints/"
@@ -138,7 +138,7 @@ def main(config):
                 + run_hash
                 + ".pth",
             )
-        if label_acc_meter.avg > 95:
+        if label_acc_meter.avg > 0.95:
             return
         # if (epoch + 1) % 100 == 0:
         #     acc, attr_acc = test_acc(model, test_loader)
