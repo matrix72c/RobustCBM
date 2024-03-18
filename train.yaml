@@ -6,14 +6,14 @@ batch_size: 64
 num_workers: 8
 trainer: "Joint"
 attr_loss_weight: 0.01
-use_adv: False
+use_adv: True
 add_noise: False
 model: "CBM"
 model_args:
   base: "resnet50"
   num_attributes: 112
   num_classes: 200
-  use_pretrained: "./checkpoints/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_pretrained: False
 optimizer: "SGD"
 optimizer_args:
   lr: 0.001

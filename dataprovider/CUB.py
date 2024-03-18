@@ -16,13 +16,8 @@ class CUB(Dataset):
             data_path += "/"
         data_path += "CUB_200_2011/"
         self.data_path = data_path
-        self.data.extend(
-            pickle.load(
-                open(
-                    data_path + "train.pkl" if is_train else data_path + "val.pkl", "rb"
-                )
-            )
-        )
+        for pkl in ["train.pkl", "val.pkl", "test.pkl"]:
+            self.data.extend(pickle.load(open(data_path + pkl, "rb")))
         if is_train:
             self.transform = transforms.Compose(
                 [
@@ -31,7 +26,9 @@ class CUB(Dataset):
                     # transforms.RandomResizedCrop(resol),
                     # transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),
-                    transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ], std = [ 0.229, 0.224, 0.225 ]),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
                 ]
             )
             self.imbalance_ratio = cal_class_imbalance_weights(data_path + "train.pkl")
@@ -41,7 +38,9 @@ class CUB(Dataset):
                     transforms.Resize((resol, resol)),
                     transforms.CenterCrop(resol),
                     transforms.ToTensor(),
-                    transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ], std = [ 0.229, 0.224, 0.225 ]),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
                 ]
             )
 
