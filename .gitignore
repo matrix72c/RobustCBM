@@ -106,7 +106,7 @@ data/
 input/
 saved/
 datasets/
-# checkpoints/
+checkpoints/*.pth
 
 # editor, os cache directory
 .vscode/
