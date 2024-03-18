@@ -118,37 +118,53 @@ def main(config):
         run.track(name="label_acc", value=label_acc_meter.avg, epoch=epoch)
         run.track(name="attr_loss", value=attr_loss_meter.avg, epoch=epoch)
         run.track(name="attr_acc", value=attr_acc_meter.avg, epoch=epoch)
-        if (epoch + 1) % 100 == 0:
-            acc, attr_acc = test_acc(model, test_loader)
-            run.track(name="test_acc", value=acc, epoch=epoch)
-            run.track(name="test_attr_acc", value=attr_acc, epoch=epoch)
-            if acc > best_acc:
-                best_acc = acc
-                best_model = model.state_dict()
-        if (epoch + 1) % 500 == 0:
-            # delete previous checkpoints
-            for file in os.listdir("checkpoints"):
-                if file.endswith(run_hash + ".pth"):
-                    os.remove(os.path.join("checkpoints", file))
-            if conf["model_args"]["use_pretrained"] is True:
-                pretrained_mode = "pretrained_"
-            elif conf["model_args"]["use_pretrained"] is False:
-                pretrained_mode = ""
-            else:
-                pretrained_mode = "selfpretrained_"
+        if conf["model_args"]["use_pretrained"] is True:
+            pretrained_mode = "pretrained_"
+        elif conf["model_args"]["use_pretrained"] is False:
+            pretrained_mode = ""
+        else:
+            pretrained_mode = "selfpretrained_"
+        if label_acc_meter.avg > 85:
             torch.save(
-                best_model,
+                model.state_dict(),
                 "checkpoints/"
                 + pretrained_mode
                 + conf["model_args"]["base"]
                 + "_"
                 + ("adv_" if conf["use_adv"] else "")
                 + ("noise_" if conf["add_noise"] else "")
-                + str("{:.2f}".format(best_acc * 100))
+                + str("{:.2f}".format(label_acc_meter.avg * 100))
                 + "_"
                 + run_hash
                 + ".pth",
             )
+        if label_acc_meter.avg > 95:
+            return
+        # if (epoch + 1) % 100 == 0:
+        #     acc, attr_acc = test_acc(model, test_loader)
+        #     run.track(name="test_acc", value=acc, epoch=epoch)
+        #     run.track(name="test_attr_acc", value=attr_acc, epoch=epoch)
+        #     if acc > best_acc:
+        #         best_acc = acc
+        #         best_model = model.state_dict()
+        # if (epoch + 1) % 500 == 0:
+        #     # delete previous checkpoints
+        #     for file in os.listdir("checkpoints"):
+        #         if file.endswith(run_hash + ".pth"):
+        #             os.remove(os.path.join("checkpoints", file))
+        #     torch.save(
+        #         best_model,
+        #         "checkpoints/"
+        #         + pretrained_mode
+        #         + conf["model_args"]["base"]
+        #         + "_"
+        #         + ("adv_" if conf["use_adv"] else "")
+        #         + ("noise_" if conf["add_noise"] else "")
+        #         + str("{:.2f}".format(best_acc * 100))
+        #         + "_"
+        #         + run_hash
+        #         + ".pth",
+        #     )
 
 
 if __name__ == "__main__":
