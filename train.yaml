@@ -5,9 +5,6 @@ dataset: "CUB"
 batch_size: 64
 num_workers: 8
 trainer: "Joint"
-attr_loss_weight: 0.01
-use_adv: True
-add_noise: False
 model: "CBM"
 model_args:
   base: "resnet50"
@@ -27,3 +24,6 @@ loss_fn: "CrossEntropyLoss"
 attr_loss_fn: "BCEWithLogitsLoss"
 use_imbalance_ratio: False
 epochs: 4000
+use_adv: "concept" # "concept" or "label" or False
+use_noise: "image" # "image" or "concept" or False
+attr_loss_weight: 0.01

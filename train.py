@@ -58,8 +58,7 @@ def main(config):
         ]
     else:
         attr_loss_fn = [
-            getattr(nn, conf["attr_loss_fn"])()
-            for _ in train_dataset.imbalance_ratio
+            getattr(nn, conf["attr_loss_fn"])() for _ in train_dataset.imbalance_ratio
         ]
 
     # train
@@ -77,43 +76,62 @@ def main(config):
         attr_loss_meter = AverageMeter()
         attr_acc_meter = AverageMeter()
         for img, label, attr in train_loader:
-            if conf["use_adv"]:
-                model.use_adv = True
+            if isinstance(conf["use_adv"], str):
+                model.use_adv = conf["use_adv"]
                 atk = PGD(model, eps=5 / 255, alpha=2 / 225, steps=2, random_start=True)
                 atk.set_normalization_used(
                     mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
                 )
-                adv_img = atk(img, label).cpu()
+                adv_img = (
+                    atk(img, label).cpu()
+                    if conf["use_adv"] == "label"
+                    else atk(img, attr).cpu()
+                )
                 adv_label = label.clone().detach().cpu()
                 adv_attr = attr.clone().detach().cpu()
                 img = torch.cat([img, adv_img], dim=0)
                 label = torch.cat([label, adv_label], dim=0)
                 attr = torch.cat([attr, adv_attr], dim=0)
                 model.use_adv = False
-            if conf["add_noise"]:
-                noise = torch.randn_like(img) * 0.1
-                img += noise
+            if isinstance(conf["use_noise"], str):
+                if conf["use_noise"] == "iamge":
+                    noise = torch.randn_like(img) * 0.1
+                    noise_img = img.clone().detach() + noise
+                    noise_attr = attr.clone().detach()
+                elif conf["use_noise"] == "concept":
+                    noise = torch.randn_like(attr) * 0.1
+                    noise_attr = attr.clone().detach() + noise
+                    noise_img = img.clone().detach()
+                noise_label = label.clone().detach()
+                img = torch.cat([img, noise_img], dim=0)
+                label = torch.cat([label, noise_label], dim=0)
+                attr = torch.cat([attr, noise_attr], dim=0)
+            kwargs = {
+                "img": img,
+                "label": label,
+                "attr": attr,
+                "model": model,
+                "loss_fn": loss_fn,
+                "attr_loss_fn": attr_loss_fn,
+                "optimizer": conf["optimizer"],
+                "optimizer_args": conf["optimizer_args"],
+                "scheduler": conf["scheduler"],
+                "scheduler_args": conf["scheduler_args"],
+                "loss_meter": label_loss_meter,
+                "acc_meter": label_acc_meter,
+                "attr_loss_meter": attr_loss_meter,
+                "attr_acc_meter": attr_acc_meter,
+            }
+            if conf["attr_loss_weight"] is not False:
+                kwargs["attr_loss_weight"] = conf["attr_loss_weight"]
+            if conf["use_adv"] is not False:
+                kwargs["use_adv"] = conf["use_adv"]
+            if conf["use_noise"] is not False:
+                kwargs["use_noise"] = conf["use_noise"]
             getattr(
                 __import__("trainers." + conf["trainer"], fromlist=[""]),
                 conf["trainer"],
-            )(
-                img,
-                label,
-                attr,
-                model,
-                conf["model_args"]["base"],
-                label_loss_meter,
-                label_acc_meter,
-                attr_loss_meter,
-                attr_acc_meter,
-                conf["optimizer"],
-                conf["optimizer_args"],
-                conf["scheduler"],
-                conf["scheduler_args"],
-                loss_fn,
-                attr_loss_fn,
-                conf["attr_loss_weight"],
-            )
+            )(**kwargs)
         run.track(name="label_loss", value=label_loss_meter.avg, epoch=epoch)
         run.track(name="label_acc", value=label_acc_meter.avg, epoch=epoch)
         run.track(name="attr_loss", value=attr_loss_meter.avg, epoch=epoch)
@@ -131,8 +149,10 @@ def main(config):
                 + pretrained_mode
                 + conf["model_args"]["base"]
                 + "_"
-                + ("adv_" if conf["use_adv"] else "")
-                + ("noise_" if conf["add_noise"] else "")
+                + ("adv_" + conf["use_adv"] if conf["use_adv"] is not False else "")
+                + "_"
+                + ("noise_" + conf["use_noise"] if conf["use_noise"] is not False else "")
+                + "_"
                 + str("{:.2f}".format(label_acc_meter.avg * 100))
                 + "_"
                 + run_hash

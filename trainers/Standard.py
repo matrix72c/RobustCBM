@@ -18,7 +18,6 @@ def Standard(
     scheduler_args,
     loss_fn,
     attr_loss_fn,
-    attr_loss_weight,
 ):
     img, label, attr = img.cuda(), label.cuda(), attr.cuda()
     attr_losses = []

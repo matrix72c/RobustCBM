@@ -90,7 +90,9 @@ class CBM(nn.Module):
         label_pred = self.fc(
             attr_pred if not isinstance(attr_pred, tuple) else attr_pred[0]
         )
-        if self.use_adv:
+        if self.use_adv == "label":
             return label_pred
+        elif self.use_adv == "concept":
+            return attr_pred
         else:
             return attr_pred, label_pred
