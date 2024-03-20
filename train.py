@@ -4,7 +4,7 @@ import torch.nn as nn
 import os
 from aim import Run
 import yaml
-from attackers import PGD
+from torchattacks import PGD
 
 from utils import AverageMeter, set_seed, test_acc
 
