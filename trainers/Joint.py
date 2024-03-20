@@ -22,7 +22,7 @@ def Joint(
     use_adv = False,
     use_noise = False,
 ):
-    if use_adv.has("image2label"):
+    if "image2label" in use_adv:
         model.use_adv = use_adv
         atk = PGD(model, eps=5 / 255, alpha=2 / 225, steps=2, random_start=True)
         atk.set_normalization_used(
