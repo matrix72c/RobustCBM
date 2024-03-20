@@ -20,6 +20,7 @@ def Sequential(
     attr_loss_fn,
     attr_loss_weight = 0.01,
     use_adv = "",
+    use_noise = "",
 ):
     if "image2concept" in use_adv:
         atk = PGD(model, eps=5 / 255, alpha=2 / 225, steps=2, random_start=True)
