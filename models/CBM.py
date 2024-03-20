@@ -46,7 +46,7 @@ class CBM(nn.Module):
         num_attributes,
         num_classes,
         use_pretrained=False,
-        use_adv=False,
+        use_adv="",
     ):
         super(CBM, self).__init__()
 

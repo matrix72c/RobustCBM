@@ -90,13 +90,10 @@ def main(config):
                 "scheduler_args": conf["scheduler_args"],
                 "loss_fn": loss_fn,
                 "attr_loss_fn": attr_loss_fn,
+                "attr_loss_weight": conf["attr_loss_weight"],
+                "use_adv": conf["use_adv"],
+                "use_noise": conf["use_noise"],
             }
-            if isinstance(conf["attr_loss_weight"], float):
-                kwargs["attr_loss_weight"] = conf["attr_loss_weight"]
-            if isinstance(conf["use_adv"], str):
-                kwargs["use_adv"] = conf["use_adv"]
-            if isinstance(conf["use_noise"], str):
-                kwargs["use_noise"] = conf["use_noise"]
             getattr(
                 __import__("trainers." + conf["trainer"], fromlist=[""]),
                 conf["trainer"],
@@ -118,9 +115,9 @@ def main(config):
                 + pretrained_mode
                 + conf["model_args"]["base"]
                 + "_"
-                + ("adv_" + conf["use_adv"] if conf["use_adv"] is not False else "")
+                + ("adv_" + conf["use_adv"] if len(conf["use_adv"]) > 0 else "")
                 + "_"
-                + ("noise_" + conf["use_noise"] if conf["use_noise"] is not False else "")
+                + ("noise_" + conf["use_noise"] if len(conf["use_noise"]) > 0 else "")
                 + "_"
                 + str("{:.2f}".format(label_acc_meter.avg * 100))
                 + "_"

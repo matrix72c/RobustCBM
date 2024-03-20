@@ -56,18 +56,17 @@ def main(hash):
         for img, label, attr in test_loader:
             img, label, attr = img.cuda(), label.cuda(), attr.cuda()
             model.use_adv = "image2label"
-            img = atk(img, label) if i > 0 else img
+            adv_img = atk(img, label) if i > 0 else img
             model.use_adv = ""
             with torch.no_grad():
                 attr_pred, label_pred = model(img)
-                label_pred = torch.argmax(label_pred, dim=1)
-                correct = torch.sum(label_pred == label).int().sum().item()
-                num = len(label)
-                label_acc.update(correct / num, num)
-                attr_pred = torch.sigmoid(attr_pred).ge(0.5)
-                attr_correct = torch.sum(attr_pred == attr).int().sum().item()
-                attr_num = attr.shape[0] * attr.shape[1]
-                attr_acc.update(attr_correct / attr_num, attr_num)
+                adv_attr_pred, adv_label_pred = model(adv_img)
+            attr_pred = attr_pred.cpu()
+            label_pred = label_pred.cpu()
+            adv_attr_pred = adv_attr_pred.cpu()
+            adv_label_pred = adv_label_pred.cpu()
+            label_pred = label_pred.max(1, keepdim=True)[1]
+            label_acc.update(label_pred.eq(label.view_as(label_pred)).sum().item(), label.size(0))
         run.track(name="pgd_label_acc", value=label_acc.avg, epoch=i)
         run.track(name="pgd_attr_acc", value=attr_acc.avg, epoch=i)
 

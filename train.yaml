@@ -24,6 +24,6 @@ loss_fn: "CrossEntropyLoss"
 attr_loss_fn: "BCEWithLogitsLoss"
 use_imbalance_ratio: False
 epochs: 4000
-use_adv: "conceptpred2label" # "image2concept", "image2label", "concept2label", "conceptpred2label", "image2concept&concept2label", "image2concept&conceptpred2label", False
-use_noise: False # "image" or "concept" or False
+use_adv: "conceptpred2label" # "image2concept", "image2label", "concept2label", "conceptpred2label", "image2concept&concept2label", "image2concept&conceptpred2label", ""
+use_noise: "" # "image" or "concept" or ""
 attr_loss_weight: 0.01
