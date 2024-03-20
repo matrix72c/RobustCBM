@@ -1,0 +1,9 @@
+-
+  trainer: "Joint"
+  use_adv: ["", "image2label"]
+# -
+#   trainer: "Joint"
+#   use_noise: ["", "image"]
+# -
+#   trainer: "Sequential"
+#   use_adv: ["", "image2concept", "conceptpred2label", "image2concept&conceptpred2label"]

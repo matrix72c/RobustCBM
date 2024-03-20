@@ -4,7 +4,7 @@ data_path: "./data/"
 dataset: "CUB"
 batch_size: 64
 num_workers: 8
-trainer: "Sequential"
+trainer: "Joint"
 model: "CBM"
 model_args:
   base: "resnet50"
@@ -24,6 +24,6 @@ loss_fn: "CrossEntropyLoss"
 attr_loss_fn: "BCEWithLogitsLoss"
 use_imbalance_ratio: False
 epochs: 4000
-use_adv: "conceptpred2label" # "image2concept", "image2label", "concept2label", "conceptpred2label", "image2concept&concept2label", "image2concept&conceptpred2label", ""
+use_adv: "image2label" # "image2label", "image2concept", "conceptpred2label", "image2concept&conceptpred2label", ""
 use_noise: "" # "image" or "concept" or ""
 attr_loss_weight: 0.01

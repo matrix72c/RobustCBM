@@ -55,3 +55,13 @@ def test_acc(model, data_loader):
             attr_num = attr.shape[0] * attr.shape[1]
             attr_acc_meter.update(attr_correct / attr_num, attr_num)
     return label_acc_meter.avg, attr_acc_meter.avg
+
+def get_top_k_label(output,k=1):
+    indices = np.argsort(output,axis=-1)[:,-k:]
+    return indices
+
+def cal_top_k(output,label,k=1):
+    indices = get_top_k_label(output, k=k)
+    y = np.reshape(label,[-1,1])
+    correct = (y==indices).sum()
+    return correct

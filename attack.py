@@ -3,14 +3,12 @@ import os
 import torch
 from torchattacks import PGD
 from aim import Run
-import yaml
 
-from utils import AverageMeter, set_seed
+from utils import AverageMeter, set_seed, cal_top_k
 
 
-def main(hash):
-    run = Run(run_hash=hash, repo=os.getenv("AIM_REPO"))
-    conf = run["hparams"]
+def attack(run):
+    conf = run[...]
 
     # set seed
     set_seed(conf["seed"])
@@ -47,12 +45,12 @@ def main(hash):
 
     # attack
     for i in range(11):
-        atk = PGD(model, eps=i / 255, alpha=2 / 225, steps=2, random_start=True)
+        atk = PGD(model, eps=i / 255, alpha=2 / 225, steps=10, random_start=True)
         atk.set_normalization_used(
             mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
         )
-        attr_acc = AverageMeter()
-        label_acc = AverageMeter()
+        attr_acc = [AverageMeter() for _ in range(10)]
+        label_acc = [AverageMeter() for _ in range(10)]
         for img, label, attr in test_loader:
             img, label, attr = img.cuda(), label.cuda(), attr.cuda()
             model.use_adv = "image2label"
@@ -65,14 +63,27 @@ def main(hash):
             label_pred = label_pred.cpu()
             adv_attr_pred = adv_attr_pred.cpu()
             adv_label_pred = adv_label_pred.cpu()
+            # attr_pred = torch.sigmoid(attr_pred).ge(0.5)
             label_pred = label_pred.max(1, keepdim=True)[1]
-            label_acc.update(label_pred.eq(label.view_as(label_pred)).sum().item(), label.size(0))
-        run.track(name="pgd_label_acc", value=label_acc.avg, epoch=i)
-        run.track(name="pgd_attr_acc", value=attr_acc.avg, epoch=i)
+            for j in range(10):
+                # attr_acc[j].update(
+                #     1 - cal_top_k(adv_attr_pred, attr_pred, k=j + 1).item() / attr.size(0),
+                #     attr.size(0),
+                # )
+                label_acc[j].update(
+                    1
+                    - cal_top_k(adv_label_pred, label_pred, k=j + 1).item()
+                    / label.size(0),
+                    label.size(0),
+                )
+        for j in range(10):
+            run.track(name="pgd_label_acc_top_{}".format(j + 1), value=label_acc[j].avg, epoch=i)
+            # run.track(name="pgd_attr_acc_top_{}".format(j + 1), value=attr_acc[j].avg, epoch=i)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--hash", type=str, default="")
     args = parser.parse_args()
-    main(args.hash)
+    run = Run(run_hash=args.hash, repo=os.getenv("AIM_REPO"))
+    attack(run)

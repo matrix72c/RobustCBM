@@ -4,15 +4,11 @@ import torch.nn as nn
 import os
 from aim import Run
 import yaml
-from torchattacks import PGD
 
-from utils import AverageMeter, set_seed, test_acc
+from utils import AverageMeter, set_seed
+from attack import attack
 
-
-def main(config):
-    f = open(config, "r", encoding="utf-8")
-    conf = yaml.load(f.read(), Loader=yaml.FullLoader)
-
+def train(conf):
     # set seed
     set_seed(conf["seed"])
 
@@ -65,7 +61,10 @@ def main(config):
     model.cuda()
 
     run = Run(experiment=conf["experiment"], repo=os.getenv("AIM_REPO"))
-    run["hparams"] = conf
+    run[...] = conf
+    run.description = conf["use_adv"] + conf["use_noise"]
+    if len(run.description) == 0:
+        run.description = "baseline"
     run_hash = run.hash
     for epoch in range(conf["epochs"]):
         model.train()
@@ -115,16 +114,15 @@ def main(config):
                 + pretrained_mode
                 + conf["model_args"]["base"]
                 + "_"
-                + ("adv_" + conf["use_adv"] if len(conf["use_adv"]) > 0 else "")
-                + "_"
-                + ("noise_" + conf["use_noise"] if len(conf["use_noise"]) > 0 else "")
-                + "_"
+                + (("adv_" + conf["use_adv"] + "_") if len(conf["use_adv"]) > 0 else "")
+                + (("noise_" + conf["use_noise"] + "_") if len(conf["use_noise"]) > 0 else "")
                 + str("{:.2f}".format(label_acc_meter.avg * 100))
                 + "_"
                 + run_hash
                 + ".pth",
             )
         if label_acc_meter.avg > 0.95:
+            attack(run)
             return
         # if (epoch + 1) % 100 == 0:
         #     acc, attr_acc = test_acc(model, test_loader)
@@ -157,4 +155,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default="train.yaml")
     args = parser.parse_args()
-    main(args.config)
+    f = open(args.config, "r", encoding="utf-8")
+    conf = yaml.load(f.read(), Loader=yaml.FullLoader)
+    train(conf)
