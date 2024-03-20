@@ -55,9 +55,9 @@ def main(hash):
         label_acc = AverageMeter()
         for img, label, attr in test_loader:
             img, label, attr = img.cuda(), label.cuda(), attr.cuda()
-            model.use_adv = True
+            model.use_adv = "image2label"
             img = atk(img, label) if i > 0 else img
-            model.use_adv = False
+            model.use_adv = ""
             with torch.no_grad():
                 attr_pred, label_pred = model(img)
                 label_pred = torch.argmax(label_pred, dim=1)
