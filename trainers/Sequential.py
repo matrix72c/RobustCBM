@@ -23,6 +23,7 @@ def Sequential(
     use_noise = "",
 ):
     if "image2concept" in use_adv:
+        model.use_adv = use_adv
         atk = PGD(model, eps=5 / 255, alpha=2 / 225, steps=2, random_start=True)
         atk.set_normalization_used(
             mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
@@ -33,6 +34,7 @@ def Sequential(
         img = torch.cat([img, adv_img], dim=0)
         label = torch.cat([label, adv_label], dim=0)
         attr = torch.cat([attr, adv_attr], dim=0)
+        model.use_adv = ""
     for name, param in model.named_parameters():
         if "fc" in name:
             param.requires_grad = False
