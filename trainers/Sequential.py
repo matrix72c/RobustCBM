@@ -18,10 +18,10 @@ def Sequential(
     scheduler_args,
     loss_fn,
     attr_loss_fn,
+    attr_loss_weight = 0.01,
     use_adv = False,
-    use_noise = False,
 ):
-    if use_adv.has("image2concept"):
+    if "image2concept" in use_adv:
         atk = PGD(model, eps=5 / 255, alpha=2 / 225, steps=2, random_start=True)
         atk.set_normalization_used(
             mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
@@ -74,12 +74,13 @@ def Sequential(
     else:
         attr_pred = model.backbone(img)
 
-    if use_adv.has("concept2label") or use_adv.has("conceptpred2label"):
-        atk = PGD_V2V(model, eps=5e-2, alpha=1e-2, steps=10, random_start=True)
-        adv_attr = atk(attr, label).cpu() if use_adv.has("concept2label") else atk(attr_pred, label).cpu()
-        adv_label = label.clone().detach().cpu()
-        attr_pred = torch.cat([attr if use_adv.has("concept2label") else attr_pred, adv_attr], dim=0)
-        label = torch.cat([label, adv_label], dim=0)
+    if "concept2label" in use_adv or "conceptpred2label" in use_adv:
+        atk = PGD_V2V(model.fc, eps=5e-2, alpha=1e-2, steps=10, random_start=True)
+        adv_attr = atk(attr, label).cuda() if "concept2label" in use_adv else atk(attr_pred, label).cuda()
+        adv_label = label.clone().detach().cuda()
+        attr_pred = torch.cat([attr.cuda() if "concept2label" in use_adv else attr_pred, adv_attr], dim=0).cuda()
+        label = torch.cat([label, adv_label], dim=0).cuda()
+        attr = torch.cat([attr, attr]).cuda()
     
     # 如果上方 if 未触发，label_pred 依赖 attr_pred 计算，而非 attr
     label_pred = model.fc(attr_pred)
@@ -96,13 +97,16 @@ def Sequential(
     label_optimizer.step()
     label_scheduler.step()
 
-    label_pred = torch.argmax(label_pred, dim=1)
-    correct = torch.sum(label_pred == label).int().sum().item()
-    num = len(label)
-    label_loss_meter.update(label_loss.item(), num)
-    label_acc_meter.update(correct / num, num)
+
+
+
     attr_pred = torch.sigmoid(attr_pred).ge(0.5)
     attr_correct = torch.sum(attr_pred == attr).int().sum().item()
     attr_num = attr.shape[0] * attr.shape[1]
     attr_loss_meter.update(attr_loss.item(), attr_num)
     attr_acc_meter.update(attr_correct / attr_num, attr_num)
+    label_pred = torch.argmax(label_pred, dim=1)
+    correct = torch.sum(label_pred == label).int().sum().item()
+    num = len(label)
+    label_loss_meter.update(label_loss.item(), num)
+    label_acc_meter.update(correct / num, num)
