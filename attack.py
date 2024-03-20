@@ -34,8 +34,9 @@ def attack(run):
     )(**conf["model_args"])
 
     # Get model path under the same experiment settings
+    run_hash = run.hash
     for file in os.listdir("checkpoints"):
-        if hash in file:
+        if run_hash in file:
             model_path = os.path.join("checkpoints", file)
 
     # load model
