@@ -52,47 +52,47 @@ class CBM(nn.Module):
 
         if base == "resnet50":
             if use_pretrained is True:
-                self.model = torchvision.models.resnet50(
+                self.backbone = torchvision.models.resnet50(
                     weights=torchvision.models.ResNet50_Weights.DEFAULT
                 )
-                self.model.fc = nn.Linear(2048, num_attributes)
+                self.backbone.fc = nn.Linear(2048, num_attributes)
             elif use_pretrained is False:
-                self.model = torchvision.models.resnet50(
+                self.backbone = torchvision.models.resnet50(
                     num_classes=num_attributes, weights=None
                 )
             else:
-                self.model = torchvision.models.resnet50(weights=None)
+                self.backbone = torchvision.models.resnet50(weights=None)
                 model_weights_path = use_pretrained
-                self.model.load_state_dict(torch.load(model_weights_path, map_location='cuda'))
-                self.model.fc = nn.Linear(2048, num_attributes)
+                self.backbone.load_state_dict(torch.load(model_weights_path, map_location='cuda'))
+                self.backbone.fc = nn.Linear(2048, num_attributes)
         elif base == "inceptionv3":
             if use_pretrained is True:
-                self.model = torchvision.models.inception_v3(
+                self.backbone = torchvision.models.inception_v3(
                     weights=torchvision.models.Inception_V3_Weights.DEFAULT
                 )
-                self.model.fc = nn.Linear(2048, num_attributes)
+                self.backbone.fc = nn.Linear(2048, num_attributes)
             elif use_pretrained is False:
-                self.model = torchvision.models.inception_v3(
+                self.backbone = torchvision.models.inception_v3(
                     num_classes=num_attributes, aux_logits=True, weights=None
                 )
             else:
-                self.model = torchvision.models.inception_v3(aux_logits=True, weights=None)
+                self.backbone = torchvision.models.inception_v3(aux_logits=True, weights=None)
                 model_weights_path = use_pretrained
-                self.model.load_state_dict(torch.load(model_weights_path, map_location='cuda'))
-                self.model.fc = nn.Linear(2048, num_attributes)
+                self.backbone.load_state_dict(torch.load(model_weights_path, map_location='cuda'))
+                self.backbone.fc = nn.Linear(2048, num_attributes)
         else:
             raise ValueError("Unknown base model")
         self.use_adv = use_adv
         self.fc = FC(num_attributes, num_classes)
 
     def forward(self, x):
-        attr_pred = self.model(x)
+        attr_pred = self.backbone(x)
         label_pred = self.fc(
             attr_pred if not isinstance(attr_pred, tuple) else attr_pred[0]
         )
-        if self.use_adv == "label":
+        if self.use_adv.has("image2label"):
             return label_pred
-        elif self.use_adv == "concept":
+        elif self.use_adv.has("image2concept"):
             return attr_pred
         else:
             return attr_pred, label_pred

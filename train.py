@@ -4,7 +4,7 @@ import torch.nn as nn
 import os
 from aim import Run
 import yaml
-from torchattacks import PGD
+from attackers import PGD
 
 from utils import AverageMeter, set_seed, test_acc
 
@@ -63,8 +63,6 @@ def main(config):
 
     # train
     model.cuda()
-    best_model = None
-    best_acc = 0
 
     run = Run(experiment=conf["experiment"], repo=os.getenv("AIM_REPO"))
     run["hparams"] = conf
@@ -76,36 +74,6 @@ def main(config):
         attr_loss_meter = AverageMeter()
         attr_acc_meter = AverageMeter()
         for img, label, attr in train_loader:
-            if isinstance(conf["use_adv"], str):
-                model.use_adv = conf["use_adv"]
-                atk = PGD(model, eps=5 / 255, alpha=2 / 225, steps=2, random_start=True)
-                atk.set_normalization_used(
-                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                )
-                adv_img = (
-                    atk(img, label).cpu()
-                    if conf["use_adv"] == "label"
-                    else atk(img, attr).cpu()
-                )
-                adv_label = label.clone().detach().cpu()
-                adv_attr = attr.clone().detach().cpu()
-                img = torch.cat([img, adv_img], dim=0)
-                label = torch.cat([label, adv_label], dim=0)
-                attr = torch.cat([attr, adv_attr], dim=0)
-                model.use_adv = False
-            if isinstance(conf["use_noise"], str):
-                if conf["use_noise"] == "iamge":
-                    noise = torch.randn_like(img) * 0.1
-                    noise_img = img.clone().detach() + noise
-                    noise_attr = attr.clone().detach()
-                elif conf["use_noise"] == "concept":
-                    noise = torch.randn_like(attr) * 0.1
-                    noise_attr = attr.clone().detach() + noise
-                    noise_img = img.clone().detach()
-                noise_label = label.clone().detach()
-                img = torch.cat([img, noise_img], dim=0)
-                label = torch.cat([label, noise_label], dim=0)
-                attr = torch.cat([attr, noise_attr], dim=0)
             kwargs = {
                 "img": img,
                 "label": label,
@@ -122,11 +90,11 @@ def main(config):
                 "attr_loss_meter": attr_loss_meter,
                 "attr_acc_meter": attr_acc_meter,
             }
-            if conf["attr_loss_weight"] is not False:
+            if isinstance(conf["attr_loss_weight"], float):
                 kwargs["attr_loss_weight"] = conf["attr_loss_weight"]
-            if conf["use_adv"] is not False:
+            if isinstance(conf["use_adv"], str):
                 kwargs["use_adv"] = conf["use_adv"]
-            if conf["use_noise"] is not False:
+            if isinstance(conf["use_noise"], str):
                 kwargs["use_noise"] = conf["use_noise"]
             getattr(
                 __import__("trainers." + conf["trainer"], fromlist=[""]),
@@ -142,7 +110,7 @@ def main(config):
             pretrained_mode = ""
         else:
             pretrained_mode = "selfpretrained_"
-        if label_acc_meter.avg > 0.85:
+        if label_acc_meter.avg > 0.80:
             torch.save(
                 model.state_dict(),
                 "checkpoints/"

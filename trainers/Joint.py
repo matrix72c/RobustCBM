@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-
+from torchattacks import PGD
 
 def Joint(
     img,
@@ -19,7 +19,30 @@ def Joint(
     loss_fn,
     attr_loss_fn,
     attr_loss_weight = 0.01,
+    use_adv = False,
+    use_noise = False,
 ):
+    if use_adv.has("image2label"):
+        model.use_adv = use_adv
+        atk = PGD(model, eps=5 / 255, alpha=2 / 225, steps=2, random_start=True)
+        atk.set_normalization_used(
+            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+        )
+        adv_img = atk(img, label).cpu()
+        adv_label = label.clone().detach().cpu()
+        adv_attr = attr.clone().detach().cpu()
+        img = torch.cat([img, adv_img], dim=0)
+        label = torch.cat([label, adv_label], dim=0)
+        attr = torch.cat([attr, adv_attr], dim=0)
+        model.use_adv = False
+    if use_noise == "image":
+        noise = torch.empty_like(img).uniform_(-5 / 255, 5 / 255)
+        noise_img = img.clone().detach() + noise
+        noise_attr = attr.clone().detach()
+        noise_label = label.clone().detach()
+        img = torch.cat([img, noise_img], dim=0)
+        label = torch.cat([label, noise_label], dim=0)
+        attr = torch.cat([attr, noise_attr], dim=0)
     img, label, attr = img.cuda(), label.cuda(), attr.cuda()
     attr_losses = []
     if model_base == "inceptionv3":

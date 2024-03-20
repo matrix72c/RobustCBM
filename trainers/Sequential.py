@@ -1,5 +1,6 @@
 import torch
 import torch.optim as optim
+from torchattacks import PGD, PGD_V2V
 
 def Sequential(
     img,
@@ -17,31 +18,42 @@ def Sequential(
     scheduler_args,
     loss_fn,
     attr_loss_fn,
+    use_adv = False,
+    use_noise = False,
 ):
+    if use_adv.has("image2concept"):
+        atk = PGD(model, eps=5 / 255, alpha=2 / 225, steps=2, random_start=True)
+        atk.set_normalization_used(
+            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+        )
+        adv_img = atk(img, label).cpu()
+        adv_label = label.clone().detach().cpu()
+        adv_attr = attr.clone().detach().cpu()
+        img = torch.cat([img, adv_img], dim=0)
+        label = torch.cat([label, adv_label], dim=0)
+        attr = torch.cat([attr, adv_attr], dim=0)
+    for name, param in model.named_parameters():
+        if "fc" in name:
+            param.requires_grad = False
+        else:
+            param.requires_grad = True
     img, label, attr = img.cuda(), label.cuda(), attr.cuda()
     attr_losses = []
     if model_base == "inceptionv3":
-        attr_logits_pred, label_pred = model(img)
-        attr_pred, logits_pred = attr_logits_pred
+        attr_pred, logits_pred = model.backbone(img)
         for i in range(attr_pred.shape[1]):
             attr_losses.append(
                 attr_loss_fn[i](attr_pred[:, i], attr[:, i]) * 0.7
                 + attr_loss_fn[i](logits_pred[:, i], attr[:, i]) * 0.3
             )
     else:
-        attr_pred, label_pred = model(img)
+        attr_pred = model.backbone(img)
         for i in range(attr_pred.shape[1]):
             attr_losses.append(attr_loss_fn[i](attr_pred[:, i], attr[:, i]))
     attr_loss = sum(attr_losses)
-    label_loss = loss_fn(label_pred, label)
 
-    for name, param in model.named_parameters():
-        if "fc" in name:
-            param.requires_grad = False
-        else:
-            param.requires_grad = True
     attr_optimizer = getattr(optim, optimizer_type)(
-        model.parameters(), **optimizer_args
+        model.backbone.parameters(), **optimizer_args
     )
     attr_scheduler = getattr(optim.lr_scheduler, scheduler_type)(
         attr_optimizer, **scheduler_args
@@ -56,8 +68,25 @@ def Sequential(
             param.requires_grad = True
         else:
             param.requires_grad = False
+    # re-calculate label pred
+    if model_base == "inceptionv3":
+        attr_pred, logits_pred = model.backbone(img)
+    else:
+        attr_pred = model.backbone(img)
+
+    if use_adv.has("concept2label") or use_adv.has("conceptpred2label"):
+        atk = PGD_V2V(model, eps=5e-2, alpha=1e-2, steps=10, random_start=True)
+        adv_attr = atk(attr, label).cpu() if use_adv.has("concept2label") else atk(attr_pred, label).cpu()
+        adv_label = label.clone().detach().cpu()
+        attr_pred = torch.cat([attr if use_adv.has("concept2label") else attr_pred, adv_attr], dim=0)
+        label = torch.cat([label, adv_label], dim=0)
+    
+    # 如果上方 if 未触发，label_pred 依赖 attr_pred 计算，而非 attr
+    label_pred = model.fc(attr_pred)
+    label_loss = loss_fn(label_pred, label)
+
     label_optimizer = getattr(optim, optimizer_type)(
-        model.parameters(), **optimizer_args
+        model.fc.parameters(), **optimizer_args
     )
     label_scheduler = getattr(optim.lr_scheduler, scheduler_type)(
         label_optimizer, **scheduler_args
