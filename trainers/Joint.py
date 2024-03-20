@@ -34,7 +34,7 @@ def Joint(
         img = torch.cat([img, adv_img], dim=0)
         label = torch.cat([label, adv_label], dim=0)
         attr = torch.cat([attr, adv_attr], dim=0)
-        model.use_adv = False
+        model.use_adv = ""
     if use_noise == "image":
         noise = torch.empty_like(img).uniform_(-5 / 255, 5 / 255)
         noise_img = img.clone().detach() + noise
