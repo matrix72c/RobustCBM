@@ -77,11 +77,11 @@ def Sequential(
     else:
         attr_pred = model.backbone(img)
 
-    if "concept2label" in use_adv or "conceptpred2label" in use_adv:
-        atk = PGD_V2V(model.fc, eps=5e-2, alpha=1e-2, steps=10, random_start=True)
-        adv_attr = atk(attr, label).cuda() if "concept2label" in use_adv else atk(attr_pred, label).cuda()
+    if "conceptpred2label" in use_adv:
+        atk = PGD_V2V(model.fc, eps=0.3, alpha=5e-2, steps=10, random_start=True)
+        adv_attr = atk(attr_pred, label).cuda()
         adv_label = label.clone().detach().cuda()
-        attr_pred = torch.cat([attr.cuda() if "concept2label" in use_adv else attr_pred, adv_attr], dim=0).cuda()
+        attr_pred = torch.cat([attr_pred, adv_attr], dim=0).cuda()
         label = torch.cat([label, adv_label], dim=0).cuda()
         attr = torch.cat([attr, attr]).cuda()
     

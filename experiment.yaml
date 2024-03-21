@@ -1,7 +1,30 @@
--
-  trainer: "Joint"
-  use_adv: ["", "image2label"]
-  use_noise: ["", "image"]
+# -
+#   trainer: "Joint"
+# -
+#   trainer: "Joint"
+#   use_adv: "image2label"
 # -
 #   trainer: "Sequential"
-#   use_adv: ["", "image2concept", "conceptpred2label", "image2concept&conceptpred2label"]
+# -
+#   trainer: "Sequential"
+#   use_adv: "image2concept"
+-
+  trainer: "Sequential"
+  use_adv: "conceptpred2label"
+-
+  trainer: "Sequential"
+  use_adv: "image2concept&conceptpred2label"
+# -
+#   trainer: "Joint"
+#   use_noise: "image"
+# -
+#   trainer: "Joint"
+#   use_adv: "image2label"
+#   use_noise: "image"
+-
+  trainer: "Joint"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
