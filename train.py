@@ -114,8 +114,10 @@ def train(conf):
                 + pretrained_mode
                 + conf["model_args"]["base"]
                 + "_"
-                + (("adv_" + conf["use_adv"] + "_") if len(conf["use_adv"]) > 0 else "")
-                + (("noise_" + conf["use_noise"] + "_") if len(conf["use_noise"]) > 0 else "")
+                + conf["trainer"]
+                + "_"
+                + ((conf["use_adv"] + "_") if len(conf["use_adv"]) > 0 else "")
+                + ((conf["use_noise"] + "_") if len(conf["use_noise"]) > 0 else "")
                 + str("{:.2f}".format(label_acc_meter.avg * 100))
                 + "_"
                 + run_hash
