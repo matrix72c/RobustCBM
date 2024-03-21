@@ -21,6 +21,7 @@ def Sequential(
     attr_loss_weight = 0.01,
     use_adv = "",
     use_noise = "",
+    adv_v2v_eps = 0.3,
 ):
     if "image2concept" in use_adv:
         model.use_adv = use_adv
@@ -78,7 +79,7 @@ def Sequential(
         attr_pred = model.backbone(img)
 
     if "conceptpred2label" in use_adv:
-        atk = PGD_V2V(model.fc, eps=0.3, alpha=5e-2, steps=10, random_start=True)
+        atk = PGD_V2V(model.fc, eps=adv_v2v_eps, alpha=5e-2, steps=10, random_start=True)
         adv_attr = atk(attr_pred, label).cuda()
         adv_label = label.clone().detach().cuda()
         attr_pred = torch.cat([attr_pred, adv_attr], dim=0).cuda()

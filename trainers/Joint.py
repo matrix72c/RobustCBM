@@ -21,6 +21,7 @@ def Joint(
     attr_loss_weight = 0.01,
     use_adv = "",
     use_noise = "",
+    adv_v2v_eps = 0.3,
 ):
     if "image2label" in use_adv:
         model.use_adv = use_adv

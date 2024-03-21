@@ -92,6 +92,7 @@ def train(conf):
                 "attr_loss_weight": conf["attr_loss_weight"],
                 "use_adv": conf["use_adv"],
                 "use_noise": conf["use_noise"],
+                "adv_v2v_eps": conf["adv_v2v_eps"],
             }
             getattr(
                 __import__("trainers." + conf["trainer"], fromlist=[""]),
@@ -124,6 +125,20 @@ def train(conf):
                 + ".pth",
             )
         if label_acc_meter.avg > 0.95:
+            models = [f for f in os.listdir("checkpoints/") if run_hash in f]
+            min_diff = float('inf')
+            file_to_keep = None
+            for file in models:
+                parts = file.split("_")
+                if len(parts) > 2 and parts[-2].replace('.', '', 1).isdigit():
+                    acc = float(parts[-2])
+                    diff = abs(acc - 90)
+                    if diff < min_diff:
+                        min_diff = diff
+                        file_to_keep = file
+            for file in models:
+                if file != file_to_keep and ".pth" in file:
+                    os.remove(os.path.join("checkpoints", file))
             attack(run)
             return
         # if (epoch + 1) % 100 == 0:
