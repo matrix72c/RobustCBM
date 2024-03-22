@@ -28,3 +28,11 @@
 #     num_attributes: 112
 #     num_classes: 200
 #     use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+-
+  trainer: "Sequential"
+  use_adv: "conceptpred2label"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
