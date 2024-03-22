@@ -47,15 +47,18 @@ def train(conf):
 
     # load loss function
     loss_fn = getattr(nn, conf["loss_fn"])()
-    if conf["use_imbalance_ratio"]:
-        attr_loss_fn = [
-            getattr(nn, conf["attr_loss_fn"])(weight=torch.FloatTensor([ratio]).cuda())
-            for ratio in train_dataset.imbalance_ratio
-        ]
+    if conf["model_args"]["base"] == "inceptionv3":
+        if conf["use_imbalance_ratio"]:
+            attr_loss_fn = [
+                getattr(nn, conf["attr_loss_fn"])(weight=torch.FloatTensor([ratio]).cuda())
+                for ratio in train_dataset.imbalance_ratio
+            ]
+        else:
+            attr_loss_fn = [
+                getattr(nn, conf["attr_loss_fn"])() for _ in train_dataset.imbalance_ratio
+            ]
     else:
-        attr_loss_fn = [
-            getattr(nn, conf["attr_loss_fn"])() for _ in train_dataset.imbalance_ratio
-        ]
+        attr_loss_fn = getattr(nn, conf["attr_loss_fn"])()
 
     # train
     model.cuda()

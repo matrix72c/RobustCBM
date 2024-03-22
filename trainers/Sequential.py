@@ -51,19 +51,18 @@ def Sequential(
         else:
             param.requires_grad = True
     img, label, attr = img.cuda(), label.cuda(), attr.cuda()
-    attr_losses = []
     if model_base == "inceptionv3":
+        attr_losses = []
         attr_pred, logits_pred = model.backbone(img)
         for i in range(attr_pred.shape[1]):
             attr_losses.append(
                 attr_loss_fn[i](attr_pred[:, i], attr[:, i]) * 0.7
                 + attr_loss_fn[i](logits_pred[:, i], attr[:, i]) * 0.3
             )
+        attr_loss = sum(attr_losses)
     else:
         attr_pred = model.backbone(img)
-        for i in range(attr_pred.shape[1]):
-            attr_losses.append(attr_loss_fn[i](attr_pred[:, i], attr[:, i]))
-    attr_loss = sum(attr_losses)
+        attr_loss = attr_loss_fn(attr_pred, attr)
 
     attr_optimizer = getattr(optim, optimizer_type)(
         model.backbone.parameters(), **optimizer_args
