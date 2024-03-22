@@ -16,10 +16,10 @@ optimizer: "SGD"
 optimizer_args:
   lr: 0.1
   momentum: 0.9
-  weight_decay: 0.0001
+  weight_decay: 0.0004
 scheduler: "StepLR"
 scheduler_args:
-  step_size: 50
+  step_size: 4000
   gamma: 0.1
 loss_fn: "CrossEntropyLoss"
 attr_loss_fn: "BCEWithLogitsLoss"
@@ -27,6 +27,6 @@ use_imbalance_ratio: False
 epochs: 4000
 use_adv: "" # "image2label", "image2concept", "conceptpred2label", "image2concept&conceptpred2label", ""
 use_noise: "" # "image" or "concept" or ""
-attr_loss_weight: 0.01
+attr_loss_weight: 1
 adv_v2v_eps: 0.3
 noise_eps: 0.3
