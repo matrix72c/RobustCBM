@@ -29,3 +29,4 @@ use_adv: "" # "image2label", "image2concept", "conceptpred2label", "image2concep
 use_noise: "" # "image" or "concept" or ""
 attr_loss_weight: 0.01
 adv_v2v_eps: 0.3
+noise_eps: 0.3

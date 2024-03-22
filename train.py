@@ -93,6 +93,7 @@ def train(conf):
                 "use_adv": conf["use_adv"],
                 "use_noise": conf["use_noise"],
                 "adv_v2v_eps": conf["adv_v2v_eps"],
+                "noise_eps": conf["noise_eps"],
             }
             getattr(
                 __import__("trainers." + conf["trainer"], fromlist=[""]),

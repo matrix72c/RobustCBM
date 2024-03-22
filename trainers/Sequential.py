@@ -22,6 +22,7 @@ def Sequential(
     use_adv = "",
     use_noise = "",
     adv_v2v_eps = 0.3,
+    noise_eps = 0.3,
 ):
     if "image2concept" in use_adv:
         model.use_adv = use_adv
@@ -36,6 +37,14 @@ def Sequential(
         label = torch.cat([label, adv_label], dim=0)
         attr = torch.cat([attr, adv_attr], dim=0)
         model.use_adv = ""
+    if use_noise == "image":
+        noise = torch.empty_like(img).uniform_(-5 / 255, 5 / 255)
+        noise_img = img.clone().detach() + noise
+        noise_attr = attr.clone().detach()
+        noise_label = label.clone().detach()
+        img = torch.cat([img, noise_img], dim=0)
+        label = torch.cat([label, noise_label], dim=0)
+        attr = torch.cat([attr, noise_attr], dim=0)
     for name, param in model.named_parameters():
         if "fc" in name:
             param.requires_grad = False
@@ -85,6 +94,13 @@ def Sequential(
         attr_pred = torch.cat([attr_pred, adv_attr], dim=0).cuda()
         label = torch.cat([label, adv_label], dim=0).cuda()
         attr = torch.cat([attr, attr]).cuda()
+
+    if use_noise == "concept":
+        noise = torch.empty_like(attr).uniform_(-noise_eps, noise_eps)
+        noise_attr = attr.clone().detach() + noise
+        noise_label = label.clone().detach()
+        attr = torch.cat([attr, noise_attr], dim=0)
+        label = torch.cat([label, noise_label], dim=0)
     
     # 如果上方 if 未触发，label_pred 依赖 attr_pred 计算，而非 attr
     label_pred = model.fc(attr_pred)

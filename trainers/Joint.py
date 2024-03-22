@@ -2,6 +2,7 @@ import torch
 import torch.optim as optim
 from torchattacks import PGD
 
+
 def Joint(
     img,
     label,
@@ -18,10 +19,11 @@ def Joint(
     scheduler_args,
     loss_fn,
     attr_loss_fn,
-    attr_loss_weight = 0.01,
-    use_adv = "",
-    use_noise = "",
-    adv_v2v_eps = 0.3,
+    attr_loss_weight=0.01,
+    use_adv="",
+    use_noise="",
+    adv_v2v_eps=0.3,
+    noise_eps=0.3,
 ):
     if "image2label" in use_adv:
         model.use_adv = use_adv
