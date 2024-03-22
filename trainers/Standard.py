@@ -18,10 +18,15 @@ def Standard(
     scheduler_args,
     loss_fn,
     attr_loss_fn,
+    attr_loss_weight = 1,
+    use_adv = "",
+    use_noise = "",
+    adv_v2v_eps = 0.3,
+    noise_eps = 0.3,
 ):
     img, label, attr = img.cuda(), label.cuda(), attr.cuda()
-    attr_losses = []
     if model_base == "inceptionv3":
+        attr_losses = []
         attr_logits_pred, label_pred = model(img)
         attr_pred, logits_pred = attr_logits_pred
         for i in range(attr_pred.shape[1]):
@@ -29,11 +34,10 @@ def Standard(
                 attr_loss_fn[i](attr_pred[:, i], attr[:, i]) * 0.7
                 + attr_loss_fn[i](logits_pred[:, i], attr[:, i]) * 0.3
             )
+        attr_loss = sum(attr_losses)
     else:
         attr_pred, label_pred = model(img)
-        for i in range(attr_pred.shape[1]):
-            attr_losses.append(attr_loss_fn[i](attr_pred[:, i], attr[:, i]))
-    attr_loss = sum(attr_losses)
+        attr_loss = attr_loss_fn(attr_pred, attr)
     label_loss = loss_fn(label_pred, label)
 
     optimizer = getattr(optim, optimizer_type)(model.parameters(), **optimizer_args)

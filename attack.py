@@ -1,14 +1,17 @@
 import argparse
 import os
 import torch
+import yaml
 from torchattacks import PGD
 from aim import Run
+import pandas as pd
 
 from utils import AverageMeter, set_seed, cal_top_k
 
 
-def attack(run):
-    conf = run[...]
+def attack(run_hash, run=None):
+    f = open("results/{}.yaml".format(run_hash), "r", encoding="utf-8")
+    conf = yaml.load(f.read(), Loader=yaml.FullLoader)
 
     # set seed
     set_seed(conf["seed"])
@@ -34,7 +37,6 @@ def attack(run):
     )(**conf["model_args"])
 
     # Get model path under the same experiment settings
-    run_hash = run.hash
     for file in os.listdir("checkpoints"):
         if run_hash in file:
             model_path = os.path.join("checkpoints", file)
@@ -45,6 +47,7 @@ def attack(run):
     model.eval()
 
     # attack
+    attack_log = [[0 for _ in range(10)] for _ in range(11)]
     for i in range(11):
         atk = PGD(model, eps=i / 255, alpha=2 / 225, steps=10, random_start=True)
         atk.set_normalization_used(
@@ -78,13 +81,23 @@ def attack(run):
                     label.size(0),
                 )
         for j in range(10):
-            run.track(name="pgd_label_acc_top_{}".format(j + 1), value=label_acc[j].avg, epoch=i)
-            # run.track(name="pgd_attr_acc_top_{}".format(j + 1), value=attr_acc[j].avg, epoch=i)
-
+            attack_log[i][j] = label_acc[j].avg
+            if run is not None:
+                run.track(
+                    name="pgd_label_acc_top_{}".format(j + 1),
+                    value=label_acc[j].avg,
+                    epoch=i,
+                )
+                # run.track(name="pgd_attr_acc_top_{}".format(j + 1), value=attr_acc[j].avg, epoch=i)
+    df = pd.DataFrame(attack_log, columns=["pgd_attr_acc_top_{}".format(i + 1) for i in range(10)])
+    df.to_csv("results/attack_{}.csv".format(run_hash), index=False)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--hash", type=str, default="")
     args = parser.parse_args()
-    run = Run(run_hash=args.hash, repo=os.getenv("AIM_REPO"))
-    attack(run)
+    try:
+        run = Run(run_hash=args.hash, repo=os.getenv("AIM_REPO"))
+    except:
+        run = None
+    attack(args.hash, run)

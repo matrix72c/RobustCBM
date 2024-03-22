@@ -1,62 +1,351 @@
 -
   trainer: "Joint"
-# -
-#   trainer: "Joint"
-#   use_adv: "image2label"
-# -
-#   trainer: "Joint"
-#   use_noise: "image"
-# -
-#   trainer: "Joint"
-#   use_adv: "image2label"
-#   use_noise: "image"
-# -
-#   trainer: "Joint"
-#   model_args:
-#     base: "resnet50"
-#     num_attributes: 112
-#     num_classes: 200
-#     use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
-# -
-#   trainer: "Sequential"
-# -
-#   trainer: "Sequential"
-#   use_adv: "image2concept"
-# -
-#   trainer: "Sequential"
-#   use_adv: "conceptpred2label"
-# -
-#   trainer: "Sequential"
-#   use_adv: "image2concept&conceptpred2label"
-# -
-#   trainer: "Sequential"
-#   use_noise: "concept"
-# -
-#   trainer: "Sequential"
-#   use_adv: "image2concept"
-#   use_noise: "concept"
-# -
-#   trainer: "Sequential"
-#   use_adv: "conceptpred2label"
-#   use_noise: "concept"
-# -
-#   trainer: "Sequential"
-#   use_adv: "image2concept&conceptpred2label"
-#   use_noise: "concept"
-# -
-#   trainer: "Sequential"
-#   use_adv: "conceptpred2label"
-#   model_args:
-#     base: "resnet50"
-#     num_attributes: 112
-#     num_classes: 200
-#     use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
-# -
-#   trainer: "Sequential"
-#   use_adv: "conceptpred2label"
-#   model_args:
-#     base: "resnet50"
-#     num_attributes: 112
-#     num_classes: 200
-#     use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
-#   use_noise: "concept"
+-
+  trainer: "Joint"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+-
+  trainer: "Joint"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+-
+  trainer: "Joint"
+  use_adv: "image2label"
+-
+  trainer: "Joint"
+  use_adv: "image2label"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+-
+  trainer: "Joint"
+  use_adv: "image2label"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+-
+  trainer: "Sequential"
+-
+  trainer: "Sequential"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+-
+  trainer: "Sequential"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+-
+  trainer: "Sequential"
+  use_adv: "image2concept"
+-
+  trainer: "Sequential"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+  use_adv: "image2concept"
+-
+  trainer: "Sequential"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_adv: "image2concept"
+-
+  trainer: "Sequential"
+  use_adv: "concept2label"
+-
+  trainer: "Sequential"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+  use_adv: "concept2label"
+-
+  trainer: "Sequential"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_adv: "concept2label"
+-
+  trainer: "Sequential"
+  use_adv: "image2concept&concept2label"
+-
+  trainer: "Sequential"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+  use_adv: "image2concept&concept2label"
+-
+  trainer: "Sequential"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_adv: "image2concept&concept2label"
+-
+  trainer: "Independent"
+-
+  trainer: "Independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+-
+  trainer: "Independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+-
+  trainer: "Independent"
+  use_adv: "image2concept"
+-
+  trainer: "Independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+  use_adv: "image2concept"
+-
+  trainer: "Independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_adv: "image2concept"
+-
+  trainer: "Independent"
+  use_adv: "concept2label"
+-
+  trainer: "Independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+  use_adv: "concept2label"
+-
+  trainer: "Independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_adv: "concept2label"
+-
+  trainer: "Independent"
+  use_adv: "image2concept&concept2label"
+-
+  trainer: "Independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+  use_adv: "image2concept&concept2label"
+-
+  trainer: "Independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_adv: "image2concept&concept2label"
+-
+  trainer: "Seperate"
+  seperate_mode: "combined"
+-
+  trainer: "Seperate"
+  seperate_mode: "combined"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+-
+  trainer: "Seperate"
+  seperate_mode: "combined"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+-
+  trainer: "Seperate"
+  seperate_mode: "combined"
+  use_adv: "image2concept"
+-
+  trainer: "Seperate"
+  seperate_mode: "combined"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+  use_adv: "image2concept"
+-
+  trainer: "Seperate"
+  seperate_mode: "combined"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_adv: "image2concept"
+-
+  trainer: "Seperate"
+  seperate_mode: "combined"
+  use_adv: "concept2label"
+-
+  trainer: "Seperate"
+  seperate_mode: "combined"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+  use_adv: "concept2label"
+-
+  trainer: "Seperate"
+  seperate_mode: "combined"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_adv: "concept2label"
+-
+  trainer: "Seperate"
+  seperate_mode: "combined"
+  use_adv: "image2concept&concept2label"
+-
+  trainer: "Seperate"
+  seperate_mode: "combined"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+  use_adv: "image2concept&concept2label"
+-
+  trainer: "Seperate"
+  seperate_mode: "combined"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_adv: "image2concept&concept2label"
+-
+  trainer: "Seperate"
+  seperate_mode: "independent"
+-
+  trainer: "Seperate"
+  seperate_mode: "independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+-
+  trainer: "Seperate"
+  seperate_mode: "independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+-
+  trainer: "Seperate"
+  seperate_mode: "independent"
+  use_adv: "image2concept"
+-
+  trainer: "Seperate"
+  seperate_mode: "independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+  use_adv: "image2concept"
+-
+  trainer: "Seperate"
+  seperate_mode: "independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_adv: "image2concept"
+-
+  trainer: "Seperate"
+  seperate_mode: "independent"
+  use_adv: "concept2label"
+-
+  trainer: "Seperate"
+  seperate_mode: "independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+  use_adv: "concept2label"
+-
+  trainer: "Seperate"
+  seperate_mode: "independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_adv: "concept2label"
+-
+  trainer: "Seperate"
+  seperate_mode: "independent"
+  use_adv: "image2concept&concept2label"
+-
+  trainer: "Seperate"
+  seperate_mode: "independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: True
+  use_adv: "image2concept&concept2label"
+-
+  trainer: "Seperate"
+  seperate_mode: "independent"
+  model_args:
+    base: "resnet50"
+    num_attributes: 112
+    num_classes: 200
+    use_pretrained: "pretrained_models/resnet_train_acc_0.88_test_acc_0.75.pth"
+  use_adv: "image2concept&concept2label"

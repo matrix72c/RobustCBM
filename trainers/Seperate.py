@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from torchattacks import PGD, PGD_V2V
 
-def Sequential(
+def image2concept(
     img,
     label,
     attr,
@@ -75,16 +75,50 @@ def Sequential(
     attr_optimizer.step()
     attr_scheduler.step()
 
+    attr_pred = torch.sigmoid(attr_pred).ge(0.5)
+    attr_correct = torch.sum(attr_pred == attr).int().sum().item()
+    attr_num = attr.shape[0] * attr.shape[1]
+    attr_loss_meter.update(attr_loss.item(), attr_num)
+    attr_acc_meter.update(attr_correct / attr_num, attr_num)
+
+def concept2label(
+    img,
+    label,
+    attr,
+    model,
+    model_base,
+    label_loss_meter,
+    label_acc_meter,
+    attr_loss_meter,
+    attr_acc_meter,
+    optimizer_type,
+    optimizer_args,
+    scheduler_type,
+    scheduler_args,
+    loss_fn,
+    attr_loss_fn,
+    attr_loss_weight = 0.01,
+    use_adv = "",
+    use_noise = "",
+    adv_v2v_eps = 0.3,
+    noise_eps = 0.3,
+    seperate_mode = "combined",
+):
+    img, label, attr = img.cuda(), label.cuda(), attr.cuda()
+
     for name, param in model.named_parameters():
         if "fc" in name:
             param.requires_grad = True
         else:
             param.requires_grad = False
-    # re-calculate label pred
-    if model_base == "inceptionv3":
-        attr_pred, logits_pred = model.backbone(img)
+
+    if seperate_mode == "combined":
+        if model_base == "inceptionv3":
+            attr_pred, logits_pred = model.backbone(img)
+        else:
+            attr_pred = model.backbone(img)
     else:
-        attr_pred = model.backbone(img)
+        attr_pred = attr
 
     if "concept2label" in use_adv:
         atk = PGD_V2V(model.fc, eps=adv_v2v_eps, alpha=5e-2, steps=10, random_start=True)
@@ -92,13 +126,12 @@ def Sequential(
         adv_label = label.clone().detach().cuda()
         attr_pred = torch.cat([attr_pred, adv_attr], dim=0).cuda()
         label = torch.cat([label, adv_label], dim=0).cuda()
-        attr = torch.cat([attr, attr]).cuda()
 
     if use_noise == "concept":
-        noise = torch.empty_like(attr).uniform_(-noise_eps, noise_eps)
-        noise_attr = attr.clone().detach() + noise
+        noise = torch.empty_like(attr_pred).uniform_(-noise_eps, noise_eps)
+        noise_attr = attr_pred.clone().detach() + noise
         noise_label = label.clone().detach()
-        attr = torch.cat([attr, noise_attr], dim=0)
+        attr = torch.cat([attr_pred, noise_attr], dim=0)
         label = torch.cat([label, noise_label], dim=0)
     
     label_pred = model.fc(attr_pred)
@@ -115,14 +148,6 @@ def Sequential(
     label_optimizer.step()
     label_scheduler.step()
 
-
-
-
-    attr_pred = torch.sigmoid(attr_pred).ge(0.5)
-    attr_correct = torch.sum(attr_pred == attr).int().sum().item()
-    attr_num = attr.shape[0] * attr.shape[1]
-    attr_loss_meter.update(attr_loss.item(), attr_num)
-    attr_acc_meter.update(attr_correct / attr_num, attr_num)
     label_pred = torch.argmax(label_pred, dim=1)
     correct = torch.sum(label_pred == label).int().sum().item()
     num = len(label)

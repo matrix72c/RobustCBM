@@ -19,7 +19,7 @@ def Joint(
     scheduler_args,
     loss_fn,
     attr_loss_fn,
-    attr_loss_weight=0.01,
+    attr_loss_weight=1,
     use_adv="",
     use_noise="",
     adv_v2v_eps=0.3,

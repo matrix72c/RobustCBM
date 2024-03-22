@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from torchattacks import PGD, PGD_V2V
 
-def Sequential(
+def Independent(
     img,
     label,
     attr,
@@ -80,19 +80,13 @@ def Sequential(
             param.requires_grad = True
         else:
             param.requires_grad = False
-    # re-calculate label pred
-    if model_base == "inceptionv3":
-        attr_pred, logits_pred = model.backbone(img)
-    else:
-        attr_pred = model.backbone(img)
 
     if "concept2label" in use_adv:
         atk = PGD_V2V(model.fc, eps=adv_v2v_eps, alpha=5e-2, steps=10, random_start=True)
-        adv_attr = atk(attr_pred, label).cuda()
+        adv_attr = atk(attr, label).cuda()
         adv_label = label.clone().detach().cuda()
-        attr_pred = torch.cat([attr_pred, adv_attr], dim=0).cuda()
+        attr = torch.cat([attr, adv_attr], dim=0).cuda()
         label = torch.cat([label, adv_label], dim=0).cuda()
-        attr = torch.cat([attr, attr]).cuda()
 
     if use_noise == "concept":
         noise = torch.empty_like(attr).uniform_(-noise_eps, noise_eps)
@@ -114,9 +108,6 @@ def Sequential(
     label_loss.backward()
     label_optimizer.step()
     label_scheduler.step()
-
-
-
 
     attr_pred = torch.sigmoid(attr_pred).ge(0.5)
     attr_correct = torch.sum(attr_pred == attr).int().sum().item()
