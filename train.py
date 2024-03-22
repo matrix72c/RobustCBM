@@ -6,7 +6,7 @@ from aim import Run
 import yaml
 import pandas as pd
 
-from utils import AverageMeter, set_seed, test_acc
+from utils import AverageMeter, set_seed
 from attack import attack
 
 
@@ -122,8 +122,7 @@ def train(conf):
             run.track(name="attr_loss", value=attr_loss_meter.avg, epoch=epoch)
             run.track(name="attr_acc", value=attr_acc_meter.avg, epoch=epoch)
             train_log.append([attr_loss_meter.avg, attr_acc_meter.avg, 0, 0])
-            acc, attr_acc = test_acc(model, test_loader)
-            if attr_acc > 0.995:
+            if attr_acc_meter.avg > 0.995:
                 break
         for epoch in range(conf["epochs"]):
             model.train()
@@ -163,18 +162,17 @@ def train(conf):
             run.track(name="label_acc", value=label_acc_meter.avg, epoch=epoch)
             train_log[epoch][2] = label_loss_meter.avg
             train_log[epoch][3] = label_acc_meter.avg
-            acc, attr_acc = test_acc(model, test_loader)
-            if acc > 0.80:
+            if label_acc_meter.avg > 0.80:
                 torch.save(
                     model.state_dict(),
                     "checkpoints/"
                     + run.description
-                    + str("{:.2f}".format(acc * 100))
+                    + str("{:.2f}".format(label_acc_meter.avg * 100))
                     + "_"
                     + run_hash
                     + ".pth",
                 )
-            if acc > 0.95:
+            if label_acc_meter.avg > 0.95:
                 models = [f for f in os.listdir("checkpoints/") if run_hash in f]
                 min_diff = float("inf")
                 file_to_keep = None
@@ -241,18 +239,17 @@ def train(conf):
                 label_acc_meter.avg,
             ]
         )
-        acc, attr_acc = test_acc(model, test_loader)
-        if acc > 0.80:
+        if label_acc_meter.avg > 0.80:
             torch.save(
                 model.state_dict(),
                 "checkpoints/"
                 + run.description
-                + str("{:.2f}".format(acc * 100))
+                + str("{:.2f}".format(label_acc_meter.avg * 100))
                 + "_"
                 + run_hash
                 + ".pth",
             )
-        if acc > 0.95:
+        if label_acc_meter.avg > 0.95:
             models = [f for f in os.listdir("checkpoints/") if run_hash in f]
             min_diff = float("inf")
             file_to_keep = None
@@ -273,6 +270,31 @@ def train(conf):
             df.to_csv("results/train_" + run_hash + ".csv", index=False)
             attack(run_hash, run)
             return
+        # if (epoch + 1) % 100 == 0:
+        #     acc, attr_acc = test_acc(model, test_loader)
+        #     run.track(name="test_acc", value=acc, epoch=epoch)
+        #     run.track(name="test_attr_acc", value=attr_acc, epoch=epoch)
+        #     if acc > best_acc:
+        #         best_acc = acc
+        #         best_model = model.state_dict()
+        # if (epoch + 1) % 500 == 0:
+        #     # delete previous checkpoints
+        #     for file in os.listdir("checkpoints"):
+        #         if file.endswith(run_hash + ".pth"):
+        #             os.remove(os.path.join("checkpoints", file))
+        #     torch.save(
+        #         best_model,
+        #         "checkpoints/"
+        #         + pretrained_mode
+        #         + conf["model_args"]["base"]
+        #         + "_"
+        #         + ("adv_" if conf["use_adv"] else "")
+        #         + ("noise_" if conf["add_noise"] else "")
+        #         + str("{:.2f}".format(best_acc * 100))
+        #         + "_"
+        #         + run_hash
+        #         + ".pth",
+        #     )
 
 
 if __name__ == "__main__":
