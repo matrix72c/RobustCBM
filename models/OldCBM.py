@@ -15,11 +15,11 @@ class OldCBM(nn.Module):
         super(OldCBM, self).__init__()
 
         if base == "resnet50":
-            self.base = torchvision.models.resnet50(
+            self.backbone = torchvision.models.resnet50(
                 num_classes=num_attributes, pretrained=False
             )
         elif base == "vgg":
-            self.base = None
+            self.backbone = None
 
         self.fc = nn.Sequential(
             nn.Linear(num_attributes, 512), nn.ReLU(), nn.Linear(512, num_classes)
@@ -28,7 +28,7 @@ class OldCBM(nn.Module):
         # self.fc = nn.Sequential(nn.Linear(num_attributes,num_classes))
 
     def forward(self, x):
-        concept_pred = self.base(x)
+        concept_pred = self.backbone(x)
         if self.use_adv == "image2label":
             return self.fc(concept_pred)
         return concept_pred, self.fc(concept_pred)
