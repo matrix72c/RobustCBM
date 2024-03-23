@@ -24,6 +24,7 @@ class OldCBM(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(num_attributes, 512), nn.ReLU(), nn.Linear(512, num_classes)
         )
+        self.use_adv = use_adv
         # self.fc = nn.Sequential(nn.Linear(num_attributes,num_classes))
 
     def forward(self, x):
