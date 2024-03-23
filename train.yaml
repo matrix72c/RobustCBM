@@ -6,7 +6,7 @@ dataset: "CUB"
 batch_size: 128
 num_workers: 8
 trainer: "Joint"
-model: "OldCBM"
+model: "CBM"
 model_args:
   base: "resnet50"
   num_attributes: 112

@@ -13,11 +13,8 @@ def Sequential(
     attr_loss_meter,
     attr_acc_meter,
     backbone_optimizer,
-    backbone_scheduler,
     fc_optimizer,
-    fc_scheduler,
     optimizer,
-    scheduler,
     loss_fn,
     attr_loss_fn,
     attr_loss_weight = 1,
@@ -63,7 +60,6 @@ def Sequential(
 
     attr_loss.backward()
     backbone_optimizer.step()
-    backbone_scheduler.step()
     backbone_optimizer.zero_grad()
 
     # re-calculate label pred
@@ -92,7 +88,6 @@ def Sequential(
 
     label_loss.backward()
     fc_optimizer.step()
-    fc_scheduler.step()
     fc_optimizer.zero_grad()
 
 

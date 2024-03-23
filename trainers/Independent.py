@@ -13,11 +13,8 @@ def Independent(
     attr_loss_meter,
     attr_acc_meter,
     backbone_optimizer,
-    backbone_scheduler,
     fc_optimizer,
-    fc_scheduler,
     optimizer,
-    scheduler,
     loss_fn,
     attr_loss_fn,
     attr_loss_weight = 1,
@@ -64,7 +61,6 @@ def Independent(
 
     attr_loss.backward()
     backbone_optimizer.step()
-    backbone_scheduler.step()
     backbone_optimizer.zero_grad()
 
     if "concept2label" in use_adv:
@@ -86,7 +82,6 @@ def Independent(
 
     label_loss.backward()
     fc_optimizer.step()
-    fc_scheduler.step()
     fc_optimizer.zero_grad()
 
     attr_pred = torch.sigmoid(attr_pred).ge(0.5)

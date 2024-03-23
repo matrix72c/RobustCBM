@@ -13,9 +13,7 @@ def image2concept(
     attr_loss_meter,
     attr_acc_meter,
     backbone_optimizer,
-    backbone_scheduler,
     fc_optimizer,
-    fc_scheduler,
     loss_fn,
     attr_loss_fn,
     attr_loss_weight = 1,
@@ -61,7 +59,6 @@ def image2concept(
 
     attr_loss.backward()
     backbone_optimizer.step()
-    backbone_scheduler.step()
     backbone_optimizer.zero_grad()
 
     attr_pred = torch.sigmoid(attr_pred).ge(0.5)
@@ -81,9 +78,7 @@ def concept2label(
     attr_loss_meter,
     attr_acc_meter,
     backbone_optimizer,
-    backbone_scheduler,
     fc_optimizer,
-    fc_scheduler,
     loss_fn,
     attr_loss_fn,
     attr_loss_weight = 0.01,
@@ -122,7 +117,6 @@ def concept2label(
 
     label_loss.backward()
     fc_optimizer.step()
-    fc_scheduler.step()
     fc_optimizer.zero_grad()
 
     label_pred = torch.argmax(label_pred, dim=1)

@@ -87,7 +87,7 @@ def train(conf):
     train_log = []
     backbone_optimizer = getattr(
         __import__("torch.optim", fromlist=[""]), conf["optimizer"]
-    )(model.base.parameters(), **conf["optimizer_args"])
+    )(model.backbone.parameters(), **conf["optimizer_args"])
     backbone_scheduler = getattr(
         __import__("torch.optim.lr_scheduler", fromlist=[""]),
         conf["scheduler"],
@@ -125,9 +125,7 @@ def train(conf):
                     "attr_loss_meter": attr_loss_meter,
                     "attr_acc_meter": attr_acc_meter,
                     "backbone_optimizer": backbone_optimizer,
-                    "backbone_scheduler": backbone_scheduler,
                     "fc_optimizer": fc_optimizer,
-                    "fc_scheduler": fc_scheduler,
                     "loss_fn": loss_fn,
                     "attr_loss_fn": attr_loss_fn,
                     "attr_loss_weight": conf["attr_loss_weight"],
@@ -140,6 +138,7 @@ def train(conf):
                     __import__("trainers.Seperate", fromlist=[""]),
                     "image2concept",
                 )(**kwargs)
+                backbone_scheduler.step()
             run.track(name="attr_loss", value=attr_loss_meter.avg, epoch=epoch)
             run.track(name="attr_acc", value=attr_acc_meter.avg, epoch=epoch)
             train_log.append([attr_loss_meter.avg, attr_acc_meter.avg, 0, 0])
@@ -188,6 +187,7 @@ def train(conf):
                     __import__("trainers.Seperate", fromlist=[""]),
                     "concept2label",
                 )(**kwargs)
+                fc_scheduler.step()
             run.track(name="label_loss", value=label_loss_meter.avg, epoch=epoch)
             run.track(name="label_acc", value=label_acc_meter.avg, epoch=epoch)
             train_log[epoch][2] = label_loss_meter.avg
@@ -251,11 +251,8 @@ def train(conf):
                 "attr_loss_meter": attr_loss_meter,
                 "attr_acc_meter": attr_acc_meter,
                 "backbone_optimizer": backbone_optimizer,
-                "backbone_scheduler": backbone_scheduler,
                 "fc_optimizer": fc_optimizer,
-                "fc_scheduler": fc_scheduler,
                 "optimizer": optimizer,
-                "scheduler": scheduler,
                 "loss_fn": loss_fn,
                 "attr_loss_fn": attr_loss_fn,
                 "attr_loss_weight": conf["attr_loss_weight"],
@@ -268,6 +265,9 @@ def train(conf):
                 __import__("trainers." + conf["trainer"], fromlist=[""]),
                 conf["trainer"],
             )(**kwargs)
+            backbone_scheduler.step()
+            fc_scheduler.step()
+            scheduler.step()
         print(
             "Epoch: {} Label Loss: {:.4f} Label Acc: {:.4f} Attr Loss: {:.4f} Attr Acc: {:.4f}".format(
                 epoch,

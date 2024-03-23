@@ -14,11 +14,8 @@ def Joint(
     attr_loss_meter,
     attr_acc_meter,
     backbone_optimizer,
-    backbone_scheduler,
     fc_optimizer,
-    fc_scheduler,
     optimizer,
-    scheduler,
     loss_fn,
     attr_loss_fn,
     attr_loss_weight=1,
@@ -66,7 +63,6 @@ def Joint(
 
     (label_loss + attr_loss * attr_loss_weight).backward()
     optimizer.step()
-    scheduler.step()
     optimizer.zero_grad()
 
     label_pred = torch.argmax(label_pred, dim=1)
