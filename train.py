@@ -227,6 +227,15 @@ def train(conf):
                 __import__("trainers." + conf["trainer"], fromlist=[""]),
                 conf["trainer"],
             )(**kwargs)
+        print(
+            "Epoch: {} Label Loss: {:.4f} Label Acc: {:.4f} Attr Loss: {:.4f} Attr Acc: {:.4f}".format(
+                epoch,
+                label_loss_meter.avg,
+                label_acc_meter.avg,
+                attr_loss_meter.avg,
+                attr_acc_meter.avg,
+            )
+        )
         run.track(name="label_loss", value=label_loss_meter.avg, epoch=epoch)
         run.track(name="label_acc", value=label_acc_meter.avg, epoch=epoch)
         run.track(name="attr_loss", value=attr_loss_meter.avg, epoch=epoch)

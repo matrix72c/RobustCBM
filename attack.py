@@ -53,7 +53,6 @@ def attack(run_hash, run=None):
         atk.set_normalization_used(
             mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
         )
-        attr_acc = [AverageMeter() for _ in range(10)]
         label_acc = [AverageMeter() for _ in range(10)]
         for img, label, attr in test_loader:
             img, label, attr = img.cuda(), label.cuda(), attr.cuda()
@@ -63,17 +62,10 @@ def attack(run_hash, run=None):
             with torch.no_grad():
                 attr_pred, label_pred = model(img)
                 adv_attr_pred, adv_label_pred = model(adv_img)
-            attr_pred = attr_pred.cpu()
             label_pred = label_pred.cpu()
-            adv_attr_pred = adv_attr_pred.cpu()
             adv_label_pred = adv_label_pred.cpu()
-            # attr_pred = torch.sigmoid(attr_pred).ge(0.5)
             label_pred = label_pred.max(1, keepdim=True)[1]
             for j in range(10):
-                # attr_acc[j].update(
-                #     1 - cal_top_k(adv_attr_pred, attr_pred, k=j + 1).item() / attr.size(0),
-                #     attr.size(0),
-                # )
                 label_acc[j].update(
                     1
                     - cal_top_k(adv_label_pred, label_pred, k=j + 1).item()
@@ -82,6 +74,7 @@ def attack(run_hash, run=None):
                 )
         for j in range(10):
             attack_log[i][j] = label_acc[j].avg
+            print("eps: {}, pgd_label_acc_top_{}: {}".format(i, j + 1, label_acc[j].avg))
             if run is not None:
                 run.track(
                     name="pgd_label_acc_top_{}".format(j + 1),
