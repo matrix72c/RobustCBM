@@ -19,14 +19,14 @@ def train(conf):
         __import__("dataprovider." + conf["dataset"], fromlist=[""]), conf["dataset"]
     )(
         conf["data_path"],
-        resol=224 if conf["model"] == "resnet50" else 299,
+        resol=224,
         is_train=True,
     )
     test_dataset = getattr(
         __import__("dataprovider." + conf["dataset"], fromlist=[""]), conf["dataset"]
     )(
         conf["data_path"],
-        resol=224 if conf["model"] == "resnet50" else 299,
+        resol=224,
         is_train=False,
     )
     train_loader = torch.utils.data.DataLoader(
@@ -138,7 +138,7 @@ def train(conf):
                     __import__("trainers.Seperate", fromlist=[""]),
                     "image2concept",
                 )(**kwargs)
-            backbone_scheduler.step()
+            # backbone_scheduler.step()
             run.track(name="attr_loss", value=attr_loss_meter.avg, epoch=epoch)
             run.track(name="attr_acc", value=attr_acc_meter.avg, epoch=epoch)
             train_log.append([attr_loss_meter.avg, attr_acc_meter.avg, 0, 0])
@@ -187,7 +187,7 @@ def train(conf):
                     __import__("trainers.Seperate", fromlist=[""]),
                     "concept2label",
                 )(**kwargs)
-            fc_scheduler.step()
+            # fc_scheduler.step()
             run.track(name="label_loss", value=label_loss_meter.avg, epoch=epoch)
             run.track(name="label_acc", value=label_acc_meter.avg, epoch=epoch)
             train_log[epoch][2] = label_loss_meter.avg
@@ -265,9 +265,9 @@ def train(conf):
                 __import__("trainers." + conf["trainer"], fromlist=[""]),
                 conf["trainer"],
             )(**kwargs)
-        backbone_scheduler.step()
-        fc_scheduler.step()
-        scheduler.step()
+        # backbone_scheduler.step()
+        # fc_scheduler.step()
+        # scheduler.step()
         print(
             "Epoch: {} Label Loss: {:.4f} Label Acc: {:.4f} Attr Loss: {:.4f} Attr Acc: {:.4f}".format(
                 epoch,

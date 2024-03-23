@@ -1,5 +1,6 @@
 import argparse
 import os
+import numpy as np
 import torch
 import yaml
 from torchattacks import PGD
@@ -21,7 +22,7 @@ def attack(run_hash, run=None):
         __import__("dataprovider." + conf["dataset"], fromlist=[""]), conf["dataset"]
     )(
         conf["data_path"],
-        resol=224 if conf["model"] == "resnet50" else 299,
+        resol=224,
         is_train=False,
     )
     test_loader = torch.utils.data.DataLoader(
@@ -54,24 +55,29 @@ def attack(run_hash, run=None):
             mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
         )
         label_acc = [AverageMeter() for _ in range(10)]
+        acc = np.zeros(10)
+        data_len = 0
         for img, label, attr in test_loader:
             img, label, attr = img.cuda(), label.cuda(), attr.cuda()
+            batch_len = img.size(0)
             model.use_adv = "image2label"
             adv_img = atk(img, label) if i > 0 else img
-            model.use_adv = ""
             with torch.no_grad():
-                attr_pred, label_pred = model(img)
-                adv_attr_pred, adv_label_pred = model(adv_img)
+                label_pred = model(img)
+                adv_label_pred = model(adv_img)
             label_pred = label_pred.cpu()
             adv_label_pred = adv_label_pred.cpu()
             label_pred = label_pred.max(1, keepdim=True)[1]
             for j in range(10):
+                acc[j] += (batch_len - cal_top_k(adv_label_pred,label_pred,k=j+1).item())
                 label_acc[j].update(
                     1
                     - cal_top_k(adv_label_pred, label_pred, k=j + 1).item()
                     / label.size(0),
                     label.size(0),
                 )
+            data_len += batch_len
+        print(i, " ", acc, " / ", data_len)
         for j in range(10):
             attack_log[i][j] = label_acc[j].avg
             print("eps: {}, pgd_label_acc_top_{}: {}".format(i, j + 1, label_acc[j].avg))
