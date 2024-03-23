@@ -201,7 +201,7 @@ def train(conf):
                     attr_acc_meter.avg,
                 )
             )
-            if label_acc_meter.avg > 0.80 and attr_acc_meter.avg > 0.90:
+            if label_acc_meter.avg > 0.80 and attr_acc_meter.avg > 0.85:
                 torch.save(
                     model.state_dict(),
                     "checkpoints/"
@@ -211,7 +211,7 @@ def train(conf):
                     + run_hash
                     + ".pth",
                 )
-            if label_acc_meter.avg > 0.95 and attr_acc_meter.avg > 0.90:
+            if label_acc_meter.avg > 0.95 and attr_acc_meter.avg > 0.85:
                 models = [f for f in os.listdir("checkpoints/") if run_hash in f]
                 min_diff = float("inf")
                 file_to_keep = None
