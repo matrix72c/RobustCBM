@@ -77,7 +77,7 @@ def Independent(
         attr = torch.cat([attr, noise_attr], dim=0)
         label = torch.cat([label, noise_label], dim=0)
     
-    label_pred = model.fc(attr_pred)
+    label_pred = model.fc(attr)
     label_loss = loss_fn(label_pred, label)
 
     label_loss.backward()
