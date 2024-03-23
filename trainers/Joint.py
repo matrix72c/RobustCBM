@@ -13,10 +13,12 @@ def Joint(
     label_acc_meter,
     attr_loss_meter,
     attr_acc_meter,
-    optimizer_type,
-    optimizer_args,
-    scheduler_type,
-    scheduler_args,
+    backbone_optimizer,
+    backbone_scheduler,
+    fc_optimizer,
+    fc_scheduler,
+    optimizer,
+    scheduler,
     loss_fn,
     attr_loss_fn,
     attr_loss_weight=1,
@@ -62,12 +64,10 @@ def Joint(
         attr_loss = attr_loss_fn(attr_pred, attr)
     label_loss = loss_fn(label_pred, label)
 
-    optimizer = getattr(optim, optimizer_type)(model.parameters(), **optimizer_args)
-    scheduler = getattr(optim.lr_scheduler, scheduler_type)(optimizer, **scheduler_args)
-    optimizer.zero_grad()
     (label_loss + attr_loss * attr_loss_weight).backward()
     optimizer.step()
     scheduler.step()
+    optimizer.zero_grad()
 
     label_pred = torch.argmax(label_pred, dim=1)
     correct = torch.sum(label_pred == label).int().sum().item()

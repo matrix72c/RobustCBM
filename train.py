@@ -85,6 +85,27 @@ def train(conf):
     f = open("results/{}.yaml".format(run_hash), "w", encoding="utf-8")
     yaml.dump(conf, f, allow_unicode=True)
     train_log = []
+    backbone_optimizer = getattr(
+        __import__("torch.optim", fromlist=[""]), conf["optimizer"]
+    )(model.base.parameters(), **conf["optimizer_args"])
+    backbone_scheduler = getattr(
+        __import__("torch.optim.lr_scheduler", fromlist=[""]),
+        conf["scheduler"],
+    )(backbone_optimizer, **conf["scheduler_args"])
+    fc_optimizer = getattr(
+        __import__("torch.optim", fromlist=[""]), conf["optimizer"]
+    )(model.fc.parameters(), **conf["optimizer_args"])
+    fc_scheduler = getattr(
+        __import__("torch.optim.lr_scheduler", fromlist=[""]),
+        conf["scheduler"],
+    )(fc_optimizer, **conf["scheduler_args"])
+    optimizer = getattr(
+        __import__("torch.optim", fromlist=[""]), conf["optimizer"]
+    )(model.parameters(), **conf["optimizer_args"])
+    scheduler = getattr(
+        __import__("torch.optim.lr_scheduler", fromlist=[""]),
+        conf["scheduler"],
+    )(optimizer, **conf["scheduler_args"])
     if conf["trainer"] == "Seperate":
         for epoch in range(conf["epochs"]):
             model.train()
@@ -103,10 +124,10 @@ def train(conf):
                     "label_acc_meter": label_acc_meter,
                     "attr_loss_meter": attr_loss_meter,
                     "attr_acc_meter": attr_acc_meter,
-                    "optimizer_type": conf["optimizer"],
-                    "optimizer_args": conf["optimizer_args"],
-                    "scheduler_type": conf["scheduler"],
-                    "scheduler_args": conf["scheduler_args"],
+                    "backbone_optimizer": backbone_optimizer,
+                    "backbone_scheduler": backbone_scheduler,
+                    "fc_optimizer": fc_optimizer,
+                    "fc_scheduler": fc_scheduler,
                     "loss_fn": loss_fn,
                     "attr_loss_fn": attr_loss_fn,
                     "attr_loss_weight": conf["attr_loss_weight"],
@@ -122,6 +143,15 @@ def train(conf):
             run.track(name="attr_loss", value=attr_loss_meter.avg, epoch=epoch)
             run.track(name="attr_acc", value=attr_acc_meter.avg, epoch=epoch)
             train_log.append([attr_loss_meter.avg, attr_acc_meter.avg, 0, 0])
+            print(
+                "Epoch: {} Label Loss: {:.4f} Label Acc: {:.4f} Attr Loss: {:.4f} Attr Acc: {:.4f}".format(
+                    epoch,
+                    label_loss_meter.avg,
+                    label_acc_meter.avg,
+                    attr_loss_meter.avg,
+                    attr_acc_meter.avg,
+                )
+            )
             if attr_acc_meter.avg > 0.995:
                 break
         for epoch in range(conf["epochs"]):
@@ -141,10 +171,10 @@ def train(conf):
                     "label_acc_meter": label_acc_meter,
                     "attr_loss_meter": attr_loss_meter,
                     "attr_acc_meter": attr_acc_meter,
-                    "optimizer_type": conf["optimizer"],
-                    "optimizer_args": conf["optimizer_args"],
-                    "scheduler_type": conf["scheduler"],
-                    "scheduler_args": conf["scheduler_args"],
+                    "backbone_optimizer": backbone_optimizer,
+                    "backbone_scheduler": backbone_scheduler,
+                    "fc_optimizer": fc_optimizer,
+                    "fc_scheduler": fc_scheduler,
                     "loss_fn": loss_fn,
                     "attr_loss_fn": attr_loss_fn,
                     "attr_loss_weight": conf["attr_loss_weight"],
@@ -162,6 +192,15 @@ def train(conf):
             run.track(name="label_acc", value=label_acc_meter.avg, epoch=epoch)
             train_log[epoch][2] = label_loss_meter.avg
             train_log[epoch][3] = label_acc_meter.avg
+            print(
+                "Epoch: {} Label Loss: {:.4f} Label Acc: {:.4f} Attr Loss: {:.4f} Attr Acc: {:.4f}".format(
+                    epoch,
+                    label_loss_meter.avg,
+                    label_acc_meter.avg,
+                    attr_loss_meter.avg,
+                    attr_acc_meter.avg,
+                )
+            )
             if label_acc_meter.avg > 0.80 and attr_acc_meter.avg > 0.90:
                 torch.save(
                     model.state_dict(),
@@ -211,10 +250,12 @@ def train(conf):
                 "label_acc_meter": label_acc_meter,
                 "attr_loss_meter": attr_loss_meter,
                 "attr_acc_meter": attr_acc_meter,
-                "optimizer_type": conf["optimizer"],
-                "optimizer_args": conf["optimizer_args"],
-                "scheduler_type": conf["scheduler"],
-                "scheduler_args": conf["scheduler_args"],
+                "backbone_optimizer": backbone_optimizer,
+                "backbone_scheduler": backbone_scheduler,
+                "fc_optimizer": fc_optimizer,
+                "fc_scheduler": fc_scheduler,
+                "optimizer": optimizer,
+                "scheduler": scheduler,
                 "loss_fn": loss_fn,
                 "attr_loss_fn": attr_loss_fn,
                 "attr_loss_weight": conf["attr_loss_weight"],

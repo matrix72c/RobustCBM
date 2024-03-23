@@ -12,10 +12,10 @@ def image2concept(
     label_acc_meter,
     attr_loss_meter,
     attr_acc_meter,
-    optimizer_type,
-    optimizer_args,
-    scheduler_type,
-    scheduler_args,
+    backbone_optimizer,
+    backbone_scheduler,
+    fc_optimizer,
+    fc_scheduler,
     loss_fn,
     attr_loss_fn,
     attr_loss_weight = 1,
@@ -45,11 +45,6 @@ def image2concept(
         img = torch.cat([img, noise_img], dim=0)
         label = torch.cat([label, noise_label], dim=0)
         attr = torch.cat([attr, noise_attr], dim=0)
-    for name, param in model.named_parameters():
-        if "fc" in name:
-            param.requires_grad = False
-        else:
-            param.requires_grad = True
     img, label, attr = img.cuda(), label.cuda(), attr.cuda()
     if model_base == "inceptionv3":
         attr_losses = []
@@ -64,16 +59,10 @@ def image2concept(
         attr_pred = model.backbone(img)
         attr_loss = attr_loss_fn(attr_pred, attr)
 
-    attr_optimizer = getattr(optim, optimizer_type)(
-        model.backbone.parameters(), **optimizer_args
-    )
-    attr_scheduler = getattr(optim.lr_scheduler, scheduler_type)(
-        attr_optimizer, **scheduler_args
-    )
-    attr_optimizer.zero_grad()
     attr_loss.backward()
-    attr_optimizer.step()
-    attr_scheduler.step()
+    backbone_optimizer.step()
+    backbone_scheduler.step()
+    backbone_optimizer.zero_grad()
 
     attr_pred = torch.sigmoid(attr_pred).ge(0.5)
     attr_correct = torch.sum(attr_pred == attr).int().sum().item()
@@ -91,10 +80,10 @@ def concept2label(
     label_acc_meter,
     attr_loss_meter,
     attr_acc_meter,
-    optimizer_type,
-    optimizer_args,
-    scheduler_type,
-    scheduler_args,
+    backbone_optimizer,
+    backbone_scheduler,
+    fc_optimizer,
+    fc_scheduler,
     loss_fn,
     attr_loss_fn,
     attr_loss_weight = 0.01,
@@ -105,12 +94,6 @@ def concept2label(
     seperate_mode = "combined",
 ):
     img, label, attr = img.cuda(), label.cuda(), attr.cuda()
-
-    for name, param in model.named_parameters():
-        if "fc" in name:
-            param.requires_grad = True
-        else:
-            param.requires_grad = False
 
     if seperate_mode == "combined":
         if model_base == "inceptionv3":
@@ -137,16 +120,10 @@ def concept2label(
     label_pred = model.fc(attr_pred)
     label_loss = loss_fn(label_pred, label)
 
-    label_optimizer = getattr(optim, optimizer_type)(
-        model.fc.parameters(), **optimizer_args
-    )
-    label_scheduler = getattr(optim.lr_scheduler, scheduler_type)(
-        label_optimizer, **scheduler_args
-    )
-    label_optimizer.zero_grad()
     label_loss.backward()
-    label_optimizer.step()
-    label_scheduler.step()
+    fc_optimizer.step()
+    fc_scheduler.step()
+    fc_optimizer.zero_grad()
 
     label_pred = torch.argmax(label_pred, dim=1)
     correct = torch.sum(label_pred == label).int().sum().item()

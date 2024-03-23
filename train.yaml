@@ -3,10 +3,10 @@ experiment: "xai"
 seed: 42
 data_path: "./data/"
 dataset: "CUB"
-batch_size: 64
+batch_size: 128
 num_workers: 8
 trainer: "Joint"
-model: "CBM"
+model: "OldCBM"
 model_args:
   base: "resnet50"
   num_attributes: 112
