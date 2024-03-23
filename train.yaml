@@ -19,7 +19,7 @@ optimizer_args:
   weight_decay: 0.0004
 scheduler: "StepLR"
 scheduler_args:
-  step_size: 4000
+  step_size: 50
   gamma: 0.1
 loss_fn: "CrossEntropyLoss"
 attr_loss_fn: "BCEWithLogitsLoss"
