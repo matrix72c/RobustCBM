@@ -45,7 +45,7 @@ def attack(run_hash, run=None):
     # load model
     model.load_state_dict(torch.load(model_path))
     model.cuda()
-    model.eval()
+    # model.eval()
 
     # attack
     attack_log = [[0 for _ in range(10)] for _ in range(11)]

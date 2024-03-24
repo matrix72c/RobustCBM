@@ -44,18 +44,8 @@ def image2concept(
         label = torch.cat([label, noise_label], dim=0)
         attr = torch.cat([attr, noise_attr], dim=0)
     img, label, attr = img.cuda(), label.cuda(), attr.cuda()
-    if model_base == "inceptionv3":
-        attr_losses = []
-        attr_pred, logits_pred = model.backbone(img)
-        for i in range(attr_pred.shape[1]):
-            attr_losses.append(
-                attr_loss_fn[i](attr_pred[:, i], attr[:, i]) * 0.7
-                + attr_loss_fn[i](logits_pred[:, i], attr[:, i]) * 0.3
-            )
-        attr_loss = sum(attr_losses)
-    else:
-        attr_pred = model.backbone(img)
-        attr_loss = attr_loss_fn(attr_pred, attr)
+    attr_pred = model.backbone(img)
+    attr_loss = attr_loss_fn(attr_pred, attr)
 
     attr_loss.backward()
     backbone_optimizer.step()

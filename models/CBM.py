@@ -63,22 +63,29 @@ class CBM(nn.Module):
             else:
                 self.backbone = torchvision.models.resnet50(weights=None)
                 model_weights_path = use_pretrained
-                self.backbone.load_state_dict(torch.load(model_weights_path, map_location='cuda'))
+                self.backbone.load_state_dict(
+                    torch.load(model_weights_path, map_location="cuda")
+                )
                 self.backbone.fc = nn.Linear(2048, num_attributes)
         elif base == "inceptionv3":
             if use_pretrained is True:
                 self.backbone = torchvision.models.inception_v3(
-                    weights=torchvision.models.Inception_V3_Weights.DEFAULT
+                    weights=torchvision.models.Inception_V3_Weights.DEFAULT,
+                    aux_logits=False,
                 )
                 self.backbone.fc = nn.Linear(2048, num_attributes)
             elif use_pretrained is False:
                 self.backbone = torchvision.models.inception_v3(
-                    num_classes=num_attributes, aux_logits=True, weights=None
+                    num_classes=num_attributes, aux_logits=False, weights=None
                 )
             else:
-                self.backbone = torchvision.models.inception_v3(aux_logits=True, weights=None)
+                self.backbone = torchvision.models.inception_v3(
+                    aux_logits=False, weights=None
+                )
                 model_weights_path = use_pretrained
-                self.backbone.load_state_dict(torch.load(model_weights_path, map_location='cuda'))
+                self.backbone.load_state_dict(
+                    torch.load(model_weights_path, map_location="cuda")
+                )
                 self.backbone.fc = nn.Linear(2048, num_attributes)
         else:
             raise ValueError("Unknown base model")
@@ -87,9 +94,7 @@ class CBM(nn.Module):
 
     def forward(self, x):
         attr_pred = self.backbone(x)
-        label_pred = self.fc(
-            attr_pred if not isinstance(attr_pred, tuple) else attr_pred[0]
-        )
+        label_pred = self.fc(attr_pred)
         if "image2label" in self.use_adv or "image2concept" in self.use_adv:
             return label_pred
         else:

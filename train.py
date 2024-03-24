@@ -49,21 +49,7 @@ def train(conf):
 
     # load loss function
     loss_fn = getattr(nn, conf["loss_fn"])()
-    if conf["model_args"]["base"] == "inceptionv3":
-        if conf["use_imbalance_ratio"]:
-            attr_loss_fn = [
-                getattr(nn, conf["attr_loss_fn"])(
-                    weight=torch.FloatTensor([ratio]).cuda()
-                )
-                for ratio in train_dataset.imbalance_ratio
-            ]
-        else:
-            attr_loss_fn = [
-                getattr(nn, conf["attr_loss_fn"])()
-                for _ in train_dataset.imbalance_ratio
-            ]
-    else:
-        attr_loss_fn = getattr(nn, conf["attr_loss_fn"])()
+    attr_loss_fn = getattr(nn, conf["attr_loss_fn"])()
 
     # train
     model.cuda()
@@ -79,12 +65,12 @@ def train(conf):
     adv_mode = conf["use_adv"] if len(conf["use_adv"]) > 0 else "noadv"
     noise_mode = conf["use_noise"] if len(conf["use_noise"]) > 0 else "nonoise"
     run.description = (
-        conf["trainer"] + "_" + pretrained_mode + adv_mode + "_" + noise_mode + "_"
+        conf["trainer"] + "_" + pretrained_mode + adv_mode + "_" + noise_mode
     )
     run_hash = run.hash
     f = open("results/{}.yaml".format(run_hash), "w", encoding="utf-8")
     yaml.dump(conf, f, allow_unicode=True)
-    train_log = []
+
     backbone_optimizer = getattr(
         __import__("torch.optim", fromlist=[""]), conf["optimizer"]
     )(model.backbone.parameters(), **conf["optimizer_args"])
@@ -92,20 +78,23 @@ def train(conf):
         __import__("torch.optim.lr_scheduler", fromlist=[""]),
         conf["scheduler"],
     )(backbone_optimizer, **conf["scheduler_args"])
-    fc_optimizer = getattr(
-        __import__("torch.optim", fromlist=[""]), conf["optimizer"]
-    )(model.fc.parameters(), **conf["optimizer_args"])
+    fc_optimizer = getattr(__import__("torch.optim", fromlist=[""]), conf["optimizer"])(
+        model.fc.parameters(), **conf["optimizer_args"]
+    )
     fc_scheduler = getattr(
         __import__("torch.optim.lr_scheduler", fromlist=[""]),
         conf["scheduler"],
     )(fc_optimizer, **conf["scheduler_args"])
-    optimizer = getattr(
-        __import__("torch.optim", fromlist=[""]), conf["optimizer"]
-    )(model.parameters(), **conf["optimizer_args"])
+    optimizer = getattr(__import__("torch.optim", fromlist=[""]), conf["optimizer"])(
+        model.parameters(), **conf["optimizer_args"]
+    )
     scheduler = getattr(
         __import__("torch.optim.lr_scheduler", fromlist=[""]),
         conf["scheduler"],
     )(optimizer, **conf["scheduler_args"])
+    
+    train_log = []
+
     if conf["trainer"] == "Seperate":
         for epoch in range(conf["epochs"]):
             model.train()
@@ -171,9 +160,7 @@ def train(conf):
                     "attr_loss_meter": attr_loss_meter,
                     "attr_acc_meter": attr_acc_meter,
                     "backbone_optimizer": backbone_optimizer,
-                    "backbone_scheduler": backbone_scheduler,
                     "fc_optimizer": fc_optimizer,
-                    "fc_scheduler": fc_scheduler,
                     "loss_fn": loss_fn,
                     "attr_loss_fn": attr_loss_fn,
                     "attr_loss_weight": conf["attr_loss_weight"],
@@ -294,6 +281,7 @@ def train(conf):
                 model.state_dict(),
                 "checkpoints/"
                 + run.description
+                + "_"
                 + str("{:.2f}".format(label_acc_meter.avg * 100))
                 + "_"
                 + run_hash
@@ -311,6 +299,7 @@ def train(conf):
                     if diff < min_diff:
                         min_diff = diff
                         file_to_keep = file
+            print(file_to_keep)
             for file in models:
                 if file != file_to_keep and ".pth" in file:
                     os.remove(os.path.join("checkpoints", file))
