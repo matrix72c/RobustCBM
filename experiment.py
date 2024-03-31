@@ -9,4 +9,6 @@ for exp in exps:
     conf = template.copy()
     for k, v in exp.items():
         conf[k] = v
+    if len(conf["use_adv"]) > 0:
+        conf["batch_size"] /= 2
     train(conf)

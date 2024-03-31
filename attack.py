@@ -79,7 +79,7 @@ def attack_train(run_hash, run=None):
         print(i, " ", acc, " / ", data_len)
         for j in range(10):
             attack_log[i][j] = label_acc[j].avg
-            print("eps: {}, pgd_label_acc_top_{}: {}".format(i, j + 1, label_acc[j].avg))
+            print("eps: {}, pgd_train_top_{}: {}".format(i, j + 1, label_acc[j].avg))
             if run is not None:
                 run.track(
                     name="pgd_label_acc_top_{}".format(j + 1),
@@ -87,7 +87,7 @@ def attack_train(run_hash, run=None):
                     epoch=i,
                 )
                 # run.track(name="pgd_attr_acc_top_{}".format(j + 1), value=attr_acc[j].avg, epoch=i)
-    df = pd.DataFrame(attack_log, columns=["pgd_attr_acc_top_{}".format(i + 1) for i in range(10)])
+    df = pd.DataFrame(attack_log, columns=["pgd_train_top_{}".format(i + 1) for i in range(10)])
     df.to_csv("results/{}_{}_train.csv".format(run.description, run_hash), index=False)
 
 def attack_eval(run_hash, run=None):
@@ -161,7 +161,7 @@ def attack_eval(run_hash, run=None):
         print(i, " ", acc, " / ", data_len)
         for j in range(10):
             attack_log[i][j] = label_acc[j].avg
-            print("eps: {}, pgd_label_acc_top_{}: {}".format(i, j + 1, label_acc[j].avg))
+            print("eps: {}, pgd_eval_top_{}: {}".format(i, j + 1, label_acc[j].avg))
             if run is not None:
                 run.track(
                     name="pgd_label_acc_top_{}".format(j + 1),
@@ -169,7 +169,7 @@ def attack_eval(run_hash, run=None):
                     epoch=i,
                 )
                 # run.track(name="pgd_attr_acc_top_{}".format(j + 1), value=attr_acc[j].avg, epoch=i)
-    df = pd.DataFrame(attack_log, columns=["pgd_attr_acc_top_{}".format(i + 1) for i in range(10)])
+    df = pd.DataFrame(attack_log, columns=["pgd_eval_top_{}".format(i + 1) for i in range(10)])
     df.to_csv("results/{}_{}_eval.csv".format(run.description, run_hash), index=False)
 
 if __name__ == "__main__":
