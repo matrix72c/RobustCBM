@@ -7,7 +7,7 @@ import yaml
 import pandas as pd
 
 from utils import AverageMeter, set_seed
-from attack import attack
+from attack import attack_eval, attack_train
 
 
 def train(conf):
@@ -218,7 +218,8 @@ def train(conf):
                     columns=["attr_loss", "attr_acc", "label_loss", "label_acc"],
                 )
                 df.to_csv("results/train_" + run_hash + ".csv", index=False)
-                attack(run_hash, run)
+                attack_train(run_hash, run)
+                attack_eval(run_hash, run)
                 return
     for epoch in range(conf["epochs"]):
         model.train()
@@ -307,7 +308,8 @@ def train(conf):
                 train_log, columns=["attr_loss", "attr_acc", "label_loss", "label_acc"]
             )
             df.to_csv("results/train_" + run_hash + ".csv", index=False)
-            attack(run_hash, run)
+            attack_eval(run_hash, run)
+            attack_train(run_hash, run)
             return
         # if (epoch + 1) % 100 == 0:
         #     acc, attr_acc = test_acc(model, test_loader)
