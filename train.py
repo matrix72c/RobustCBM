@@ -130,7 +130,6 @@ def train(conf):
             # backbone_scheduler.step()
             run.track(name="attr_loss", value=attr_loss_meter.avg, epoch=epoch)
             run.track(name="attr_acc", value=attr_acc_meter.avg, epoch=epoch)
-            train_log.append([attr_loss_meter.avg, attr_acc_meter.avg, 0, 0])
             print(
                 "Epoch: {} Label Loss: {:.4f} Label Acc: {:.4f} Attr Loss: {:.4f} Attr Acc: {:.4f}".format(
                     epoch,
@@ -177,8 +176,6 @@ def train(conf):
             # fc_scheduler.step()
             run.track(name="label_loss", value=label_loss_meter.avg, epoch=epoch)
             run.track(name="label_acc", value=label_acc_meter.avg, epoch=epoch)
-            train_log[epoch][2] = label_loss_meter.avg
-            train_log[epoch][3] = label_acc_meter.avg
             print(
                 "Epoch: {} Label Loss: {:.4f} Label Acc: {:.4f} Attr Loss: {:.4f} Attr Acc: {:.4f}".format(
                     epoch,
@@ -213,11 +210,6 @@ def train(conf):
                 for file in models:
                     if file != file_to_keep and ".pth" in file:
                         os.remove(os.path.join("checkpoints", file))
-                df = pd.DataFrame(
-                    train_log,
-                    columns=["attr_loss", "attr_acc", "label_loss", "label_acc"],
-                )
-                df.to_csv("results/train_" + run_hash + ".csv", index=False)
                 attack_train(run_hash, run)
                 attack_eval(run_hash, run)
                 return
