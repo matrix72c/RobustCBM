@@ -95,7 +95,7 @@ def train(conf):
     
     train_log = []
 
-    if conf["trainer"] == "Seperate":
+    if conf["trainer"] == "Separate":
         for epoch in range(conf["epochs"]):
             model.train()
             label_loss_meter = AverageMeter()
@@ -124,13 +124,12 @@ def train(conf):
                     "noise_eps": conf["noise_eps"],
                 }
                 getattr(
-                    __import__("trainers.Seperate", fromlist=[""]),
+                    __import__("trainers.Separate", fromlist=[""]),
                     "image2concept",
                 )(**kwargs)
             # backbone_scheduler.step()
             run.track(name="attr_loss", value=attr_loss_meter.avg, epoch=epoch)
             run.track(name="attr_acc", value=attr_acc_meter.avg, epoch=epoch)
-            train_log.append([attr_loss_meter.avg, attr_acc_meter.avg, 0, 0])
             print(
                 "Epoch: {} Label Loss: {:.4f} Label Acc: {:.4f} Attr Loss: {:.4f} Attr Acc: {:.4f}".format(
                     epoch,
@@ -140,7 +139,7 @@ def train(conf):
                     attr_acc_meter.avg,
                 )
             )
-            if attr_acc_meter.avg > 0.995:
+            if attr_acc_meter.avg > 0.97:
                 break
         for epoch in range(conf["epochs"]):
             model.train()
@@ -171,14 +170,12 @@ def train(conf):
                     "seperate_mode": conf["seperate_mode"],
                 }
                 getattr(
-                    __import__("trainers.Seperate", fromlist=[""]),
+                    __import__("trainers.Separate", fromlist=[""]),
                     "concept2label",
                 )(**kwargs)
             # fc_scheduler.step()
             run.track(name="label_loss", value=label_loss_meter.avg, epoch=epoch)
             run.track(name="label_acc", value=label_acc_meter.avg, epoch=epoch)
-            train_log[epoch][2] = label_loss_meter.avg
-            train_log[epoch][3] = label_acc_meter.avg
             print(
                 "Epoch: {} Label Loss: {:.4f} Label Acc: {:.4f} Attr Loss: {:.4f} Attr Acc: {:.4f}".format(
                     epoch,
@@ -188,17 +185,18 @@ def train(conf):
                     attr_acc_meter.avg,
                 )
             )
-            if label_acc_meter.avg > 0.80 and attr_acc_meter.avg > 0.85:
+            if label_acc_meter.avg > 0.80:
                 torch.save(
                     model.state_dict(),
                     "checkpoints/"
                     + run.description
+                    + "_"
                     + str("{:.2f}".format(label_acc_meter.avg * 100))
                     + "_"
                     + run_hash
                     + ".pth",
                 )
-            if label_acc_meter.avg > 0.95 and attr_acc_meter.avg > 0.85:
+            if label_acc_meter.avg > 0.95:
                 models = [f for f in os.listdir("checkpoints/") if run_hash in f]
                 min_diff = float("inf")
                 file_to_keep = None
@@ -213,11 +211,6 @@ def train(conf):
                 for file in models:
                     if file != file_to_keep and ".pth" in file:
                         os.remove(os.path.join("checkpoints", file))
-                df = pd.DataFrame(
-                    train_log,
-                    columns=["attr_loss", "attr_acc", "label_loss", "label_acc"],
-                )
-                df.to_csv("results/train_" + run_hash + ".csv", index=False)
                 attack_train(run_hash, run)
                 attack_eval(run_hash, run)
                 return
