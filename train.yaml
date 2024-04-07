@@ -21,6 +21,22 @@ scheduler: "StepLR"
 scheduler_args:
   step_size: 50
   gamma: 0.1
+backbone_optimizer_args:
+  lr: 0.1
+  momentum: 0.9
+  weight_decay: 0.0004
+backbone_scheduler: "StepLR"
+backbone_scheduler_args:
+  step_size: 50
+  gamma: 0.1
+fc_optimizer_args:
+  lr: 0.005
+  momentum: 0.9
+  weight_decay: 0.0004
+fc_scheduler: "StepLR"
+fc_scheduler_args:
+  step_size: 50
+  gamma: 0.1
 loss_fn: "CrossEntropyLoss"
 attr_loss_fn: "BCEWithLogitsLoss"
 use_imbalance_ratio: False
@@ -28,6 +44,6 @@ epochs: 4000
 use_adv: ""
 use_noise: ""
 attr_loss_weight: 1
-adv_v2v_eps: 0.3
+adv_v2v_eps: 0.1
 noise_eps: 0.7
 seperate_mode: "combined"

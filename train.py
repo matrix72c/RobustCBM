@@ -73,13 +73,13 @@ def train(conf):
 
     backbone_optimizer = getattr(
         __import__("torch.optim", fromlist=[""]), conf["optimizer"]
-    )(model.backbone.parameters(), **conf["optimizer_args"])
+    )(model.backbone.parameters(), **conf["backbone_optimizer_args"])
     backbone_scheduler = getattr(
         __import__("torch.optim.lr_scheduler", fromlist=[""]),
         conf["scheduler"],
     )(backbone_optimizer, **conf["scheduler_args"])
     fc_optimizer = getattr(__import__("torch.optim", fromlist=[""]), conf["optimizer"])(
-        model.fc.parameters(), **conf["optimizer_args"]
+        model.fc.parameters(), **conf["fc_optimizer_args"]
     )
     fc_scheduler = getattr(
         __import__("torch.optim.lr_scheduler", fromlist=[""]),
@@ -96,57 +96,57 @@ def train(conf):
     train_log = []
 
     if conf["trainer"] == "Separate":
-        for epoch in range(conf["epochs"]):
-            model.train()
-            label_loss_meter = AverageMeter()
-            label_acc_meter = AverageMeter()
-            attr_loss_meter = AverageMeter()
-            attr_acc_meter = AverageMeter()
-            for img, label, attr in train_loader:
-                kwargs = {
-                    "img": img,
-                    "label": label,
-                    "attr": attr,
-                    "model": model,
-                    "model_base": conf["model_args"]["base"],
-                    "label_loss_meter": label_loss_meter,
-                    "label_acc_meter": label_acc_meter,
-                    "attr_loss_meter": attr_loss_meter,
-                    "attr_acc_meter": attr_acc_meter,
-                    "backbone_optimizer": backbone_optimizer,
-                    "fc_optimizer": fc_optimizer,
-                    "loss_fn": loss_fn,
-                    "attr_loss_fn": attr_loss_fn,
-                    "attr_loss_weight": conf["attr_loss_weight"],
-                    "use_adv": conf["use_adv"],
-                    "use_noise": conf["use_noise"],
-                    "adv_v2v_eps": conf["adv_v2v_eps"],
-                    "noise_eps": conf["noise_eps"],
-                }
-                getattr(
-                    __import__("trainers.Separate", fromlist=[""]),
-                    "image2concept",
-                )(**kwargs)
-            # backbone_scheduler.step()
-            run.track(name="attr_loss", value=attr_loss_meter.avg, epoch=epoch)
-            run.track(name="attr_acc", value=attr_acc_meter.avg, epoch=epoch)
-            print(
-                "Epoch: {} Label Loss: {:.4f} Label Acc: {:.4f} Attr Loss: {:.4f} Attr Acc: {:.4f}".format(
-                    epoch,
-                    label_loss_meter.avg,
-                    label_acc_meter.avg,
-                    attr_loss_meter.avg,
-                    attr_acc_meter.avg,
+        if os.path.exists(conf["checkpoint"]):
+            model.backbone.load_state_dict(torch.load(conf["checkpoint"]))
+        else:
+            for epoch in range(conf["epochs"]):
+                model.backbone.train()
+                model.fc.eval()
+                attr_loss_meter = AverageMeter()
+                attr_acc_meter = AverageMeter()
+                for img, label, attr in train_loader:
+                    kwargs = {
+                        "img": img,
+                        "label": label,
+                        "attr": attr,
+                        "model": model,
+                        "model_base": conf["model_args"]["base"],
+                        "attr_loss_meter": attr_loss_meter,
+                        "attr_acc_meter": attr_acc_meter,
+                        "backbone_optimizer": backbone_optimizer,
+                        "attr_loss_fn": attr_loss_fn,
+                        "use_adv": conf["use_adv"],
+                        "use_noise": conf["use_noise"],
+                    }
+                    getattr(
+                        __import__("trainers.Separate", fromlist=[""]),
+                        "image2concept",
+                    )(**kwargs)
+                # backbone_scheduler.step()
+                run.track(name="attr_loss", value=attr_loss_meter.avg, epoch=epoch)
+                run.track(name="attr_acc", value=attr_acc_meter.avg, epoch=epoch)
+                print(
+                    "Epoch: {} Attr Loss: {:.4f} Attr Acc: {:.4f}".format(
+                        epoch,
+                        attr_loss_meter.avg,
+                        attr_acc_meter.avg,
+                    )
                 )
-            )
-            if attr_acc_meter.avg > 0.97:
-                break
+                if attr_acc_meter.avg > 0.97:
+                    torch.save(
+                        model.backbone.state_dict(),
+                        "checkpoints/backbone_"
+                        + run.description
+                        + "_"
+                        + str("{:.2f}".format(attr_acc_meter.avg * 100))
+                        + ".pth",
+                    )
+                    break
         for epoch in range(conf["epochs"]):
-            model.train()
+            model.backbone.eval()
+            model.fc.train()
             label_loss_meter = AverageMeter()
             label_acc_meter = AverageMeter()
-            attr_loss_meter = AverageMeter()
-            attr_acc_meter = AverageMeter()
             for img, label, attr in train_loader:
                 kwargs = {
                     "img": img,
@@ -156,13 +156,8 @@ def train(conf):
                     "model_base": conf["model_args"]["base"],
                     "label_loss_meter": label_loss_meter,
                     "label_acc_meter": label_acc_meter,
-                    "attr_loss_meter": attr_loss_meter,
-                    "attr_acc_meter": attr_acc_meter,
-                    "backbone_optimizer": backbone_optimizer,
                     "fc_optimizer": fc_optimizer,
                     "loss_fn": loss_fn,
-                    "attr_loss_fn": attr_loss_fn,
-                    "attr_loss_weight": conf["attr_loss_weight"],
                     "use_adv": conf["use_adv"],
                     "use_noise": conf["use_noise"],
                     "adv_v2v_eps": conf["adv_v2v_eps"],
@@ -173,16 +168,14 @@ def train(conf):
                     __import__("trainers.Separate", fromlist=[""]),
                     "concept2label",
                 )(**kwargs)
-            # fc_scheduler.step()
+            fc_scheduler.step()
             run.track(name="label_loss", value=label_loss_meter.avg, epoch=epoch)
             run.track(name="label_acc", value=label_acc_meter.avg, epoch=epoch)
             print(
-                "Epoch: {} Label Loss: {:.4f} Label Acc: {:.4f} Attr Loss: {:.4f} Attr Acc: {:.4f}".format(
+                "Epoch: {} Label Loss: {:.4f} Label Acc: {:.4f}".format(
                     epoch,
                     label_loss_meter.avg,
-                    label_acc_meter.avg,
-                    attr_loss_meter.avg,
-                    attr_acc_meter.avg,
+                    label_acc_meter.avg
                 )
             )
             if label_acc_meter.avg > 0.80:
@@ -196,7 +189,17 @@ def train(conf):
                     + run_hash
                     + ".pth",
                 )
-            if label_acc_meter.avg > 0.95:
+            if label_acc_meter.avg > 0.90:
+                torch.save(
+                    model.state_dict(),
+                    "checkpoints/"
+                    + run.description
+                    + "_"
+                    + str("{:.2f}".format(label_acc_meter.avg * 100))
+                    + "_"
+                    + run_hash
+                    + ".pth",
+                )
                 models = [f for f in os.listdir("checkpoints/") if run_hash in f]
                 min_diff = float("inf")
                 file_to_keep = None
@@ -211,8 +214,8 @@ def train(conf):
                 for file in models:
                     if file != file_to_keep and ".pth" in file:
                         os.remove(os.path.join("checkpoints", file))
-                attack_train(run_hash, run)
                 attack_eval(run_hash, run)
+                # attack_train(run_hash, run)
                 return
     for epoch in range(conf["epochs"]):
         model.train()
