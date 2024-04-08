@@ -96,7 +96,7 @@ def train(conf):
     train_log = []
 
     if conf["trainer"] == "Separate":
-        if os.path.exists(conf["checkpoint"]):
+        if ".pth" in conf["checkpoint"] and os.path.exists(conf["checkpoint"]):
             model.backbone.load_state_dict(torch.load(conf["checkpoint"]))
         else:
             for epoch in range(conf["epochs"]):
@@ -168,7 +168,7 @@ def train(conf):
                     __import__("trainers.Separate", fromlist=[""]),
                     "concept2label",
                 )(**kwargs)
-            fc_scheduler.step()
+            # fc_scheduler.step()
             run.track(name="label_loss", value=label_loss_meter.avg, epoch=epoch)
             run.track(name="label_acc", value=label_acc_meter.avg, epoch=epoch)
             print(

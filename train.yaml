@@ -44,6 +44,7 @@ epochs: 4000
 use_adv: ""
 use_noise: ""
 attr_loss_weight: 1
-adv_v2v_eps: 0.1
+adv_v2v_eps: 0.3
 noise_eps: 0.7
 seperate_mode: "combined"
+checkpoint: ""
