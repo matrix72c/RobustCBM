@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
@@ -230,9 +231,9 @@ def resnet50_features(pretrained=False, use_adver=False, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
     model = ResNet_features(Bottleneck, [3, 4, 6, 3], **kwargs)
-    if pretrained:
-        if use_adver:
-            my_dict = torch.load("../save_model/pretrain_model/resnet_train_acc_0.85_test_acc_0.74.pth")
+    if pretrained is not False:
+        if pretrained is not True:
+            my_dict = torch.load(pretrained)
             my_dict.pop('fc.weight')
             my_dict.pop('fc.bias')
             model.load_state_dict(my_dict, strict=False)

@@ -1,0 +1,36 @@
+version: 3
+experiment: "xai"
+seed: 42
+data_path: "./data/"
+dataset: "CUB"
+batch_size: 128
+num_workers: 8
+trainer: "Joint"
+model: "PBM"
+model_args:
+  base: "resnet50"
+  num_classes: 200
+  use_pretrained: False
+optimizer_args:
+  lr: 0.01
+  momentum: 0.9
+  weight_decay: 0.0004
+scheduler: "StepLR"
+scheduler_args:
+  step_size: 50
+  gamma: 0.1
+fc_optimizer_args:
+  lr: 0.01
+  momentum: 0.9
+  weight_decay: 0.0004
+fc_scheduler: "StepLR"
+fc_scheduler_args:
+  step_size: 50
+  gamma: 0.1
+epochs: 4000
+use_adv: ""
+use_noise: ""
+attr_loss_weight: 1
+adv_v2v_eps: 0.3
+noise_eps: 0.7
+checkpoint: ""

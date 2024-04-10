@@ -115,7 +115,7 @@ def attack_eval(run_hash, run=None):
     # create model
     model = getattr(
         __import__("models." + conf["model"], fromlist=[""]), conf["model"]
-    )(**conf["model_args"])
+    )(conf)
 
     # Get model path under the same experiment settings
     for file in os.listdir("checkpoints"):
@@ -141,7 +141,7 @@ def attack_eval(run_hash, run=None):
         for img, label, attr in test_loader:
             img, label, attr = img.cuda(), label.cuda(), attr.cuda()
             batch_len = img.size(0)
-            model.use_adv = "image2label"
+            model.atk_mode = True
             adv_img = atk(img, label) if i > 0 else img
             with torch.no_grad():
                 label_pred = model(img)

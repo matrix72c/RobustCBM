@@ -3,7 +3,7 @@ from train import train
 
 f = open("experiment.yaml", "r", encoding="utf-8")
 exps = yaml.load(f.read(), Loader=yaml.FullLoader)
-f = open("train.yaml", "r", encoding="utf-8")
+f = open("PBM.yaml", "r", encoding="utf-8")
 template = yaml.load(f.read(), Loader=yaml.FullLoader)
 for exp in exps:
     conf = template.copy()

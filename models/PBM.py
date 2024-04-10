@@ -3,21 +3,25 @@ import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 import torch.nn.functional as F
 
-from resnet_features import resnet50_features
+from models.resnet_features import resnet50_features
+from torchattacks import PGD, PGD_V2V
+from utils import AverageMeter
 
-class prototype_model(nn.Module):
+class PBM(nn.Module):
 
-    def __init__(self, backbone, img_size, prototype_shape, num_classes, pretrained, use_adver):
-
-        super(prototype_model, self).__init__()
-        self.img_size = img_size
+    def __init__(self, conf):
+        super(PBM, self).__init__()
+        backbone = conf["model_args"]["base"]
+        prototype_shape = (2000, 128, 1, 1)
+        self.img_size = 224
         self.prototype_shape = prototype_shape
         self.num_prototypes = prototype_shape[0]
-        self.num_classes = num_classes
+        self.num_classes = conf["model_args"]["num_classes"]
+
         self.epsilon = 1e-4
         
-        if backbone == 'resnet':
-            self.backbone = resnet50_features(pretrained, use_adver)
+        if backbone == 'resnet50':
+            self.backbone = resnet50_features(conf["model_args"]["use_pretrained"])
         
         self.add_on_layers = nn.Sequential(
                 nn.Conv2d(in_channels=2048, out_channels=self.prototype_shape[1], kernel_size=1),
@@ -27,7 +31,7 @@ class prototype_model(nn.Module):
                 )
         
         self.prototype_class_identity = torch.zeros(self.num_prototypes,
-                                                    self.num_classes)
+                                                    self.num_classes).cuda()
 
         num_prototypes_per_class = self.num_prototypes // self.num_classes
         for j in range(self.num_prototypes):
@@ -39,6 +43,18 @@ class prototype_model(nn.Module):
         self.last_layer = nn.Linear(self.num_prototypes, self.num_classes, bias=False) # do not use bias
         
         self._initialize_weights()
+        self.atk_mode = False
+
+        self.loss_fn = nn.CrossEntropyLoss()
+        self.optimizer = torch.optim.SGD(
+            self.parameters(), **conf["optimizer_args"]
+        )
+        self.fc_optimizer = torch.optim.SGD(
+            self.last_layer.parameters(), **conf["fc_optimizer_args"]
+        )
+        self.use_adv = conf["use_adv"]
+        self.use_noise = conf["use_noise"]
+        self.conf = conf
 
     def forward(self, x):
         # extract features
@@ -59,9 +75,101 @@ class prototype_model(nn.Module):
         min_distances = min_distances.view(-1, self.num_prototypes)
         prototype_activations = self.distance_2_similarity(min_distances)
         logits = self.last_layer(prototype_activations)
-        
-        return min_distances, logits
-        
+
+        if self.atk_mode == True:
+            return logits
+        else:
+            return min_distances, logits
+
+    def Joint(self, loader):
+        model = self
+        optimizer = self.optimizer
+        fc_optimizer = self.fc_optimizer
+        label_loss_meter = AverageMeter()
+        label_acc_meter = AverageMeter()
+        for data in loader:
+            if len(data) == 2:
+                img, label = data
+            else:
+                img, label, _ = data
+            
+            if "image2label" in self.use_adv:
+                self.atk_mode = True
+                atk = PGD(self, eps=5 / 255, alpha=2 / 225, steps=2, random_start=True)
+                atk.set_normalization_used(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                )
+                adv_img = atk(img, label).cpu()
+                adv_label = label.clone().detach().cpu()
+                img = torch.cat([img, adv_img], dim=0)
+                label = torch.cat([label, adv_label], dim=0)
+                self.atk_mode = False
+            img, label = img.cuda(), label.cuda()
+            min_distances, label_pred = model(img)
+            # cal label loss
+            label_loss = self.loss_fn(label_pred, label)
+
+            # cal interpretation loss
+            max_dist = (
+                model.prototype_shape[1]
+                * model.prototype_shape[2]
+                * model.prototype_shape[3]
+            )
+
+            # prototypes_of_correct_class is a tensor of shape batch_size * num_prototypes
+            # calculate cluster cost
+            prototypes_of_correct_class = torch.t(
+                model.prototype_class_identity[:, label]
+            )
+            inverted_distances, _ = torch.max(
+                (max_dist - min_distances) * prototypes_of_correct_class, dim=1
+            )
+            cluster_cost = torch.mean(max_dist - inverted_distances)
+
+            # calculate separation cost
+            prototypes_of_wrong_class = 1 - prototypes_of_correct_class
+            inverted_distances_to_nontarget_prototypes, _ = torch.max(
+                (max_dist - min_distances) * prototypes_of_wrong_class, dim=1
+            )
+            separation_cost = torch.mean(
+                max_dist - inverted_distances_to_nontarget_prototypes
+            )
+
+            # calculate avg cluster cost
+            avg_separation_cost = torch.sum(
+                min_distances * prototypes_of_wrong_class, dim=1
+            ) / torch.sum(prototypes_of_wrong_class, dim=1)
+            avg_separation_cost = torch.mean(avg_separation_cost)
+
+            l1_mask = 1 - torch.t(model.prototype_class_identity)
+            l1 = (model.last_layer.weight * l1_mask).norm(p=1)
+
+            # cluster_losses.append(cluster_cost.item())
+            # separation_losses.append(separation_cost.item())
+            # l1_losses.append(l1.item())
+
+            # backward
+            loss = label_loss + 1.0 * cluster_cost - 0.1 * separation_cost + 1e-4 * l1
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+
+            label_pred = torch.argmax(label_pred, dim=1)
+            correct = torch.sum(label_pred == label).int().sum().item()
+            num = len(label)
+            label_loss_meter.update(label_loss.item(), num)
+            label_acc_meter.update(correct / num, num)
+
+        return {
+            "label_loss": label_loss_meter.avg,
+            "label_acc": label_acc_meter.avg,
+        }
+
+    def run_epoch(self, loader):
+        if self.conf["trainer"] == "Joint":
+            return self.Joint(loader)
+
     def _l2_convolution(self, x):
         '''
         apply self.prototype_vectors as l2-convolution filters on input x
