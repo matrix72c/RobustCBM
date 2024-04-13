@@ -1,13 +1,12 @@
 import argparse
 import torch
-import torch.nn as nn
+import torch.nn
 import os
 from aim import Run
 import yaml
-import pandas as pd
 
-from utils import AverageMeter, set_seed
-from attack import attack_eval, attack_train
+from utils import set_seed
+from attack import attack_eval
 
 
 def train(conf):
@@ -19,14 +18,14 @@ def train(conf):
         __import__("dataprovider." + conf["dataset"], fromlist=[""]), conf["dataset"]
     )(
         conf["data_path"],
-        resol=224,
+        resol=conf["resol"],
         is_train=True,
     )
     test_dataset = getattr(
         __import__("dataprovider." + conf["dataset"], fromlist=[""]), conf["dataset"]
     )(
         conf["data_path"],
-        resol=224,
+        resol=conf["resol"],
         is_train=False,
     )
     train_loader = torch.utils.data.DataLoader(
@@ -49,9 +48,9 @@ def train(conf):
 
     run = Run(experiment=conf["experiment"], repo=os.getenv("AIM_REPO"))
     run[...] = conf
-    if conf["model_args"]["use_pretrained"] is True:
+    if conf["use_pretrained"] is True:
         pretrained_mode = "pretrained_"
-    elif conf["model_args"]["use_pretrained"] is False:
+    elif conf["use_pretrained"] is False:
         pretrained_mode = "nopretrained_"
     else:
         pretrained_mode = "advpretrained_"
@@ -62,7 +61,7 @@ def train(conf):
         + "_"
         + conf["dataset"]
         + "_"
-        + conf["trainer"]
+        + conf["mode"]
         + "_"
         + pretrained_mode
         + adv_mode
@@ -70,7 +69,7 @@ def train(conf):
         + noise_mode
     )
     run_hash = run.hash
-    f = open("results/{}.yaml".format(run_hash), "w", encoding="utf-8")
+    f = open("results/configs/{}.yaml".format(run_hash), "w", encoding="utf-8")
     yaml.dump(conf, f, allow_unicode=True)
 
     # train
@@ -93,7 +92,7 @@ def train(conf):
                 + run_hash
                 + ".pth",
             )
-        if res["label_acc"] > 0.95:
+        if res["label_acc"] > 0.9:
             models = [f for f in os.listdir("checkpoints/") if run_hash in f]
             min_diff = float("inf")
             file_to_keep = None
@@ -115,7 +114,7 @@ def train(conf):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default="PBM.yaml")
+    parser.add_argument("--config", type=str, default="train.yaml")
     args = parser.parse_args()
     f = open(args.config, "r", encoding="utf-8")
     conf = yaml.load(f.read(), Loader=yaml.FullLoader)

@@ -1,14 +1,26 @@
 import yaml
-from train import train
+from itertools import product
 
-f = open("experiment.yaml", "r", encoding="utf-8")
-exps = yaml.load(f.read(), Loader=yaml.FullLoader)
-f = open("PBM.yaml", "r", encoding="utf-8")
-template = yaml.load(f.read(), Loader=yaml.FullLoader)
-for exp in exps:
-    conf = template.copy()
-    for k, v in exp.items():
-        conf[k] = v
-    if len(conf["use_adv"]) > 0:
-        conf["batch_size"] = int(conf["batch_size"] / 2)
-    train(conf)
+yaml_content = """
+dataset: ["CUB", "AWA"]
+model: ["CBM", "PBM"]
+mode: ["Joint", "Sequential"]
+use_pretrained: [False, True, "pretrained_models/resnet_train_acc_0.85_test_acc_0.74.pth"]
+use_adv: ["image2label", "concept2label", "image2concept", "image2concept&concept2label"]
+"""
+
+data = yaml.safe_load(yaml_content)
+
+keys = data.keys()
+
+lists = [value for value in data.values()]
+
+combinations = list(product(*lists))
+
+dict_combinations = []
+for combo in combinations:
+    combo_dict = {key: value for key, value in zip(keys, combo)}
+    dict_combinations.append(combo_dict)
+
+for combo in dict_combinations:
+    print(combo)

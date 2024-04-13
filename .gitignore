@@ -108,8 +108,9 @@ input/
 saved/
 datasets/
 checkpoints/*.pth
-results/*.csv
-results/*.yaml
+results/configs/*.yaml
+results/eval/*.csv
+!results/.gitkeep
 
 # editor, os cache directory
 .vscode/

@@ -42,10 +42,11 @@ class CBM(nn.Module):
 
     def __init__(self, conf):
         super(CBM, self).__init__()
-        base = conf["model_args"]["base"]
-        num_attributes = conf["model_args"]["num_attributes"]
-        num_classes = conf["model_args"]["num_classes"]
-        use_pretrained = conf["model_args"]["use_pretrained"]
+        self.conf = conf
+        base = conf["base"]
+        num_attributes = conf["num_attributes"]
+        num_classes = conf["num_classes"]
+        use_pretrained = conf["use_pretrained"]
 
         # create model
         if base == "resnet50":
@@ -150,12 +151,15 @@ class CBM(nn.Module):
             self.optimizer.zero_grad()
 
             label_pred = torch.argmax(label_pred, dim=1)
+            attr_pred = torch.sigmoid(attr_pred).ge(0.5)
+            attr_correct = torch.sum(attr_pred == attr).int().sum().item()
             correct = torch.sum(label_pred == label).int().sum().item()
             num = len(label)
+            attr_num = attr.shape[0] * attr.shape[1]
             label_loss_meter.update(label_loss.item(), num)
-            label_acc_meter.update(correct, num)
-            attr_loss_meter.update(attr_loss.item(), num)
-            attr_acc_meter.update(correct, num)
+            label_acc_meter.update(correct / num, num)
+            attr_loss_meter.update(attr_loss.item(), attr_num)
+            attr_acc_meter.update(attr_correct / attr_num, attr_num)
         return {
             "label_loss": label_loss_meter.avg,
             "label_acc": label_acc_meter.avg,
@@ -196,11 +200,6 @@ class CBM(nn.Module):
             attr_loss.backward()
             self.backbone_optimizer.step()
             self.backbone_optimizer.zero_grad()
-            attr_pred = torch.sigmoid(attr_pred).ge(0.5)
-            attr_correct = torch.sum(attr_pred == attr).int().sum().item()
-            attr_num = attr.shape[0] * attr.shape[1]
-            attr_loss_meter.update(attr_loss.item(), len(attr))
-            attr_acc_meter.update(attr_correct, attr_num)
 
             attr_pred = self.backbone(img)
             if "concept2label" in self.use_adv:
@@ -224,11 +223,16 @@ class CBM(nn.Module):
             self.fc_optimizer.step()
             self.fc_optimizer.zero_grad()
 
+            attr_pred = torch.sigmoid(attr_pred).ge(0.5)
+            attr_correct = torch.sum(attr_pred == attr).int().sum().item()
+            attr_num = attr.shape[0] * attr.shape[1]
+            attr_loss_meter.update(attr_loss.item(), attr_num)
+            attr_acc_meter.update(attr_correct / attr_num, attr_num)
             label_pred = torch.argmax(label_pred, dim=1)
             correct = torch.sum(label_pred == label).int().sum().item()
             num = len(label)
             label_loss_meter.update(label_loss.item(), num)
-            label_acc_meter.update(correct, num)
+            label_acc_meter.update(correct / num, num)
         
         return {
             "label_loss": label_loss_meter.avg,
@@ -239,9 +243,9 @@ class CBM(nn.Module):
     
     def run_epoch(self, loader):
         self.train()
-        if self.conf["trainer"] == "Joint":
+        if self.conf["mode"] == "Joint":
             return self.Joint(loader)
-        elif self.conf["trainer"] == "Sequential":
+        elif self.conf["mode"] == "Sequential":
             return self.Sequential(loader)
         else:
             raise ValueError("Unknown mode")

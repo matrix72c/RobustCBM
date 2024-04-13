@@ -11,17 +11,17 @@ class PBM(nn.Module):
 
     def __init__(self, conf):
         super(PBM, self).__init__()
-        backbone = conf["model_args"]["base"]
+        backbone = conf["base"]
         prototype_shape = (2000, 128, 1, 1)
         self.img_size = 224
         self.prototype_shape = prototype_shape
         self.num_prototypes = prototype_shape[0]
-        self.num_classes = conf["model_args"]["num_classes"]
+        self.num_classes = conf["num_classes"]
 
         self.epsilon = 1e-4
         
         if backbone == 'resnet50':
-            self.backbone = resnet50_features(conf["model_args"]["use_pretrained"])
+            self.backbone = resnet50_features(conf["use_pretrained"])
         
         self.add_on_layers = nn.Sequential(
                 nn.Conv2d(in_channels=2048, out_channels=self.prototype_shape[1], kernel_size=1),
@@ -88,10 +88,7 @@ class PBM(nn.Module):
         label_loss_meter = AverageMeter()
         label_acc_meter = AverageMeter()
         for data in loader:
-            if len(data) == 2:
-                img, label = data
-            else:
-                img, label, _ = data
+            img, label, _ = data
             
             if "image2label" in self.use_adv:
                 self.atk_mode = True
@@ -167,7 +164,7 @@ class PBM(nn.Module):
         }
 
     def run_epoch(self, loader):
-        if self.conf["trainer"] == "Joint":
+        if self.conf["mode"] == "Joint":
             return self.Joint(loader)
 
     def _l2_convolution(self, x):

@@ -1,31 +1,30 @@
-version: 3
+version: 4
 experiment: "xai"
 seed: 42
+
+# data setting
 data_path: "./data/"
-dataset: "CUB"
+dataset: "AwA"
+num_attributes: 112
+num_classes: 200
+resol: 224
 batch_size: 128
 num_workers: 8
-trainer: "Joint"
-model: "CBM"
-model_args:
-  base: "resnet50"
-  num_attributes: 112
-  num_classes: 200
-  use_pretrained: False
+
+# model setting
+model: "PBM" # "CBM" or "PBM"
+mode: "Joint" # "Joint" or "Sequential"
+base: "resnet50" # "resnet50" or "inceptionv3"
+use_pretrained: False # True, False, or "pretrained_models/resnet_train_acc_0.85_test_acc_0.74.pth"
+checkpoint: ""
+
+# training setting
 optimizer_args:
   lr: 0.01
   momentum: 0.9
   weight_decay: 0.0004
 scheduler: "StepLR"
 scheduler_args:
-  step_size: 50
-  gamma: 0.1
-backbone_optimizer_args:
-  lr: 0.1
-  momentum: 0.9
-  weight_decay: 0.0004
-backbone_scheduler: "StepLR"
-backbone_scheduler_args:
   step_size: 50
   gamma: 0.1
 fc_optimizer_args:
@@ -37,10 +36,10 @@ fc_scheduler_args:
   step_size: 50
   gamma: 0.1
 epochs: 4000
-use_adv: ""
-use_noise: ""
+
+# experiment setting
+use_adv: "" # "image2label" + "concept2label"
+use_noise: "" # "image" + "concept"
 attr_loss_weight: 1
 adv_v2v_eps: 0.3
 noise_eps: 0.7
-seperate_mode: "combined"
-checkpoint: ""
