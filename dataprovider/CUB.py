@@ -1,4 +1,3 @@
-import os
 import torch
 import pickle
 
@@ -16,33 +15,32 @@ class CUB(Dataset):
             data_path += "/"
         data_path += "CUB_200_2011/"
         self.data_path = data_path
-        for pkl in ["train.pkl", "val.pkl", "test.pkl"]:
-            self.data.extend(pickle.load(open(data_path + pkl, "rb")))
         if is_train:
+            self.data.extend(pickle.load(open(data_path + "train.pkl", "rb")))
             self.transform = transforms.Compose(
                 [
-                    transforms.Resize((resol, resol)),
-                    # transforms.ColorJitter(brightness=32 / 255, saturation=(0.5, 1.5)),
-                    # transforms.RandomResizedCrop(resol),
-                    # transforms.RandomHorizontalFlip(),
+                    transforms.ColorJitter(brightness=32 / 255, saturation=(0.5, 1.5)),
+                    transforms.RandomResizedCrop(resol),
+                    transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),
                     transforms.Normalize(
                         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
                     ),
                 ]
             )
-            self.imbalance_ratio = cal_class_imbalance_weights(data_path + "train.pkl")
         else:
+            self.data.extend(pickle.load(open(data_path + "val.pkl", "rb")))
             self.transform = transforms.Compose(
                 [
-                    transforms.Resize((resol, resol)),
-                    # transforms.CenterCrop(resol),
+                    transforms.CenterCrop(resol),
                     transforms.ToTensor(),
                     transforms.Normalize(
                         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
                     ),
                 ]
             )
+        self.imbalance_ratio = None
+        self.mask = None
 
     def __getitem__(self, index):
         img_data = self.data[index]
@@ -68,23 +66,3 @@ class CUB(Dataset):
     def __len__(self):
         return len(self.data)
 
-
-def cal_class_imbalance_weights(path):
-    """
-    Computes the class imbalance weights for a dataset
-    """
-    data = pickle.load(open(path, "rb"))
-    imbalance_ratio = []
-    n = len(data)
-    n_attr = len(data[0]["attribute_label"])
-
-    n_ones = [0] * n_attr
-    total = [n] * n_attr
-    for d in data:
-        labels = d["attribute_label"]
-
-        for i in range(n_attr):
-            n_ones[i] += labels[i]
-    for j in range(len(n_ones)):
-        imbalance_ratio.append(total[j] / n_ones[j] - 1)
-    return imbalance_ratio

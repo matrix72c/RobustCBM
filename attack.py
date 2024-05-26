@@ -7,7 +7,7 @@ from torchattacks import PGD
 from aim import Run
 import pandas as pd
 
-from utils import AverageMeter, set_seed, cal_top_k
+from utils import AverageMeter, set_seed, cal_top_k, cal_class_imbalance_weights, gen_mask
 
 def attack_eval(run_hash, run=None):
     f = open("results/configs/{}.yaml".format(run_hash), "r", encoding="utf-8")
@@ -17,12 +17,25 @@ def attack_eval(run_hash, run=None):
     set_seed(conf["seed"])
 
     # load data
+    train_dataset = getattr(
+        __import__("dataprovider." + conf["dataset"], fromlist=[""]), conf["dataset"]
+    )(
+        conf["data_path"],
+        resol=conf["resol"],
+        is_train=True,
+    )
     test_dataset = getattr(
         __import__("dataprovider." + conf["dataset"], fromlist=[""]), conf["dataset"]
     )(
         conf["data_path"],
-        resol=224,
+        resol=conf["resol"],
         is_train=False,
+    )
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=conf["batch_size"],
+        shuffle=True,
+        num_workers=conf["num_workers"],
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
@@ -30,11 +43,19 @@ def attack_eval(run_hash, run=None):
         shuffle=False,
         num_workers=conf["num_workers"],
     )
+    if conf["imbalance"]:
+        train_dataset.imbalance_ratio = cal_class_imbalance_weights(
+            train_loader, conf["num_attributes"]
+        )
+        test_dataset.imbalance_ratio = train_dataset.imbalance_ratio
+    if conf["mask"]:
+        train_dataset.mask = gen_mask(train_loader, conf["num_attributes"], conf["n_features"])
+        test_dataset.mask = train_dataset.mask
 
     # create model
     model = getattr(
         __import__("models." + conf["model"], fromlist=[""]), conf["model"]
-    )(conf)
+    )(conf, train_loader, test_loader)
 
     # Get model path under the same experiment settings
     for file in os.listdir("checkpoints"):
@@ -87,7 +108,6 @@ def attack_eval(run_hash, run=None):
                     value=label_acc[j].avg,
                     epoch=i,
                 )
-                # run.track(name="pgd_attr_acc_top_{}".format(j + 1), value=attr_acc[j].avg, epoch=i)
     df = pd.DataFrame(attack_log, columns=["pgd_eval_top_{}".format(i + 1) for i in range(10)])
     df.to_csv("results/eval/{}_{}_eval.csv".format(run.description, run_hash), index=False)
 
@@ -99,5 +119,4 @@ if __name__ == "__main__":
         run = Run(run_hash=args.hash, repo=os.getenv("AIM_REPO"))
     except:
         run = None
-    # attack_train(args.hash, run)
     attack_eval(args.hash, run)

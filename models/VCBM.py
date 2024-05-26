@@ -3,17 +3,39 @@ import torch
 import torch.nn as nn
 from torchattacks import PGD, PGD_V2V
 import torchvision
+import torch.nn.functional as F
+
 
 from utils import AverageMeter
 
 
-class CBM(nn.Module):
+class VIBLayer(nn.Module):
+    def __init__(self, input_dim, K, output_dim):
+        super(VIBLayer, self).__init__()
+        self.K = K
+        self.encode = nn.Sequential(nn.Linear(input_dim, 2 * self.K))
+        self.decode = nn.Linear(self.K, output_dim)
+
+    def forward(self, x):
+        x = x.view(x.size(0), -1)
+        statistics = self.encode(x)
+        mu = statistics[:, : self.K]
+        std = F.softplus(statistics[:, self.K :] - 5, beta=1)
+        z = self.reparametrize(mu, std)
+        return self.decode(z), mu, std
+
+    def reparametrize(self, mu, std, n=1):
+        eps = torch.randn_like(std)
+        return mu + eps * std
+
+
+class VCBM(nn.Module):
     """
     CBM: Concept Based Model
 
     mode:
-    Independent: X->C and C->Y are trained separately.
-    Sequential: X->C and C_pred->Y are trained separately.
+    Independent: X->C and C->Y are trained independently.
+    Sequential: X->C and C->Y are trained sequentially.
     Joint: X->C and C->Y are trained jointly.
     Standard: Directly train X->Y.
     In independent and sequential mode, the CBM only return the concept model.
@@ -26,7 +48,7 @@ class CBM(nn.Module):
     """
 
     def __init__(self, conf, train_loader, test_loader):
-        super(CBM, self).__init__()
+        super(VCBM, self).__init__()
         self.conf = conf
         self.train_loader = train_loader
         self.test_loader = test_loader
@@ -76,7 +98,10 @@ class CBM(nn.Module):
                 self.backbone.fc = nn.Linear(2048, num_attributes)
         else:
             raise ValueError("Unknown base model")
-        self.fc = nn.Linear(num_attributes, num_classes)
+
+        self.backbone = nn.Sequential(*list(self.backbone.children())[:-1])
+        self.vib = VIBLayer(2048, conf["vib_width"], num_attributes)
+        self.classifier = nn.Linear(num_attributes, num_classes)
         self.num_attributes = num_attributes
 
         # load checkpoint
@@ -102,11 +127,14 @@ class CBM(nn.Module):
         self.optimizer = getattr(torch.optim, conf["optimizer"])(
             self.parameters(), **conf["optimizer_args"]
         )
+        backbone_params = [
+            p for name, p in self.named_parameters() if "classifier" not in name
+        ]
         self.backbone_optimizer = getattr(torch.optim, conf["optimizer"])(
-            self.backbone.parameters(), **conf["optimizer_args"]
+            backbone_params, **conf["optimizer_args"]
         )
         self.fc_optimizer = getattr(torch.optim, conf["optimizer"])(
-            self.fc.parameters(), **conf["fc_optimizer_args"]
+            self.classifier.parameters(), **conf["fc_optimizer_args"]
         )
         self.scheduler = torch.optim.lr_scheduler.StepLR(
             self.optimizer, **conf["scheduler_args"]
@@ -123,14 +151,13 @@ class CBM(nn.Module):
             self.mask = None
 
     def forward(self, x):
-        attr_pred = self.backbone(x)
-        if self.mask is not None:
-            attr_pred = attr_pred * torch.tensor(self.mask).cuda()
-        label_pred = self.fc(attr_pred)
+        x = self.backbone(x)
+        attr_pred, mean, logvar = self.vib(x)
+        label_pred = self.classifier(attr_pred)
         if self.atk_mode:
             return label_pred
         else:
-            return attr_pred, label_pred
+            return attr_pred, mean, logvar, label_pred
 
     def Joint(self, loader):
         label_loss_meter = AverageMeter()
@@ -161,11 +188,14 @@ class CBM(nn.Module):
                 label = torch.cat([label, noise_label], dim=0)
                 attr = torch.cat([attr, noise_attr], dim=0)
             img, label, attr = img.cuda(), label.cuda(), attr.cuda()
-            attr_pred, label_pred = self(img)
+            attr_pred, mu, logvar, label_pred = self(img)
+            kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
             attr_losses = []
             for i in range(self.num_attributes):
                 attr_losses.append(self.attr_loss_fn[i](attr_pred[:, i], attr[:, i]))
-            attr_loss = sum(attr_losses) / len(attr_losses)
+            attr_loss = (
+                sum(attr_losses) / len(attr_losses) + kl_loss * self.conf["vib_lambda"]
+            )
             label_loss = self.loss_fn(label_pred, label)
 
             loss = label_loss + attr_loss * self.conf["attr_loss_weight"]
@@ -238,7 +268,7 @@ class CBM(nn.Module):
             "label_loss": label_loss_meter.avg,
             "label_acc": label_acc_meter.avg,
         }
-    
+
     def Independent(self, loader):
         label_loss_meter = AverageMeter()
         label_acc_meter = AverageMeter()
@@ -284,7 +314,6 @@ class CBM(nn.Module):
             "label_loss": label_loss_meter.avg,
             "label_acc": label_acc_meter.avg,
         }
-    
 
     def train_concept(self, loader):
         attr_loss_meter = AverageMeter()
@@ -312,11 +341,14 @@ class CBM(nn.Module):
                 label = torch.cat([label, noise_label], dim=0)
                 attr = torch.cat([attr, noise_attr], dim=0)
             img, label, attr = img.cuda(), label.cuda(), attr.cuda()
-            attr_pred, label_pred = self(img)
+            attr_pred, mu, logvar, label_pred = self(img)
             attr_losses = []
-            for i in range(self.num_attributes):
+            for i in range(len(attr_pred)):
                 attr_losses.append(self.attr_loss_fn[i](attr_pred[:, i], attr[:, i]))
-            attr_loss = sum(attr_losses) / len(attr_losses)
+            kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+            attr_loss = (
+                sum(attr_losses) / len(attr_losses) + self.conf["vib_lambda"] * kl_loss
+            )
             attr_loss.backward()
             self.backbone_optimizer.step()
             self.backbone_optimizer.zero_grad()
@@ -335,7 +367,7 @@ class CBM(nn.Module):
     def run_epoch(self, loader):
         self.train()
         if self.conf["mode"] == "Joint" or self.conf["mode"] == "Standard":
-            return self.Joint(loader)
+            return getattr(self, self.conf["mode"])(loader)
         elif self.conf["mode"] == "Sequential" or self.conf["mode"] == "Independent":
             if len(self.conf["checkpoint"]) == 0:
                 return self.train_concept(loader)
@@ -359,7 +391,7 @@ class CBM(nn.Module):
                 self.atk_mode = True
                 img = atk(img, label)
                 self.atk_mode = False
-            attr_pred, label_pred = self(img)
+            attr_pred, mu, logvar, label_pred = self(img)
 
             attr_pred = torch.sigmoid(attr_pred).ge(0.5)
             attr_correct = torch.sum(attr_pred == attr).int().sum().item()

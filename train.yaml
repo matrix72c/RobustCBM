@@ -4,41 +4,43 @@ seed: 42
 
 # data setting
 data_path: "./data/"
-dataset: "AwA"
+dataset: "CUB"
 num_attributes: 112
 num_classes: 200
-resol: 224
-batch_size: 128
+batch_size: 64
 num_workers: 8
+imbalance: True
+mask: False
+n_features: 64
 
 # model setting
-model: "PBM" # "CBM" or "PBM"
+model: "VCBM" # "CBM" or "VCBM"
 mode: "Joint" # "Joint" or "Sequential"
 base: "resnet50" # "resnet50" or "inceptionv3"
-use_pretrained: False # True, False, or "pretrained_models/resnet_train_acc_0.85_test_acc_0.74.pth"
-checkpoint: ""
+resol: 224
+use_pretrained: True # True, False, or "pretrained_models/resnet_train_acc_0.85_test_acc_0.74.pth"
+checkpoint: "" # checkpoints/CBM_CUB_Sequential_pretrained_noadv_nonoise_93.48_d515cd5b68cf4b2aa868a9b7.pth
+vib_width: 256
+vib_lambda: 0.0001
 
 # training setting
+optimizer: "SGD"
 optimizer_args:
   lr: 0.01
   momentum: 0.9
   weight_decay: 0.0004
-scheduler: "StepLR"
 scheduler_args:
-  step_size: 50
+  step_size: 30
   gamma: 0.1
 fc_optimizer_args:
   lr: 0.005
-  momentum: 0.9
-  weight_decay: 0.0004
-fc_scheduler: "StepLR"
 fc_scheduler_args:
   step_size: 50
   gamma: 0.1
 epochs: 4000
 
 # experiment setting
-use_adv: "" # "image2label" + "concept2label"
+use_adv: "image2label" # "image2label" + "concept2label"
 use_noise: "" # "image" + "concept"
 attr_loss_weight: 1
 adv_v2v_eps: 0.3

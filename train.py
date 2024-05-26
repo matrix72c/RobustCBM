@@ -5,7 +5,7 @@ import os
 from aim import Run
 import yaml
 
-from utils import set_seed
+from utils import cal_class_imbalance_weights, set_seed, gen_mask
 from attack import attack_eval
 
 
@@ -40,11 +40,14 @@ def train(conf):
         shuffle=False,
         num_workers=conf["num_workers"],
     )
-
-    # load model
-    model = getattr(
-        __import__("models." + conf["model"], fromlist=[""]), conf["model"]
-    )(conf)
+    if conf["imbalance"]:
+        train_dataset.imbalance_ratio = cal_class_imbalance_weights(
+            train_loader, conf["num_attributes"]
+        )
+        test_dataset.imbalance_ratio = train_dataset.imbalance_ratio
+    if conf["mask"]:
+        train_dataset.mask = gen_mask(train_loader, conf["num_attributes"], conf["n_features"])
+        test_dataset.mask = train_dataset.mask
 
     run = Run(experiment=conf["experiment"], repo=os.getenv("AIM_REPO"))
     run[...] = conf
@@ -72,44 +75,53 @@ def train(conf):
     f = open("results/configs/{}.yaml".format(run_hash), "w", encoding="utf-8")
     yaml.dump(conf, f, allow_unicode=True)
 
+    # load model
+    model = getattr(
+        __import__("models." + conf["model"], fromlist=[""]), conf["model"]
+    )(conf, train_loader, test_loader)
+    
     # train
     model.cuda()
+    best_acc = 0
+    best_acc_epoch = 0
+    best_model = None
     for epoch in range(conf["epochs"]):
         res = model.run_epoch(train_loader)
         log = "Epoch: {} ".format(epoch)
         for key, value in res.items():
             run.track(name=key, value=value, epoch=epoch)
             log += "{}: {:.4f} ".format(key, value)
+        acc = model.test(test_loader)
+        log += "test_acc: {:.4f}".format(acc)
+        run.track(name="test_acc", value=acc, epoch=epoch)
+        if (epoch + 1) % 10 == 0:
+            adv_acc = model.test(test_loader, is_adv=True)
+            log += " adv_acc: {:.4f}".format(adv_acc)
+            run.track(name="adv_acc", value=adv_acc, epoch=epoch)
         print(log)
-        if res["label_acc"] > 0.80:
-            torch.save(
-                model.state_dict(),
+        if acc > best_acc + 0.01:
+            best_acc = acc
+            best_acc_epoch = epoch
+            best_model = model.state_dict().copy()
+        if epoch - best_acc_epoch > 20:
+            print("Early stopping at epoch {}".format(epoch))
+            break
+        
+    if best_model is not None:
+        torch.save(
+                best_model,
                 "checkpoints/"
                 + run.description
                 + "_"
-                + str("{:.2f}".format(res["label_acc"] * 100))
+                + str("{:.2f}".format(best_acc * 100))
                 + "_"
                 + run_hash
                 + ".pth",
             )
-        if res["label_acc"] > 0.9:
-            models = [f for f in os.listdir("checkpoints/") if run_hash in f]
-            min_diff = float("inf")
-            file_to_keep = None
-            for file in models:
-                parts = file.split("_")
-                if len(parts) > 2 and parts[-2].replace(".", "", 1).isdigit():
-                    acc = float(parts[-2])
-                    diff = abs(acc - 90)
-                    if diff < min_diff:
-                        min_diff = diff
-                        file_to_keep = file
-            print(file_to_keep)
-            for file in models:
-                if file != file_to_keep and ".pth" in file:
-                    os.remove(os.path.join("checkpoints", file))
-            attack_eval(run_hash, run)
-            return
+    adv_acc = model.test(test_loader, is_adv=True)
+    print("adv_acc: {:.4f}".format(adv_acc))
+    run.track(name="adv_acc", value=adv_acc, epoch=epoch)
+    return
 
 
 if __name__ == "__main__":
