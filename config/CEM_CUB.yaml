@@ -1,0 +1,36 @@
+seed_everything: 42
+
+trainer:
+  max_epochs: 1000
+  logger:
+    class_path: aim.pytorch_lightning.AimLogger
+    init_args:
+      run_name: CEM_CUB
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val_acc
+        dirpath: checkpoints/
+        filename: CEM_CUB
+        save_top_k: 1
+        mode: max
+        save_weights_only: True
+    - class_path: callbacks.AdversarialEarlyStop
+      init_args:
+        monitor: val_acc
+        mode: max
+        min_delta: 0.001
+        patience: 10
+
+model:
+  class_path: model.CEM
+  init_args:
+    base: resnet50
+    num_classes: 200
+    num_concepts: 112
+
+data:
+  class_path: dataset.CUB
+  init_args:
+    data_path: ./data
+    batch_size: 128

@@ -1,0 +1,33 @@
+seed_everything: 42
+
+trainer:
+  max_epochs: 1000
+  logger:
+    class_path: aim.pytorch_lightning.AimLogger
+    init_args:
+      run_name: resnet_AwA
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val_acc
+        dirpath: checkpoints/
+        filename: resnet_AwA
+        save_top_k: 1
+        mode: max
+    - class_path: callbacks.AdversarialEarlyStop
+      init_args:
+        monitor: val_acc
+        mode: max
+        min_delta: 0.001
+        patience: 10
+
+model:
+  class_path: model.ResNet
+  init_args:
+    num_classes: 50
+
+data:
+  class_path: dataset.AwA
+  init_args:
+    data_path: ./data
+    batch_size: 128
