@@ -21,7 +21,7 @@ class VCEM(CBM):
         lr: float = 1e-3,
         step_size: int = 15,
         gamma: float = 0.1,
-        vib_lambda: Number = 0.1,
+        vib_lambda: Number = 0.01,
     ):
         super().__init__(
             base,
@@ -84,7 +84,11 @@ class VCEM(CBM):
         )
         self.log("info_loss", info_loss)
         class_loss = F.cross_entropy(class_pred, label)
-        loss = concept_loss + self.hparams.concept_weight * class_loss
-        self.concept_acc(concept_pred, concepts) + info_loss * self.hparams.vib_lambda
+        loss = (
+            concept_loss
+            + self.hparams.concept_weight * class_loss
+            + info_loss * self.hparams.vib_lambda
+        )
+        self.concept_acc(concept_pred, concepts)
         self.acc(class_pred, label)
         return loss

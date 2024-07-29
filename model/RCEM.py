@@ -39,9 +39,9 @@ class RCEM(CBM):
         )  # reparameter, 2*embed_size*concept->mean, 2*embed_size*concept->std
         self.concept_prob_gen = nn.Linear(2 * embed_size * num_concepts, num_concepts)
         self.classifier = nn.Linear(embed_size * num_concepts, num_classes)
-        self.mu_bn = nn.BatchNorm1d(2 * num_concepts)
-        self.logvar_bn = nn.BatchNorm1d(2 * num_concepts)
-        self.scaler = Scaler()
+        self.mu_bn = nn.BatchNorm1d(2 * embed_size * num_concepts, affine=False)
+        self.logvar_bn = nn.BatchNorm1d(2 * embed_size * num_concepts, affine=False)
+        self.scaler = Scaler(2 * embed_size * num_concepts)
 
     def forward(self, x):
         statistics = self.base(x)
@@ -92,7 +92,11 @@ class RCEM(CBM):
         )
         self.log("info_loss", info_loss)
         class_loss = F.cross_entropy(class_pred, label)
-        loss = concept_loss + self.hparams.concept_weight * class_loss
-        self.concept_acc(concept_pred, concepts) + info_loss * self.hparams.vib_lambda
+        loss = (
+            concept_loss
+            + self.hparams.concept_weight * class_loss
+            + info_loss * self.hparams.vib_lambda
+        )
+        self.concept_acc(concept_pred, concepts)
         self.acc(class_pred, label)
         return loss

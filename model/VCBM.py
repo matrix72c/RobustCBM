@@ -17,7 +17,7 @@ class VCBM(CBM):
         lr: float = 0.001,
         step_size: int = 15,
         gamma: float = 0.1,
-        vib_lambda: Number = 0.1,
+        vib_lambda: Number = 0.01,
     ):
         super().__init__(
             base,

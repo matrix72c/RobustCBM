@@ -34,9 +34,9 @@ class RCBM(CBM):
             gamma,
         )
         self.base.fc = nn.Linear(self.base.fc.in_features, 2 * num_concepts)  # encoder
-        self.mu_bn = nn.BatchNorm1d(num_concepts)
-        self.logvar_bn = nn.BatchNorm1d(num_concepts)
-        self.scaler = Scaler()
+        self.mu_bn = nn.BatchNorm1d(num_concepts, affine=False)
+        self.logvar_bn = nn.BatchNorm1d(num_concepts, affine=False)
+        self.scaler = Scaler(num_concepts)
 
     def forward(self, x):
         statistics = self.base(x)
