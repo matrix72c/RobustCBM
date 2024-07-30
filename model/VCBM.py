@@ -33,8 +33,8 @@ class VCBM(CBM):
 
     def forward(self, x):
         statistics = self.base(x)
-        logvar, mu = torch.chunk(statistics, 2, dim=1)
-        std = F.softplus(logvar - 5, beta=1)
+        std, mu = torch.chunk(statistics, 2, dim=1)
+        std = F.softplus(std)
         concept_pred = mu + std * torch.randn_like(std)
         class_pred = self.classifier(concept_pred)
         if self.get_adv_img:

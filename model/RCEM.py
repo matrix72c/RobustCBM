@@ -35,23 +35,20 @@ class RCEM(CBM):
             gamma,
         )
         self.base.fc = nn.Linear(
-            self.base.fc.in_features, 4 * embed_size * num_concepts
-        )  # reparameter, 2*embed_size*concept->mean, 2*embed_size*concept->std
+            self.base.fc.in_features, 2 * embed_size * num_concepts
+        )
         self.concept_prob_gen = nn.Linear(2 * embed_size * num_concepts, num_concepts)
         self.classifier = nn.Linear(embed_size * num_concepts, num_classes)
-        self.mu_bn = nn.BatchNorm1d(2 * embed_size * num_concepts, affine=False)
-        self.logvar_bn = nn.BatchNorm1d(2 * embed_size * num_concepts, affine=False)
-        self.scaler = Scaler(2 * embed_size * num_concepts)
+
+        self.vib = nn.Linear(
+            embed_size * num_concepts, 2 * embed_size * num_concepts
+        )
+        self.mu_bn = nn.BatchNorm1d(embed_size * num_concepts, affine=False)
+        self.std_bn = nn.BatchNorm1d(embed_size * num_concepts, affine=False)
+        self.scaler = Scaler(embed_size * num_concepts)
 
     def forward(self, x):
-        statistics = self.base(x)
-        logvar, mu = torch.chunk(statistics, 2, dim=1)
-        mu = self.mu_bn(mu)
-        mu = self.scaler(mu, "positive")
-        logvar = self.logvar_bn(logvar)
-        logvar = self.scaler(logvar, "negative")
-        std = F.softplus(logvar - 5, beta=1)
-        concept_context = mu + std * torch.randn_like(std)
+        concept_context = self.base(x)
         concept_pred = self.concept_prob_gen(concept_context)
 
         pos_embed, neg_embed = torch.chunk(concept_context, 2, dim=1)
@@ -61,8 +58,17 @@ class RCEM(CBM):
         concept_pred.unsqueeze_(-1)
         combined_embed = pos_embed * concept_pred + neg_embed * (1 - concept_pred)
         concept_embed = combined_embed.view(combined_embed.size(0), -1)
-
         concept_pred = concept_pred.squeeze(-1)
+
+        statistics = self.vib(concept_embed)
+        std, mu = torch.chunk(statistics, 2, dim=1)
+        mu = self.mu_bn(mu)
+        mu = self.scaler(mu, "positive")
+        std = self.std_bn(std)
+        std = self.scaler(std, "negative")
+        std = F.softplus(std) + 1e-8 # ensure std > 0
+        concept_embed = mu + std * torch.randn_like(std)
+
         class_pred = self.classifier(concept_embed)
         if self.get_adv_img:
             return class_pred
@@ -90,7 +96,13 @@ class RCEM(CBM):
         info_loss = (
             -0.5 * torch.mean(1 + 2 * std.log() - mu.pow(2) - std.pow(2)) / math.log(2)
         )
-        self.log("info_loss", info_loss)
+        self.log(
+            "info_loss",
+            info_loss,
+            prog_bar=True,
+            on_step=True,
+            on_epoch=False,
+        )
         class_loss = F.cross_entropy(class_pred, label)
         loss = (
             concept_loss
