@@ -34,12 +34,12 @@ class VCBM(CBM):
     def forward(self, x):
         statistics = self.base(x)
         std, mu = torch.chunk(statistics, 2, dim=1)
-        std = F.softplus(std)
+        std = F.softplus(std, beta=1)  # ensure std > 0
         concept_pred = mu + std * torch.randn_like(std)
         class_pred = self.classifier(concept_pred)
         if self.get_adv_img:
             return class_pred
-        return class_pred, concept_pred, mu, std
+        return class_pred, concept_pred, mu, std**2
 
     def shared_step(self, batch):
         img, label, concepts = batch
@@ -56,16 +56,26 @@ class VCBM(CBM):
                 self.train()
                 self.get_adv_img = False
 
-        class_pred, concept_pred, mu, std = self(img)
+        class_pred, concept_pred, mu, var = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(
             concept_pred, concepts, weight=self.data_weight
         )
-        info_loss = (
-            -0.5 * torch.mean(1 + 2 * std.log() - mu.pow(2) - std.pow(2)) / math.log(2)
+
+        var = torch.clamp(var, min=1e-8)  # avoid var -> 0
+        info_loss = -0.5 * torch.mean(1 + var.log() - mu.pow(2) - var) / math.log(2)
+        self.log(
+            "info_loss",
+            info_loss,
+            prog_bar=True,
+            on_step=True,
+            on_epoch=False,
         )
-        self.log("info_loss", info_loss)
         class_loss = F.cross_entropy(class_pred, label)
-        loss = concept_loss + self.hparams.concept_weight * class_loss + self.hparams.vib_lambda * info_loss
+        loss = (
+            concept_loss
+            + self.hparams.concept_weight * class_loss
+            + self.hparams.vib_lambda * info_loss
+        )
         self.concept_acc(concept_pred, concepts)
         self.acc(class_pred, label)
         return loss

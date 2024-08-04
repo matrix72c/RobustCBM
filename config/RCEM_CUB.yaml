@@ -28,7 +28,7 @@ model:
     base: resnet50
     num_classes: 200
     num_concepts: 112
-    vib_lambda: 0.1
+    vib_lambda: 0.01
 
 data:
   class_path: dataset.CUB

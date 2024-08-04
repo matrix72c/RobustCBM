@@ -34,17 +34,17 @@ class VCEM(CBM):
             gamma,
         )
         self.base.fc = nn.Linear(
-            self.base.fc.in_features, 2 * embed_size * num_concepts
+            self.base.fc.in_features, 4 * embed_size * num_concepts
         )
         self.concept_prob_gen = nn.Linear(2 * embed_size * num_concepts, num_concepts)
-        self.classifier = nn.Linear(2 * embed_size * num_concepts, num_classes)
-
-        self.vib = nn.Linear(
-            embed_size * num_concepts, 4 * embed_size * num_concepts
-        )
+        self.classifier = nn.Linear(embed_size * num_concepts, num_classes)
 
     def forward(self, x):
-        concept_context = self.base(x)
+        statistics = self.base(x)
+        std, mu = torch.chunk(statistics, 2, dim=1)
+        std = F.softplus(std, beta=1)  # ensure std > 0
+        concept_context = mu + std * torch.randn_like(std)
+
         concept_pred = self.concept_prob_gen(concept_context)
 
         pos_embed, neg_embed = torch.chunk(concept_context, 2, dim=1)
@@ -56,15 +56,10 @@ class VCEM(CBM):
         concept_embed = combined_embed.view(combined_embed.size(0), -1)
         concept_pred = concept_pred.squeeze(-1)
 
-        statistics = self.vib(concept_embed)
-        std, mu = torch.chunk(statistics, 2, dim=1)
-        std = F.softplus(std) + 1e-8 # ensure std > 0
-        concept_embed = mu + std * torch.randn_like(std)
-
         class_pred = self.classifier(concept_embed)
         if self.get_adv_img:
             return class_pred
-        return class_pred, concept_pred, mu, std
+        return class_pred, concept_pred, mu, std**2
 
     def shared_step(self, batch):
         img, label, concepts = batch
@@ -81,13 +76,12 @@ class VCEM(CBM):
                 self.train()
                 self.get_adv_img = False
 
-        class_pred, concept_pred, mu, std = self(img)
+        class_pred, concept_pred, mu, var = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(
             concept_pred, concepts, weight=self.data_weight
         )
-        info_loss = (
-            -0.5 * torch.mean(1 + 2 * std.log() - mu.pow(2) - std.pow(2)) / math.log(2)
-        )
+        var = torch.clamp(var, min=1e-8)  # avoid var -> 0
+        info_loss = -0.5 * torch.mean(1 + var.log() - mu.pow(2) - var) / math.log(2)
         self.log(
             "info_loss",
             info_loss,
