@@ -50,7 +50,7 @@ class CBM(L.LightningModule):
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
 
         self.train_atk = PGD(
-            self, eps=8 / 255, alpha=2 / 225, steps=4, random_start=True
+            self, eps=8 / 255, alpha=2 / 225, steps=8, random_start=True
         )
         self.train_atk.set_normalization_used(
             mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
