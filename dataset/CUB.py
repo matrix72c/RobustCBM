@@ -5,7 +5,6 @@ import lightning as pl
 from PIL import Image
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
-from utils import cal_class_imbalance_weights
 from torch.utils.data import DataLoader
 
 
@@ -34,14 +33,13 @@ class CUBDataSet(Dataset):
             self.data.extend(pickle.load(open(data_path + "val.pkl", "rb")))
             self.transform = transforms.Compose(
                 [
-                    transforms.CenterCrop(224),
+                    transforms.Resize(size=(224, 224)),
                     transforms.ToTensor(),
                     transforms.Normalize(
                         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
                     ),
                 ]
             )
-        self.imbalance_ratio = cal_class_imbalance_weights(self.data)
 
     def __getitem__(self, index):
         img_data = self.data[index]
@@ -72,7 +70,6 @@ class CUB(pl.LightningDataModule):
         self.train_data = CUBDataSet(self.data_path, "fit")
         self.val_data = CUBDataSet(self.data_path, "val")
         self.test_data = CUBDataSet(self.data_path, "test")
-        self.imbalance_ratio = self.train_data.imbalance_ratio
 
     def train_dataloader(self):
         return DataLoader(

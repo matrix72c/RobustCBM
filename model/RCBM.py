@@ -19,7 +19,7 @@ class RCBM(CBM):
         use_pretrained: bool = True,
         concept_weight: float = 1,
         lr: float = 1e-3,
-        step_size: list = [15, 30, 100],
+        step_size: list = [15, 30, 45],
         gamma: float = 0.1,
         vib_lambda: Number = 0.01,
         adv_training: bool = False,
@@ -59,11 +59,7 @@ class RCBM(CBM):
             img = self.generate_adv_img(img, label, stage)
 
         class_pred, concept_pred, mu, var = self(img)
-        concept_loss = F.binary_cross_entropy_with_logits(
-            concept_pred,
-            concepts,
-            weight=self.data_weight if stage == "train" else None,
-        )
+        concept_loss = F.binary_cross_entropy_with_logits(concept_pred, concepts)
         var = torch.clamp(var, min=1e-8)
         info_loss = 0.5 * torch.mean(mu**2 + var - var.log() - 1) / math.log(2)
         self.log(

@@ -44,7 +44,6 @@ class CBM(L.LightningModule):
         else:
             raise ValueError("Unknown base model")
         self.classifier = nn.Linear(num_concepts, num_classes)
-        self.data_weight = None
 
         self.concept_acc = Accuracy(task="multilabel", num_labels=num_concepts)
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
@@ -62,12 +61,6 @@ class CBM(L.LightningModule):
         self.test_atk = PGD(self)
         self.get_adv_img = False
         self.adv_training = adv_training
-
-    def setup(self, stage=None):
-        data_module = self.trainer.datamodule
-        self.data_weight = None
-        if hasattr(data_module, "imbalance_ratio"):
-            self.data_weight = torch.Tensor(data_module.imbalance_ratio).to(self.device)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
@@ -107,11 +100,7 @@ class CBM(L.LightningModule):
             img = self.generate_adv_img(img, label, stage)
 
         class_pred, concept_pred = self(img)
-        concept_loss = F.binary_cross_entropy_with_logits(
-            concept_pred,
-            concepts,
-            weight=self.data_weight if stage == "train" else None,
-        )
+        concept_loss = F.binary_cross_entropy_with_logits(concept_pred, concepts)
         class_loss = F.cross_entropy(class_pred, label)
         loss = class_loss + self.hparams.concept_weight * concept_loss
         self.concept_acc(concept_pred, concepts)

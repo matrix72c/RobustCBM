@@ -68,11 +68,7 @@ class VCEM(CBM):
             img = self.generate_adv_img(img, label, stage)
 
         class_pred, concept_pred, mu, var = self(img)
-        concept_loss = F.binary_cross_entropy_with_logits(
-            concept_pred,
-            concepts,
-            weight=self.data_weight if stage == "train" else None,
-        )
+        concept_loss = F.binary_cross_entropy_with_logits(concept_pred, concepts)
         var = torch.clamp(var, min=1e-8)  # avoid var -> 0
         info_loss = -0.5 * torch.mean(1 + var.log() - mu.pow(2) - var) / math.log(2)
         self.log(
