@@ -24,7 +24,10 @@ if __name__ == "__main__":
     # Evaluation std model
     cli.model.adv_training = False
     ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path=cli.config.ckpt)
-    std_acc, std_concept_acc = ret[0]["test_acc_epoch"], ret[0]["test_concept_acc_epoch"]
+    std_acc, std_concept_acc = (
+        ret[0]["test_acc_epoch"],
+        ret[0]["test_concept_acc_epoch"],
+    )
 
     cli.model.adv_training = True
     mean = [0.485, 0.456, 0.406]
@@ -33,15 +36,17 @@ if __name__ == "__main__":
     cli.model.test_atk = PGD(cli.model)
     cli.model.test_atk.set_normalization_used(mean=mean, std=std)
     ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path=cli.config.ckpt)
-    std_pgd_acc, std_pgd_concept_acc = ret[0]["test_acc_epoch"], ret[0]["test_concept_acc_epoch"]
+    std_pgd_acc, std_pgd_concept_acc = (
+        ret[0]["test_acc_epoch"],
+        ret[0]["test_concept_acc_epoch"],
+    )
 
     cli.model.test_atk = FGSM(cli.model)
     cli.model.test_atk.set_normalization_used(mean=mean, std=std)
     ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path=cli.config.ckpt)
-    std_fgsm_acc, std_fgsm_concept_acc = ret[0]["test_acc_epoch"], ret[0]["test_concept_acc_epoch"]
-
-    print(
-        f"std_acc: {std_acc}, std_concept_acc: {std_concept_acc}, pgd_acc: {std_pgd_acc}, pgd_concept_acc: {std_pgd_concept_acc}, fgsm_acc: {std_fgsm_acc}, fgsm_concept_acc: {std_fgsm_concept_acc}"
+    std_fgsm_acc, std_fgsm_concept_acc = (
+        ret[0]["test_acc_epoch"],
+        ret[0]["test_concept_acc_epoch"],
     )
 
     # Adversarial training
@@ -51,16 +56,22 @@ if __name__ == "__main__":
 
     # Evaluate robust model
     cli.model.adv_training = False
-    ret = cli.trainer.test(cli.model, cli.datamodule)
-    adv_acc, adv_concept_acc = ret[0]["test_acc_epoch"], ret[0]["test_concept_acc_epoch"]
+    ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path="best")
+    adv_acc, adv_concept_acc = (
+        ret[0]["test_acc_epoch"],
+        ret[0]["test_concept_acc_epoch"],
+    )
 
     # Adversarial attacks
     cli.model.adv_training = True
 
     cli.model.test_atk = PGD(cli.model)
     cli.model.test_atk.set_normalization_used(mean=mean, std=std)
-    ret = cli.trainer.test(cli.model, cli.datamodule)
-    adv_pgd_acc, adv_pgd_concept_acc = ret[0]["test_acc_epoch"], ret[0]["test_concept_acc_epoch"]
+    ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path="best")
+    adv_pgd_acc, adv_pgd_concept_acc = (
+        ret[0]["test_acc_epoch"],
+        ret[0]["test_concept_acc_epoch"],
+    )
 
     # cli.model.test_atk = AutoAttack(cli.model, n_classes=cli.model.hparams.num_classes)
     # cli.model.test_atk.set_normalization_used(mean=mean, std=std)
@@ -69,8 +80,11 @@ if __name__ == "__main__":
 
     cli.model.test_atk = FGSM(cli.model)
     cli.model.test_atk.set_normalization_used(mean=mean, std=std)
-    ret = cli.trainer.test(cli.model, cli.datamodule)
-    adv_fgsm_acc, adv_fgsm_concept_acc = ret[0]["test_acc_epoch"], ret[0]["test_concept_acc_epoch"]
+    ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path="best")
+    adv_fgsm_acc, adv_fgsm_concept_acc = (
+        ret[0]["test_acc_epoch"],
+        ret[0]["test_concept_acc_epoch"],
+    )
 
     # cli.model.test_atk = CW(cli.model)
     # cli.model.test_atk.set_normalization_used(mean=mean, std=std)
