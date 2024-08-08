@@ -1,20 +1,24 @@
+run_name: ResNet_CUB
 seed_everything: 42
 
 trainer:
   max_epochs: 1000
+  log_every_n_steps: 1
   logger:
     class_path: aim.pytorch_lightning.AimLogger
     init_args:
-      run_name: resnet_CUB
+      run_name: ResNet_CUB
   callbacks:
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
         monitor: val_acc
         dirpath: checkpoints/
-        filename: resnet_CUB
+        filename: ResNet_CUB
         save_top_k: 1
         mode: max
-    - class_path: callbacks.AdversarialEarlyStop
+        save_weights_only: True
+        enable_version_counter: False
+    - class_path: lightning.pytorch.callbacks.EarlyStopping
       init_args:
         monitor: val_acc
         mode: max

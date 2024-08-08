@@ -51,33 +51,41 @@ class ResNet(L.LightningModule):
         x = self.model(x)
         return x
 
-    def shared_step(self, batch):
+    def generate_adv_img(self, img, label, stage):
+        with torch.inference_mode(False):
+            img = img.clone().detach().to(self.device)
+            label = label.clone().detach().to(self.device)
+            if stage == "train":
+                self.train_atk.set_device(self.device)
+                img = self.train_atk(img, label)
+            elif stage == "val":
+                self.val_atk.set_device(self.device)
+                img = self.val_atk(img, label)
+            elif stage == "test":
+                self.test_atk.set_device(self.device)
+                img = self.test_atk(img, label)
+        return img.detach().to(self.device)
+
+    def shared_step(self, batch, stage):
         img, label, _ = batch
         if self.adv_training:
-            with torch.enable_grad():
-                if self.trainer.training:
-                    self.eval()
-                    self.train_atk.set_device(self.device)
-                    img = self.train_atk(img, label)
-                    self.train()
-                else:
-                    self.val_atk.set_device(self.device)
-                    img = self.val_atk(img, label)
+            img = self.generate_adv_img(img, label, stage)
         logits = self(img)
         loss = F.cross_entropy(logits, label)
         self.acc(logits, label)
         return loss
 
-    def training_step(self, batch, batch_idx):
-        loss = self.shared_step(batch)
+    def training_step(self, batch):
+        loss = self.shared_step(batch, "train")
         self.log("train_loss", loss, prog_bar=True)
         self.log("train_acc", self.acc, prog_bar=True, on_step=True, on_epoch=False)
         return loss
 
-    def validation_step(self, batch, batch_idx):
-        _ = self.shared_step(batch)
-        self.log("val_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
+    def validation_step(self, batch):
+        _ = self.shared_step(batch, "val")
+        self.log("val_acc", self.acc, prog_bar=True, on_epoch=True, on_step=True)
 
-    def test_step(self, batch, batch_idx):
-        _ = self.shared_step(batch)
-        self.log("test_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
+    def test_step(self, batch):
+        _ = self.shared_step(batch, "test")
+        self.log("test_acc", self.acc, prog_bar=True, on_epoch=True, on_step=True)
+        self.log("test_concept_acc_epoch", 0.0, on_epoch=True)
