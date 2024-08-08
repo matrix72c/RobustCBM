@@ -17,7 +17,7 @@ class CEM(CBM):
         use_pretrained: bool = True,
         concept_weight: float = 0.5,
         lr: float = 1e-4,
-        step_size: list = [15, 30],
+        step_size: list = [20, 40],
         gamma: float = 0.1,
         adv_training: bool = False,
     ):

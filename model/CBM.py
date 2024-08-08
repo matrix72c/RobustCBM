@@ -17,7 +17,7 @@ class CBM(L.LightningModule):
         use_pretrained: bool = True,
         concept_weight: float = 0.5,
         lr: float = 1e-3,
-        step_size: list = [15, 30, 100],
+        step_size: list = [10, 30, 45],
         gamma: float = 0.1,
         adv_training: bool = False,
     ):

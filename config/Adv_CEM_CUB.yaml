@@ -1,35 +1,36 @@
-run_name: RCBM_CUB
+run_name: Adv_CEM_CUB
 seed_everything: 42
+ckpt: saved_models/CEM_CUB.ckpt
 trainer:
   max_epochs: 1000
   log_every_n_steps: 1
   logger:
     class_path: aim.pytorch_lightning.AimLogger
     init_args:
-      run_name: RCBM_CUB
+      run_name: Adv_CEM_CUB
   callbacks:
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
         monitor: val_acc
-        dirpath: saved_models/
-        filename: RCBM_CUB
+        dirpath: checkpoints/
+        filename: Adv_CEM_CUB
         save_top_k: 1
         mode: max
         save_weights_only: True
-        enable_version_counter: False
     - class_path: lightning.pytorch.callbacks.EarlyStopping
       init_args:
         monitor: val_acc
         mode: max
         min_delta: 0.001
-        patience: 10
+        patience: 30
 
 model:
-  class_path: model.RCBM
+  class_path: model.CEM
   init_args:
     base: resnet50
     num_classes: 200
     num_concepts: 112
+    step_size: [30, 60]
 
 data:
   class_path: dataset.CUB
