@@ -41,10 +41,10 @@ if __name__ == "__main__":
         ret[0]["test_concept_acc_epoch"],
     )
 
-    cli.model.test_atk = FGSM(cli.model)
+    cli.model.test_atk = AutoAttack(cli.model, n_classes=cli.model.hparams.num_classes)
     cli.model.test_atk.set_normalization_used(mean=mean, std=std)
     ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path=cli.config.ckpt)
-    std_fgsm_acc, std_fgsm_concept_acc = (
+    std_aa_acc, std_aa_concept_acc = (
         ret[0]["test_acc_epoch"],
         ret[0]["test_concept_acc_epoch"],
     )
@@ -73,23 +73,10 @@ if __name__ == "__main__":
         ret[0]["test_concept_acc_epoch"],
     )
 
-    # cli.model.test_atk = AutoAttack(cli.model, n_classes=cli.model.hparams.num_classes)
-    # cli.model.test_atk.set_normalization_used(mean=mean, std=std)
-    # ret = cli.trainer.test(cli.model, cli.datamodule)
-    # aa_acc, aa_concept_acc = ret[0]["test_acc_epoch"], ret[0]["test_concept_acc_epoch"]
-
-    cli.model.test_atk = FGSM(cli.model)
+    cli.model.test_atk = AutoAttack(cli.model, n_classes=cli.model.hparams.num_classes)
     cli.model.test_atk.set_normalization_used(mean=mean, std=std)
-    ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path="best")
-    adv_fgsm_acc, adv_fgsm_concept_acc = (
-        ret[0]["test_acc_epoch"],
-        ret[0]["test_concept_acc_epoch"],
-    )
-
-    # cli.model.test_atk = CW(cli.model)
-    # cli.model.test_atk.set_normalization_used(mean=mean, std=std)
-    # ret = cli.trainer.test(cli.model, cli.datamodule)
-    # cw_acc, cw_concept_acc = ret[0]["test_acc_epoch"], ret[0]["test_concept_acc_epoch"]
+    ret = cli.trainer.test(cli.model, cli.datamodule)
+    adv_aa_acc, adv_aa_concept_acc = ret[0]["test_acc_epoch"], ret[0]["test_concept_acc_epoch"]
 
     df = pd.read_csv("result.csv")
     new_row = {
@@ -98,18 +85,14 @@ if __name__ == "__main__":
         "std_concept_acc": std_concept_acc,
         "std_pgd_acc": std_pgd_acc,
         "std_pgd_concept_acc": std_pgd_concept_acc,
-        "std_fgsm_acc": std_fgsm_acc,
-        "std_fgsm_concept_acc": std_fgsm_concept_acc,
+        "std_aa_acc": std_aa_acc,
+        "std_aa_concept_acc": std_aa_concept_acc,
         "adv_acc": adv_acc,
         "adv_concept_acc": adv_concept_acc,
         "adv_pgd_acc": adv_pgd_acc,
         "adv_pgd_concept_acc": adv_pgd_concept_acc,
-        # "aa_acc": aa_acc,
-        # "aa_concept_acc": aa_concept_acc,
-        "adv_fgsm_acc": adv_fgsm_acc,
-        "adv_fgsm_concept_acc": adv_fgsm_concept_acc,
-        # "cw_acc": cw_acc,
-        # "cw_concept_acc": cw_concept_acc,
+        "adv_aa_acc": adv_aa_acc,
+        "adv_aa_concept_acc": adv_aa_concept_acc,
         "base": cli.model.hparams.base,
         "num_classes": cli.model.hparams.num_classes,
         "num_concepts": cli.model.hparams.num_concepts,
