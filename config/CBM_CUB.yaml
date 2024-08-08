@@ -1,7 +1,9 @@
+run_name: CBM_CUB
 seed_everything: 42
-
+adv_patience: 30
 trainer:
   max_epochs: 1000
+  log_every_n_steps: 1
   logger:
     class_path: aim.pytorch_lightning.AimLogger
     init_args:
@@ -14,7 +16,8 @@ trainer:
         filename: CBM_CUB
         save_top_k: 1
         mode: max
-    - class_path: callbacks.AdversarialEarlyStop
+        save_weights_only: True
+    - class_path: lightning.pytorch.callbacks.EarlyStopping
       init_args:
         monitor: val_acc
         mode: max
@@ -24,9 +27,9 @@ trainer:
 model:
   class_path: model.CBM
   init_args:
+    base: resnet50
     num_classes: 200
     num_concepts: 112
-    base: resnet50
 
 data:
   class_path: dataset.CUB

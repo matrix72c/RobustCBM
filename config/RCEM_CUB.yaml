@@ -1,7 +1,9 @@
+run_name: RCEM_CUB
 seed_everything: 42
-
+adv_patience: 50
 trainer:
   max_epochs: 1000
+  log_every_n_steps: 1
   logger:
     class_path: aim.pytorch_lightning.AimLogger
     init_args:
@@ -15,7 +17,7 @@ trainer:
         save_top_k: 1
         mode: max
         save_weights_only: True
-    - class_path: callbacks.AdversarialEarlyStop
+    - class_path: lightning.pytorch.callbacks.EarlyStopping
       init_args:
         monitor: val_acc
         mode: max
@@ -28,7 +30,6 @@ model:
     base: resnet50
     num_classes: 200
     num_concepts: 112
-    vib_lambda: 0.01
 
 data:
   class_path: dataset.CUB

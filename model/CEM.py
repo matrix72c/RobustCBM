@@ -15,10 +15,11 @@ class CEM(CBM):
         num_concepts: int,
         embed_size: int = 16,
         use_pretrained: bool = True,
-        concept_weight: float = 0.01,
-        lr: float = 1e-3,
-        step_size: int = 15,
+        concept_weight: float = 0.5,
+        lr: float = 1e-4,
+        step_size: list = [15, 30],
         gamma: float = 0.1,
+        adv_training: bool = False,
     ):
         super().__init__(
             base,
@@ -29,38 +30,27 @@ class CEM(CBM):
             lr,
             step_size,
             gamma,
+            adv_training,
         )
-        self.concept_context_gen = nn.ModuleList(
-            [
-                nn.Linear(self.base.fc.in_features, 2 * embed_size)
-                for _ in range(num_concepts)
-            ]
+        self.base.fc = nn.Linear(
+            self.base.fc.in_features, 2 * embed_size * num_concepts
         )
-        self.concept_prob_gen = nn.ModuleList(
-            [nn.Linear(2 * embed_size, 1) for _ in range(num_concepts)]
-        )
-        self.base = nn.Sequential(*list(self.base.children())[:-1])
+        self.concept_prob_gen = nn.Linear(2 * embed_size * num_concepts, num_concepts)
         self.classifier = nn.Linear(embed_size * num_concepts, num_classes)
 
     def forward(self, x):
-        features = self.base(x)
-        features = features.view(features.size(0), -1)
-        concept_context = torch.cat(
-            [context(features).unsqueeze(1) for context in self.concept_context_gen],
-            dim=1,
-        )
-        concept_pred = torch.stack(
-            [
-                F.sigmoid(prob(concept_context[:, i, :]))
-                for i, prob in enumerate(self.concept_prob_gen)
-            ],
-            dim=1,
-        )
-        pos_embed = concept_context[:, :, : self.hparams.embed_size]
-        neg_embed = concept_context[:, :, self.hparams.embed_size :]
+        concept_context = self.base(x)
+        concept_pred = self.concept_prob_gen(concept_context)
+
+        pos_embed, neg_embed = torch.chunk(concept_context, 2, dim=1)
+        pos_embed, neg_embed = pos_embed.view(
+            pos_embed.size(0), -1, self.hparams.embed_size
+        ), neg_embed.view(neg_embed.size(0), -1, self.hparams.embed_size)
+        concept_pred.unsqueeze_(-1)
         combined_embed = pos_embed * concept_pred + neg_embed * (1 - concept_pred)
         concept_embed = combined_embed.view(combined_embed.size(0), -1)
         concept_pred = concept_pred.squeeze(-1)
+
         class_pred = self.classifier(concept_embed)
         if self.get_adv_img:
             return class_pred
