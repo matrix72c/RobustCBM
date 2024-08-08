@@ -21,7 +21,7 @@ trainer:
         monitor: val_acc
         mode: max
         min_delta: 0.001
-        patience: 30
+        patience: 15
 
 model:
   class_path: model.RCEM
