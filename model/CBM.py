@@ -81,6 +81,8 @@ class CBM(L.LightningModule):
         with torch.inference_mode(False):
             self.get_adv_img = True
             self.eval()
+            img = img.clone().detach().to(self.device)
+            label = label.clone().detach().to(self.device)
             if stage == "train":
                 self.train_atk.set_device(self.device)
                 img = self.train_atk(img, label)
@@ -92,7 +94,7 @@ class CBM(L.LightningModule):
                 img = self.test_atk(img, label)
             self.train()
             self.get_adv_img = False
-        return img
+        return img.detach().to(self.device)
 
     def shared_step(self, batch, stage):
         img, label, concepts = batch
@@ -127,9 +129,9 @@ class CBM(L.LightningModule):
             self.concept_acc,
             prog_bar=True,
             on_epoch=True,
-            on_step=False,
+            on_step=True,
         )
-        self.log("val_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
+        self.log("val_acc", self.acc, prog_bar=True, on_epoch=True, on_step=True)
 
     def test_step(self, batch, batch_idx):
         _ = self.shared_step(batch, "test")
@@ -138,6 +140,6 @@ class CBM(L.LightningModule):
             self.concept_acc,
             prog_bar=True,
             on_epoch=True,
-            on_step=False,
+            on_step=True,
         )
-        self.log("test_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
+        self.log("test_acc", self.acc, prog_bar=True, on_epoch=True, on_step=True)
