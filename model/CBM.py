@@ -80,9 +80,6 @@ class CBM(L.LightningModule):
     def generate_adv_img(self, img, label, stage):
         with torch.inference_mode(False):
             self.get_adv_img = True
-            self.eval()
-            img = img.clone().detach().to(self.device)
-            label = label.clone().detach().to(self.device)
             if stage == "train":
                 self.train_atk.set_device(self.device)
                 img = self.train_atk(img, label)
@@ -92,9 +89,8 @@ class CBM(L.LightningModule):
             elif stage == "test":
                 self.test_atk.set_device(self.device)
                 img = self.test_atk(img, label)
-            self.train()
             self.get_adv_img = False
-        return img.detach().to(self.device)
+        return img.clone().detach().to(self.device)
 
     def shared_step(self, batch, stage):
         img, label, concepts = batch

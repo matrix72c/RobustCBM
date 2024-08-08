@@ -53,8 +53,6 @@ class ResNet(L.LightningModule):
 
     def generate_adv_img(self, img, label, stage):
         with torch.inference_mode(False):
-            img = img.clone().detach().to(self.device)
-            label = label.clone().detach().to(self.device)
             if stage == "train":
                 self.train_atk.set_device(self.device)
                 img = self.train_atk(img, label)
@@ -64,7 +62,7 @@ class ResNet(L.LightningModule):
             elif stage == "test":
                 self.test_atk.set_device(self.device)
                 img = self.test_atk(img, label)
-        return img.detach().to(self.device)
+        return img.clone().detach().to(self.device)
 
     def shared_step(self, batch, stage):
         img, label, _ = batch
