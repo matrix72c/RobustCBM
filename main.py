@@ -12,15 +12,6 @@ class MyLightningCLI(LightningCLI):
         parser.add_argument("--std", action="store_true")
 
 
-def calc_acc(res):
-    total_acc = 0
-    total_concept_acc = 0
-    for i in res:
-        total_acc += i["test_acc"]
-        total_concept_acc += i["test_concept_acc"]
-    return total_acc / len(res), total_concept_acc / len(res)
-
-
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
     cli = MyLightningCLI(save_config_callback=None, run=False)
