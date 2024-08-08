@@ -65,8 +65,6 @@ class CUB(pl.LightningDataModule):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
-
-    def setup(self, stage=None):
         self.train_data = CUBDataSet(self.data_path, "fit")
         self.val_data = CUBDataSet(self.data_path, "val")
         self.test_data = CUBDataSet(self.data_path, "test")
