@@ -2,7 +2,6 @@ import sys
 from lightning.pytorch.cli import LightningCLI
 import pandas as pd
 import torch
-from torchattacks import PGD, AutoAttack, FGSM, CW
 
 
 class MyLightningCLI(LightningCLI):
@@ -19,34 +18,30 @@ if __name__ == "__main__":
     if cli.config.std:
         # Normal training
         cli.trainer.fit(cli.model, cli.datamodule)
+        cli.trainer.test(cli.model, cli.datamodule)
         sys.exit()
 
     # Evaluation std model
     cli.model.adv_training = False
     ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path=cli.config.ckpt)
     std_acc, std_concept_acc = (
-        ret[0]["test_acc_epoch"],
-        ret[0]["test_concept_acc_epoch"],
+        ret[0]["test_acc"],
+        ret[0]["test_concept_acc"],
     )
 
     cli.model.adv_training = True
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
-
-    cli.model.test_atk = PGD(cli.model)
-    cli.model.test_atk.set_normalization_used(mean=mean, std=std)
+    cli.model.eval_atk = "PGD"
     ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path=cli.config.ckpt)
     std_pgd_acc, std_pgd_concept_acc = (
-        ret[0]["test_acc_epoch"],
-        ret[0]["test_concept_acc_epoch"],
+        ret[0]["test_acc"],
+        ret[0]["test_concept_acc"],
     )
 
-    cli.model.test_atk = AutoAttack(cli.model, n_classes=cli.model.hparams.num_classes)
-    cli.model.test_atk.set_normalization_used(mean=mean, std=std)
+    cli.model.eval_atk = "AA"
     ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path=cli.config.ckpt)
     std_aa_acc, std_aa_concept_acc = (
-        ret[0]["test_acc_epoch"],
-        ret[0]["test_concept_acc_epoch"],
+        ret[0]["test_acc"],
+        ret[0]["test_concept_acc"],
     )
 
     # Adversarial training
@@ -58,25 +53,23 @@ if __name__ == "__main__":
     cli.model.adv_training = False
     ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path="best")
     adv_acc, adv_concept_acc = (
-        ret[0]["test_acc_epoch"],
-        ret[0]["test_concept_acc_epoch"],
+        ret[0]["test_acc"],
+        ret[0]["test_concept_acc"],
     )
 
     # Adversarial attacks
     cli.model.adv_training = True
 
-    cli.model.test_atk = PGD(cli.model)
-    cli.model.test_atk.set_normalization_used(mean=mean, std=std)
+    cli.model.eval_atk = "PGD"
     ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path="best")
     adv_pgd_acc, adv_pgd_concept_acc = (
-        ret[0]["test_acc_epoch"],
-        ret[0]["test_concept_acc_epoch"],
+        ret[0]["test_acc"],
+        ret[0]["test_concept_acc"],
     )
 
-    cli.model.test_atk = AutoAttack(cli.model, n_classes=cli.model.hparams.num_classes)
-    cli.model.test_atk.set_normalization_used(mean=mean, std=std)
-    ret = cli.trainer.test(cli.model, cli.datamodule)
-    adv_aa_acc, adv_aa_concept_acc = ret[0]["test_acc_epoch"], ret[0]["test_concept_acc_epoch"]
+    cli.model.eval_atk = "AA"
+    ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path="best")
+    adv_aa_acc, adv_aa_concept_acc = ret[0]["test_acc"], ret[0]["test_concept_acc"]
 
     df = pd.read_csv("result.csv")
     new_row = {

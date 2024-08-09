@@ -5,7 +5,8 @@ import torchvision
 from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
-from torchattacks import PGD
+from attacks import PGD, AutoAttack
+from utils import batchnorm_no_update_context
 
 
 class ResNet(L.LightningModule):
@@ -29,16 +30,27 @@ class ResNet(L.LightningModule):
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
 
         self.adv_training = False
+        self.at_loss = nn.CrossEntropyLoss(reduction="sum")
         self.train_atk = PGD(
-            self, eps=5 / 255, alpha=2 / 225, steps=2, random_start=True
+            self,
+            self.at_loss,
+            eps=8 / 255,
+            nb_iters=7,
+            rand_init=True,
+            loss_scale=1,
+            params_switch_grad_req=list(self.parameters()),
         )
-        self.train_atk.set_normalization_used(
-            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+        self.pgd_atk = PGD(
+            self,
+            self.at_loss,
+            eps=8 / 255,
+            nb_iters=10,
+            rand_init=True,
+            loss_scale=1,
+            params_switch_grad_req=list(self.parameters()),
         )
-        self.val_atk = PGD(self)
-        self.val_atk.set_normalization_used(
-            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-        )
+        self.auto_atk = AutoAttack(self, norm="Linf", eps=8 / 255, version="standard", verbose=False)
+        self.eval_atk = "PGD"
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
@@ -51,17 +63,19 @@ class ResNet(L.LightningModule):
         x = self.model(x)
         return x
 
+    @torch.enable_grad()
+    @torch.inference_mode(False)
     def generate_adv_img(self, img, label, stage):
-        with torch.inference_mode(False):
+        with batchnorm_no_update_context(self):
             if stage == "train":
-                self.train_atk.set_device(self.device)
-                img = self.train_atk(img, label)
+                img = self.train_atk.perturb(img, label)
             elif stage == "val":
-                self.val_atk.set_device(self.device)
-                img = self.val_atk(img, label)
+                img = self.pgd_atk.perturb(img, label)
             elif stage == "test":
-                self.test_atk.set_device(self.device)
-                img = self.test_atk(img, label)
+                if self.eval_atk == "PGD":
+                    img = self.pgd_atk.perturb(img, label)
+                elif self.eval_atk == "AA":
+                    img = self.auto_atk.run_standard_evaluation(img.clone().detach(), label.clone().detach(), bs=len(img))
         return img.clone().detach().to(self.device)
 
     def shared_step(self, batch, stage):
@@ -81,9 +95,9 @@ class ResNet(L.LightningModule):
 
     def validation_step(self, batch):
         _ = self.shared_step(batch, "val")
-        self.log("val_acc", self.acc, prog_bar=True, on_epoch=True, on_step=True)
+        self.log("val_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
 
     def test_step(self, batch):
         _ = self.shared_step(batch, "test")
-        self.log("test_acc", self.acc, prog_bar=True, on_epoch=True, on_step=True)
-        self.log("test_concept_acc_epoch", 0.0, on_epoch=True)
+        self.log("test_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
+        self.log("test_concept_acc", 0.0, on_epoch=True, on_step=False)

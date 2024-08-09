@@ -1,11 +1,11 @@
 import lightning as L
-from lightning.pytorch.utilities.types import TRAIN_DATALOADERS
+from utils import batchnorm_no_update_context
 import torch
 import torchvision
 from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
-from torchattacks import PGD
+from attacks import PGD, AutoAttack
 
 
 class CBM(L.LightningModule):
@@ -48,17 +48,27 @@ class CBM(L.LightningModule):
         self.concept_acc = Accuracy(task="multilabel", num_labels=num_concepts)
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
 
+        self.at_loss = nn.CrossEntropyLoss(reduction="sum")
         self.train_atk = PGD(
-            self, eps=8 / 255, alpha=2 / 225, steps=8, random_start=True
+            self,
+            self.at_loss,
+            eps=8 / 255,
+            nb_iters=7,
+            rand_init=True,
+            loss_scale=1,
+            params_switch_grad_req=list(self.parameters()),
         )
-        self.train_atk.set_normalization_used(
-            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+        self.pgd_atk = PGD(
+            self,
+            self.at_loss,
+            eps=8 / 255,
+            nb_iters=10,
+            rand_init=True,
+            loss_scale=1,
+            params_switch_grad_req=list(self.parameters()),
         )
-        self.val_atk = PGD(self)
-        self.val_atk.set_normalization_used(
-            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-        )
-        self.test_atk = PGD(self)
+        self.auto_atk = AutoAttack(self, norm="Linf", eps=8 / 255, version="standard", verbose=False)
+        self.eval_atk = "PGD"
         self.get_adv_img = False
         self.adv_training = adv_training
 
@@ -77,18 +87,20 @@ class CBM(L.LightningModule):
             return class_pred
         return class_pred, concept_pred
 
+    @torch.enable_grad()
+    @torch.inference_mode(False)
     def generate_adv_img(self, img, label, stage):
-        with torch.inference_mode(False):
+        with batchnorm_no_update_context(self):
             self.get_adv_img = True
             if stage == "train":
-                self.train_atk.set_device(self.device)
-                img = self.train_atk(img, label)
+                img = self.train_atk.perturb(img, label)
             elif stage == "val":
-                self.val_atk.set_device(self.device)
-                img = self.val_atk(img, label)
+                img = self.pgd_atk.perturb(img, label)
             elif stage == "test":
-                self.test_atk.set_device(self.device)
-                img = self.test_atk(img, label)
+                if self.eval_atk == "PGD":
+                    img = self.pgd_atk.perturb(img, label)
+                elif self.eval_atk == "AA":
+                    img = self.auto_atk.run_standard_evaluation(img.clone().detach(), label.clone().detach(), bs=len(img))
             self.get_adv_img = False
         return img.clone().detach().to(self.device)
 
@@ -125,9 +137,9 @@ class CBM(L.LightningModule):
             self.concept_acc,
             prog_bar=True,
             on_epoch=True,
-            on_step=True,
+            on_step=False,
         )
-        self.log("val_acc", self.acc, prog_bar=True, on_epoch=True, on_step=True)
+        self.log("val_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
 
     def test_step(self, batch, batch_idx):
         _ = self.shared_step(batch, "test")
@@ -136,6 +148,6 @@ class CBM(L.LightningModule):
             self.concept_acc,
             prog_bar=True,
             on_epoch=True,
-            on_step=True,
+            on_step=False,
         )
-        self.log("test_acc", self.acc, prog_bar=True, on_epoch=True, on_step=True)
+        self.log("test_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)

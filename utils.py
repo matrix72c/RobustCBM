@@ -2,22 +2,6 @@ from contextlib import contextmanager
 from torch.nn.modules.batchnorm import _BatchNorm
 import torch
 
-def cal_class_imbalance_weights(data):
-    n = len(data)
-    n_attr = len(data[0]["attribute_label"])
-    n_ones = torch.zeros(n_attr, dtype=torch.float)
-    total = [n] * n_attr
-    for d in data:
-        attr = d["attribute_label"]
-        for i in range(n_attr):
-            n_ones[i] += attr[i]
-    imbalance_ratio = []
-    for i in range(n_attr):
-        imbalance_ratio.append(total[i] / n_ones[i] - 1)
-    return imbalance_ratio
-
-
-
 @contextmanager
 def eval_context(net: torch.nn.Module):
     """Temporarily switch to evaluation mode."""
