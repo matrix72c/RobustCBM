@@ -11,7 +11,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import torch
-from autoattack.fab_base import FABAttack
+from attacks.fab_base import FABAttack
 
 
 class FABAttack_TF(FABAttack):

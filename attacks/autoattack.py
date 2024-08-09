@@ -5,8 +5,8 @@ import numpy as np
 import torch
 
 from .other_utils import Logger
-from autoattack import checks
-from autoattack.state import EvaluationState
+from attacks import checks
+from attacks.state import EvaluationState
 
 
 class AutoAttack():

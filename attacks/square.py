@@ -15,7 +15,7 @@ import time
 import math
 import torch.nn.functional as F
 
-from autoattack.autopgd_base import L1_projection
+from attacks.autopgd_base import L1_projection
 
 class SquareAttack():
     """
