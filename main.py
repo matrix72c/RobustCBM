@@ -18,35 +18,19 @@ if __name__ == "__main__":
     if cli.config.std:
         # Normal training
         cli.trainer.fit(cli.model, cli.datamodule)
-        cli.trainer.test(cli.model, cli.datamodule)
         sys.exit()
 
     # Evaluation std model
+    cli.model.load_state_dict(torch.load(cli.config.ckpt)["state_dict"])
     cli.model.adv_training = False
-    ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path=cli.config.ckpt)
+    ret = cli.trainer.test(cli.model, cli.datamodule)
     std_acc, std_concept_acc = (
-        ret[0]["test_acc"],
-        ret[0]["test_concept_acc"],
-    )
-
-    cli.model.adv_training = True
-    cli.model.eval_atk = "PGD"
-    ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path=cli.config.ckpt)
-    std_pgd_acc, std_pgd_concept_acc = (
-        ret[0]["test_acc"],
-        ret[0]["test_concept_acc"],
-    )
-
-    cli.model.eval_atk = "AA"
-    ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path=cli.config.ckpt)
-    std_aa_acc, std_aa_concept_acc = (
         ret[0]["test_acc"],
         ret[0]["test_concept_acc"],
     )
 
     # Adversarial training
     cli.model.adv_training = True
-    cli.model.load_state_dict(torch.load(cli.config.ckpt)["state_dict"])
     cli.trainer.fit(cli.model, cli.datamodule)
 
     # Evaluate robust model
@@ -76,10 +60,6 @@ if __name__ == "__main__":
         "run_name": cli.config.run_name,
         "std_acc": std_acc,
         "std_concept_acc": std_concept_acc,
-        "std_pgd_acc": std_pgd_acc,
-        "std_pgd_concept_acc": std_pgd_concept_acc,
-        "std_aa_acc": std_aa_acc,
-        "std_aa_concept_acc": std_aa_concept_acc,
         "adv_acc": adv_acc,
         "adv_concept_acc": adv_concept_acc,
         "adv_pgd_acc": adv_pgd_acc,
