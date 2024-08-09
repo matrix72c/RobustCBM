@@ -81,7 +81,9 @@ class ResNet(L.LightningModule):
     def shared_step(self, batch, stage):
         img, label, _ = batch
         if self.adv_training:
-            img = self.generate_adv_img(img, label, stage)
+            adv_img = self.generate_adv_img(img, label, stage)
+            img = torch.cat([img, adv_img], dim=0)
+            label = torch.cat([label, label], dim=0)
         logits = self(img)
         loss = F.cross_entropy(logits, label)
         self.acc(logits, label)
