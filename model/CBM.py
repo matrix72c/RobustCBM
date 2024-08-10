@@ -67,7 +67,9 @@ class CBM(L.LightningModule):
             loss_scale=1,
             params_switch_grad_req=list(self.parameters()),
         )
-        self.auto_atk = AutoAttack(self, norm="Linf", eps=8 / 255, version="standard", verbose=False)
+        self.auto_atk = AutoAttack(
+            self, norm="Linf", eps=8 / 255, version="standard", verbose=False
+        )
         self.eval_atk = "PGD"
         self.get_adv_img = False
         self.adv_training = adv_training
@@ -93,44 +95,40 @@ class CBM(L.LightningModule):
         with batchnorm_no_update_context(self):
             self.get_adv_img = True
             if stage == "train":
-                img = self.train_atk.perturb(img, label)
+                adv_img = self.train_atk.perturb(img, label)
+                img = torch.cat([img, adv_img], dim=0)
             elif stage == "val":
                 img = self.pgd_atk.perturb(img, label)
             elif stage == "test":
                 if self.eval_atk == "PGD":
                     img = self.pgd_atk.perturb(img, label)
                 elif self.eval_atk == "AA":
-                    img = self.auto_atk.run_standard_evaluation(img.clone().detach(), label.clone().detach(), bs=len(img))
+                    img = self.auto_atk.run_standard_evaluation(
+                        img.clone().detach(), label.clone().detach(), bs=len(img)
+                    )
             self.get_adv_img = False
         return img.clone().detach().to(self.device)
 
     def shared_step(self, batch, stage):
         img, label, concepts = batch
         if self.adv_training:
-            adv_img = self.generate_adv_img(img, label, stage)
-            img = torch.cat([img, adv_img], dim=0)
-            label = torch.cat([label, label], dim=0)
-            concepts = torch.cat([concepts, concepts], dim=0)
+            img = self.generate_adv_img(img, label, stage)
+            if stage == "train":
+                label = torch.cat([label, label], dim=0)
+                concepts = torch.cat([concepts, concepts], dim=0)
 
         class_pred, concept_pred = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(concept_pred, concepts)
         class_loss = F.cross_entropy(class_pred, label)
         loss = class_loss + self.hparams.concept_weight * concept_loss
-        self.concept_acc(concept_pred, concepts)
-        self.acc(class_pred, label)
+        if stage != "train":
+            self.concept_acc(concept_pred, concepts)
+            self.acc(class_pred, label)
         return loss
 
     def training_step(self, batch, batch_idx):
         loss = self.shared_step(batch, "train")
         self.log("train_loss", loss, prog_bar=True)
-        self.log(
-            "train_concept_acc",
-            self.concept_acc,
-            prog_bar=True,
-            on_step=True,
-            on_epoch=False,
-        )
-        self.log("train_acc", self.acc, prog_bar=True, on_step=True, on_epoch=False)
         return loss
 
     def validation_step(self, batch, batch_idx):

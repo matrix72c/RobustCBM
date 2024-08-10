@@ -45,10 +45,10 @@ class VCBM(CBM):
     def shared_step(self, batch, stage):
         img, label, concepts = batch
         if self.adv_training:
-            adv_img = self.generate_adv_img(img, label, stage)
-            img = torch.cat([img, adv_img], dim=0)
-            label = torch.cat([label, label], dim=0)
-            concepts = torch.cat([concepts, concepts], dim=0)
+            img = self.generate_adv_img(img, label, stage)
+            if stage == "train":
+                label = torch.cat([label, label], dim=0)
+                concepts = torch.cat([concepts, concepts], dim=0)
 
         class_pred, concept_pred, mu, var = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(concept_pred, concepts)
@@ -68,6 +68,7 @@ class VCBM(CBM):
             + self.hparams.concept_weight * concept_loss
             + self.hparams.vib_lambda * info_loss
         )
-        self.concept_acc(concept_pred, concepts)
-        self.acc(class_pred, label)
+        if stage != "train":
+            self.concept_acc(concept_pred, concepts)
+            self.acc(class_pred, label)
         return loss

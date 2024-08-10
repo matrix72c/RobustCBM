@@ -49,7 +49,9 @@ class ResNet(L.LightningModule):
             loss_scale=1,
             params_switch_grad_req=list(self.parameters()),
         )
-        self.auto_atk = AutoAttack(self, norm="Linf", eps=8 / 255, version="standard", verbose=False)
+        self.auto_atk = AutoAttack(
+            self, norm="Linf", eps=8 / 255, version="standard", verbose=False
+        )
         self.eval_atk = "PGD"
 
     def configure_optimizers(self):
@@ -68,36 +70,41 @@ class ResNet(L.LightningModule):
     def generate_adv_img(self, img, label, stage):
         with batchnorm_no_update_context(self):
             if stage == "train":
-                img = self.train_atk.perturb(img, label)
+                adv_img = self.train_atk.perturb(img, label)
+                img = torch.cat([img, adv_img], dim=0)
             elif stage == "val":
                 img = self.pgd_atk.perturb(img, label)
             elif stage == "test":
                 if self.eval_atk == "PGD":
                     img = self.pgd_atk.perturb(img, label)
                 elif self.eval_atk == "AA":
-                    img = self.auto_atk.run_standard_evaluation(img.clone().detach(), label.clone().detach(), bs=len(img))
-        return img.clone().detach().to(self.device)
+                    img = self.auto_atk.run_standard_evaluation(
+                        img.clone().detach(), label.clone().detach(), bs=len(img)
+                    )
+        return img.clone().detach().to(self.device), label
 
     def shared_step(self, batch, stage):
         img, label, _ = batch
         if self.adv_training:
-            adv_img = self.generate_adv_img(img, label, stage)
-            img = torch.cat([img, adv_img], dim=0)
-            label = torch.cat([label, label], dim=0)
+            img = self.generate_adv_img(img, label, stage)
+            if stage == "train":
+                label = torch.cat([label, label], dim=0)
+
         logits = self(img)
         loss = F.cross_entropy(logits, label)
-        self.acc(logits, label)
+        if stage != "train":
+            self.acc(logits, label)
         return loss
 
     def training_step(self, batch):
         loss = self.shared_step(batch, "train")
         self.log("train_loss", loss, prog_bar=True)
-        self.log("train_acc", self.acc, prog_bar=True, on_step=True, on_epoch=False)
         return loss
 
     def validation_step(self, batch):
         _ = self.shared_step(batch, "val")
         self.log("val_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
+        self.log("val_concept_acc", 0.0, on_epoch=True, on_step=False)
 
     def test_step(self, batch):
         _ = self.shared_step(batch, "test")
