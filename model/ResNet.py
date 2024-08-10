@@ -81,7 +81,7 @@ class ResNet(L.LightningModule):
                     img = self.auto_atk.run_standard_evaluation(
                         img.clone().detach(), label.clone().detach(), bs=len(img)
                     )
-        return img.clone().detach().to(self.device), label
+        return img.clone().detach().to(self.device)
 
     def shared_step(self, batch, stage):
         img, label, _ = batch

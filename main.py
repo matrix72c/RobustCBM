@@ -1,58 +1,104 @@
-import sys
+import os
 from lightning.pytorch.cli import LightningCLI
+from lightning.pytorch.trainer import Trainer
 import pandas as pd
 import torch
+from aim.pytorch_lightning import AimLogger
+from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
 
 
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         parser.add_argument("--run_name", default="run")
-        parser.add_argument("--ckpt", default=None)
-        parser.add_argument("--std", action="store_true")
+        parser.add_argument("--adv_hparams", default=None)
 
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
     cli = MyLightningCLI(save_config_callback=None, run=False)
 
-    if cli.config.std:
-        # Normal training
-        cli.trainer.fit(cli.model, cli.datamodule)
-        sys.exit()
+    ckpt_path = "saved_models/" + cli.config.run_name + ".ckpt"
 
-    # Evaluation std model
-    cli.model.load_state_dict(torch.load(cli.config.ckpt)["state_dict"])
-    cli.model.adv_training = False
-    ret = cli.trainer.test(cli.model, cli.datamodule)
+    if not os.path.exists(ckpt_path):
+        # Std training
+        logger = AimLogger(run_name=cli.config.run_name)
+        checkpoint_callback = ModelCheckpoint(
+            monitor="val_acc",
+            dirpath="saved_models/",
+            filename=cli.config.run_name,
+            save_top_k=1,
+            mode="max",
+            save_weights_only=True,
+            enable_version_counter=False,
+        )
+        early_stopping = EarlyStopping(
+            monitor="val_acc", patience=10, mode="max", min_delta=0.001
+        )
+        callbacks = [checkpoint_callback, early_stopping]
+        trainer = Trainer(
+            max_steps=1000,
+            log_every_n_steps=1,
+            logger=logger,
+            callbacks=callbacks,
+        )
+        trainer.fit(cli.model, cli.datamodule)
+
+    # Construct the model
+    model = cli.model.__class__.load_from_checkpoint(
+        ckpt_path, **cli.config.adv_hparams
+    )
+    dm = cli.datamodule
+    logger = AimLogger(run_name="Adv_" + cli.config.run_name)
+    checkpoint_callback = ModelCheckpoint(
+        monitor="val_acc",
+        dirpath="checkpoints/",
+        filename="Adv_" + cli.config.run_name,
+        save_top_k=1,
+        mode="max",
+    )
+    early_stopping = EarlyStopping(
+        monitor="val_acc", patience=20, mode="max", min_delta=0.001
+    )
+    callbacks = [checkpoint_callback, early_stopping]
+    trainer = Trainer(
+        max_steps=1000,
+        log_every_n_steps=1,
+        logger=logger,
+        callbacks=callbacks,
+    )
+
+    # Evaluate standard model
+    model.adv_training = False
+    ret = trainer.test(model, dm)
     std_acc, std_concept_acc = (
         ret[0]["test_acc"],
         ret[0]["test_concept_acc"],
     )
 
     # Adversarial training
-    cli.model.adv_training = True
-    cli.trainer.fit(cli.model, cli.datamodule)
+    model.adv_training = True
+    trainer.fit(model, dm)
 
     # Evaluate robust model
-    cli.model.adv_training = False
-    ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path="best")
+    model.adv_training = False
+    ret = trainer.test(model, dm, ckpt_path="best")
     adv_acc, adv_concept_acc = (
         ret[0]["test_acc"],
         ret[0]["test_concept_acc"],
     )
 
     # Adversarial attacks
-    cli.model.adv_training = True
+    model.adv_training = True
 
-    cli.model.eval_atk = "PGD"
-    ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path="best")
+    model.eval_atk = "PGD"
+    ret = trainer.test(model, dm, ckpt_path="best")
     adv_pgd_acc, adv_pgd_concept_acc = (
         ret[0]["test_acc"],
         ret[0]["test_concept_acc"],
     )
 
-    cli.model.eval_atk = "AA"
-    ret = cli.trainer.test(cli.model, cli.datamodule, ckpt_path="best")
+    model.eval_atk = "AA"
+    ret = trainer.test(model, dm, ckpt_path="best")
     adv_aa_acc, adv_aa_concept_acc = ret[0]["test_acc"], ret[0]["test_concept_acc"]
 
     df = pd.read_csv("result.csv")
@@ -66,19 +112,7 @@ if __name__ == "__main__":
         "adv_pgd_concept_acc": adv_pgd_concept_acc,
         "adv_aa_acc": adv_aa_acc,
         "adv_aa_concept_acc": adv_aa_concept_acc,
-        "base": cli.model.hparams.base,
-        "num_classes": cli.model.hparams.num_classes,
-        "num_concepts": cli.model.hparams.num_concepts,
-        "use_pretrained": cli.model.hparams.use_pretrained,
-        "concept_weight": cli.model.hparams.concept_weight,
-        "lr": cli.model.hparams.lr,
-        "step_size": cli.model.hparams.step_size,
-        "gamma": cli.model.hparams.gamma,
-        "vib_lambda": (
-            cli.model.hparams.vib_lambda
-            if hasattr(cli.model.hparams, "vib_lambda")
-            else 0
-        ),
     }
+    new_row = new_row | model.hparams
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.to_csv("result.csv", index=False)
