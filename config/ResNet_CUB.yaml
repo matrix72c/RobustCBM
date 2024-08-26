@@ -12,7 +12,7 @@ model:
 
 adv_hparams:
   lr: 0.1
-  scheduler_patience: 100
+  scheduler_patience: 50
 
 data:
   class_path: dataset.CUB

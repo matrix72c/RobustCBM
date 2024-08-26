@@ -16,7 +16,8 @@ model:
     scheduler_patience: 5
 
 adv_hparams:
-  scheduler_patience: 20
+  lr: 0.1
+  scheduler_patience: 50
 
 data:
   class_path: dataset.CUB
