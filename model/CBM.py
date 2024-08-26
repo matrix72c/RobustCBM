@@ -14,12 +14,12 @@ class CBM(L.LightningModule):
         base: str,
         num_classes: int,
         num_concepts: int,
-        use_pretrained: bool = True,
-        concept_weight: float = 0.5,
-        lr: float = 1e-3,
-        step_size: list = [10, 30, 45],
-        gamma: float = 0.1,
-        adv_training: bool = False,
+        use_pretrained: bool,
+        concept_weight: float,
+        lr: float,
+        optimizer: str,
+        scheduler_patience: int,
+        adv_mode: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -39,6 +39,7 @@ class CBM(L.LightningModule):
                     if use_pretrained
                     else None
                 ),
+                aux_logits=False,
             )
             self.base.fc = nn.Linear(2048, num_concepts)
         else:
@@ -47,47 +48,44 @@ class CBM(L.LightningModule):
 
         self.concept_acc = Accuracy(task="multilabel", num_labels=num_concepts)
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
+        self.adv_concept_acc = Accuracy(task="multilabel", num_labels=num_concepts)
+        self.adv_acc = Accuracy(task="multiclass", num_classes=num_classes)
+        self.adv_mode = adv_mode
 
-        self.at_loss = nn.CrossEntropyLoss(reduction="sum")
-        self.train_atk = PGD(
-            self,
-            self.at_loss,
-            eps=8 / 255,
-            nb_iters=7,
-            rand_init=True,
-            loss_scale=1,
-            params_switch_grad_req=list(self.parameters()),
-        )
-        self.pgd_atk = PGD(
-            self,
-            self.at_loss,
-            eps=8 / 255,
-            nb_iters=10,
-            rand_init=True,
-            loss_scale=1,
-            params_switch_grad_req=list(self.parameters()),
-        )
-        self.auto_atk = AutoAttack(
-            self, norm="Linf", eps=8 / 255, version="standard", verbose=False
-        )
-        self.eval_atk = "PGD"
+    def setup(self, stage):
+        self.train_atk = PGD(self, steps=7)
+        self.pgd_atk = PGD(self)
+        self.auto_atk = AutoAttack(self, n_classes=self.hparams.num_classes)
+        self.eval_atk = self.pgd_atk
         self.get_adv_img = False
-        self.adv_training = adv_training
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(
-            optimizer, milestones=self.hparams.step_size, gamma=self.hparams.gamma
+        optimizer = getattr(torch.optim, self.hparams.optimizer)(
+            self.parameters(), lr=self.hparams.lr, weight_decay=5e-4
         )
-
-        return [optimizer], [scheduler]
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    optimizer,
+                    mode="min",
+                    factor=0.1,
+                    patience=self.hparams.scheduler_patience,
+                    min_lr=1e-4,
+                ),
+                "monitor": "val_loss" if not self.adv_mode else "adv_val_loss",
+                "interval": "epoch",
+                "frequency": 1,
+                "strict": True,
+            },
+        }
 
     def forward(self, x):
         concept_pred = self.base(x)
-        class_pred = self.classifier(concept_pred)
+        label_pred = self.classifier(concept_pred)
         if self.get_adv_img:
-            return class_pred
-        return class_pred, concept_pred
+            return label_pred
+        return label_pred, concept_pred
 
     @torch.enable_grad()
     @torch.inference_mode(False)
@@ -95,44 +93,54 @@ class CBM(L.LightningModule):
         with batchnorm_no_update_context(self):
             self.get_adv_img = True
             if stage == "train":
-                adv_img = self.train_atk.perturb(img, label)
-                img = torch.cat([img, adv_img], dim=0)
-            elif stage == "val":
-                img = self.pgd_atk.perturb(img, label)
-            elif stage == "test":
-                if self.eval_atk == "PGD":
-                    img = self.pgd_atk.perturb(img, label)
-                elif self.eval_atk == "AA":
-                    img = self.auto_atk.run_standard_evaluation(
-                        img.clone().detach(), label.clone().detach(), bs=len(img)
-                    )
+                self.train_atk.set_device(self.device)
+                img = self.train_atk(img, label)
+            else:
+                self.eval_atk.set_device(self.device)
+                img = self.eval_atk(img, label)
             self.get_adv_img = False
-        return img.clone().detach().to(self.device)
+        return img.clone().detach()
 
-    def shared_step(self, batch, stage):
-        img, label, concepts = batch
-        if self.adv_training:
-            img = self.generate_adv_img(img, label, stage)
-            if stage == "train":
-                label = torch.cat([label, label], dim=0)
-                concepts = torch.cat([concepts, concepts], dim=0)
-
-        class_pred, concept_pred = self(img)
+    def shared_step(self, img, label, concepts):
+        label_pred, concept_pred = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(concept_pred, concepts)
-        class_loss = F.cross_entropy(class_pred, label)
-        loss = class_loss + self.hparams.concept_weight * concept_loss
-        if stage != "train":
-            self.concept_acc(concept_pred, concepts)
-            self.acc(class_pred, label)
-        return loss
+        label_loss = F.cross_entropy(label_pred, label)
+        loss = label_loss + self.hparams.concept_weight * concept_loss
+        return loss, label_pred, concept_pred
 
     def training_step(self, batch, batch_idx):
-        loss = self.shared_step(batch, "train")
-        self.log("train_loss", loss, prog_bar=True)
+        img, label, concepts = batch
+        if self.adv_mode:
+            adv_img = self.generate_adv_img(img, label, "train")
+            img = torch.cat([img, adv_img], dim=0)
+            label = torch.cat([label, label], dim=0)
+            concepts = torch.cat([concepts, concepts], dim=0)
+        loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
+        self.log("train_loss", loss, prog_bar=True, on_step=True, on_epoch=False)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        _ = self.shared_step(batch, "val")
+        img, label, concepts = batch
+        if self.adv_mode:
+            adv_img = self.generate_adv_img(img, label, "val")
+            loss, label_pred, concept_pred = self.shared_step(adv_img, label, concepts)
+            self.adv_concept_acc(concept_pred, concepts)
+            self.adv_acc(label_pred, label)
+            self.log("adv_val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+            self.log(
+                "adv_val_concept_acc",
+                self.adv_concept_acc,
+                prog_bar=True,
+                on_epoch=True,
+                on_step=False,
+            )
+            self.log(
+                "adv_val_acc", self.adv_acc, prog_bar=True, on_epoch=True, on_step=False
+            )
+        loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
+        self.concept_acc(concept_pred, concepts)
+        self.acc(label_pred, label)
+        self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
         self.log(
             "val_concept_acc",
             self.concept_acc,
@@ -143,7 +151,31 @@ class CBM(L.LightningModule):
         self.log("val_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
 
     def test_step(self, batch, batch_idx):
-        _ = self.shared_step(batch, "test")
+        img, label, concepts = batch
+        if self.adv_mode:
+            adv_img = self.generate_adv_img(img, label, "test")
+            loss, label_pred, concept_pred = self.shared_step(adv_img, label, concepts)
+            self.adv_concept_acc(concept_pred, concepts)
+            self.adv_acc(label_pred, label)
+            self.log("adv_test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+            self.log(
+                "adv_test_concept_acc",
+                self.adv_concept_acc,
+                prog_bar=True,
+                on_epoch=True,
+                on_step=False,
+            )
+            self.log(
+                "adv_test_acc",
+                self.adv_acc,
+                prog_bar=True,
+                on_epoch=True,
+                on_step=False,
+            )
+        loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
+        self.concept_acc(concept_pred, concepts)
+        self.acc(label_pred, label)
+        self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
         self.log(
             "test_concept_acc",
             self.concept_acc,

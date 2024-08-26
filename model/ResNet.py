@@ -5,7 +5,7 @@ import torchvision
 from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
-from attacks import PGD, AutoAttack
+from torchattacks import PGD, AutoAttack
 from utils import batchnorm_no_update_context
 
 
@@ -13,56 +13,55 @@ class ResNet(L.LightningModule):
     def __init__(
         self,
         num_classes: int,
-        use_pretrained: bool = True,
-        lr: float = 1e-3,
-        step_size: int = 10,
-        gamma: float = 0.1,
+        use_pretrained: bool,
+        lr: float,
+        optimizer: str,
+        scheduler_patience: int,
+        adv_mode: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
 
-        self.model = torchvision.models.resnet50(
+        self.base = torchvision.models.resnet50(
             weights=(
                 torchvision.models.ResNet50_Weights.DEFAULT if use_pretrained else None
             ),
         )
-        self.model.fc = nn.Linear(self.model.fc.in_features, num_classes)
+        self.base.fc = nn.Linear(self.base.fc.in_features, num_classes)
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
+        self.adv_acc = Accuracy(task="multiclass", num_classes=num_classes)
 
-        self.adv_training = False
-        self.at_loss = nn.CrossEntropyLoss(reduction="sum")
-        self.train_atk = PGD(
-            self,
-            self.at_loss,
-            eps=8 / 255,
-            nb_iters=7,
-            rand_init=True,
-            loss_scale=1,
-            params_switch_grad_req=list(self.parameters()),
-        )
-        self.pgd_atk = PGD(
-            self,
-            self.at_loss,
-            eps=8 / 255,
-            nb_iters=10,
-            rand_init=True,
-            loss_scale=1,
-            params_switch_grad_req=list(self.parameters()),
-        )
-        self.auto_atk = AutoAttack(
-            self, norm="Linf", eps=8 / 255, version="standard", verbose=False
-        )
-        self.eval_atk = "PGD"
+        self.adv_mode = adv_mode
+
+    def setup(self, stage: str):
+        self.train_atk = PGD(self, steps=7)
+        self.pgd_atk = PGD(self)
+        self.auto_atk = AutoAttack(self, n_classes=self.hparams.num_classes)
+        self.eval_atk = self.pgd_atk
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
-        scheduler = torch.optim.lr_scheduler.StepLR(
-            optimizer, step_size=self.hparams.step_size, gamma=self.hparams.gamma
+        optimizer = getattr(torch.optim, self.hparams.optimizer)(
+            self.parameters(), lr=self.hparams.lr, weight_decay=5e-4
         )
-        return [optimizer], [scheduler]
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    optimizer,
+                    mode="min",
+                    factor=0.1,
+                    patience=self.hparams.scheduler_patience,
+                    min_lr=1e-4,
+                ),
+                "monitor": "val_loss" if not self.adv_mode else "adv_val_loss",
+                "interval": "epoch",
+                "frequency": 1,
+                "strict": True,
+            },
+        }
 
     def forward(self, x):
-        x = self.model(x)
+        x = self.base(x)
         return x
 
     @torch.enable_grad()
@@ -70,43 +69,86 @@ class ResNet(L.LightningModule):
     def generate_adv_img(self, img, label, stage):
         with batchnorm_no_update_context(self):
             if stage == "train":
-                adv_img = self.train_atk.perturb(img, label)
-                img = torch.cat([img, adv_img], dim=0)
-            elif stage == "val":
-                img = self.pgd_atk.perturb(img, label)
-            elif stage == "test":
-                if self.eval_atk == "PGD":
-                    img = self.pgd_atk.perturb(img, label)
-                elif self.eval_atk == "AA":
-                    img = self.auto_atk.run_standard_evaluation(
-                        img.clone().detach(), label.clone().detach(), bs=len(img)
-                    )
-        return img.clone().detach().to(self.device)
+                self.train_atk.set_device(self.device)
+                img = self.train_atk(img, label)
+            else:
+                self.eval_atk.set_device(self.device)
+                img = self.eval_atk(img, label)
+        return img
 
-    def shared_step(self, batch, stage):
-        img, label, _ = batch
-        if self.adv_training:
-            img = self.generate_adv_img(img, label, stage)
-            if stage == "train":
-                label = torch.cat([label, label], dim=0)
-
+    def shared_step(self, img, label):
         logits = self(img)
         loss = F.cross_entropy(logits, label)
-        if stage != "train":
-            self.acc(logits, label)
-        return loss
+        return loss, logits
 
     def training_step(self, batch):
-        loss = self.shared_step(batch, "train")
+        img, label, _ = batch
+        if self.adv_mode:
+            adv_img = self.generate_adv_img(img, label, "train")
+            img = torch.cat([img, adv_img], dim=0)
+            label = torch.cat([label, label], dim=0)
+        loss, label_pred = self.shared_step(img, label)
         self.log("train_loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch):
-        _ = self.shared_step(batch, "val")
+        img, label, concepts = batch
+        if self.adv_mode:
+            adv_img = self.generate_adv_img(img, label, "val")
+            loss, label_pred = self.shared_step(adv_img, label)
+            self.adv_acc(label_pred, label)
+            self.log("adv_val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+            self.log(
+                "adv_val_concept_acc",
+                0,
+                prog_bar=True,
+                on_epoch=True,
+                on_step=False,
+            )
+            self.log(
+                "adv_val_acc", self.adv_acc, prog_bar=True, on_epoch=True, on_step=False
+            )
+        loss, label_pred = self.shared_step(img, label)
+        self.acc(label_pred, label)
+        self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        self.log(
+            "val_concept_acc",
+            0,
+            prog_bar=True,
+            on_epoch=True,
+            on_step=False,
+        )
         self.log("val_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
-        self.log("val_concept_acc", 0.0, on_epoch=True, on_step=False)
 
-    def test_step(self, batch):
-        _ = self.shared_step(batch, "test")
+    def test_step(self, batch, batch_idx):
+        img, label, concepts = batch
+        if self.adv_mode:
+            adv_img = self.generate_adv_img(img, label, "test")
+            loss, label_pred = self.shared_step(adv_img, label)
+            self.adv_acc(label_pred, label)
+            self.log("adv_test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+            self.log(
+                "adv_test_concept_acc",
+                0,
+                prog_bar=True,
+                on_epoch=True,
+                on_step=False,
+            )
+            self.log(
+                "adv_test_acc",
+                self.adv_acc,
+                prog_bar=True,
+                on_epoch=True,
+                on_step=False,
+            )
+        loss, label_pred = self.shared_step(img, label)
+        self.acc(label_pred, label)
+        self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        self.log(
+            "test_concept_acc",
+            0,
+            prog_bar=True,
+            on_epoch=True,
+            on_step=False,
+        )
         self.log("test_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
-        self.log("test_concept_acc", 0.0, on_epoch=True, on_step=False)

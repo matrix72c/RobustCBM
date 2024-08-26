@@ -5,9 +5,14 @@ model:
   class_path: model.ResNet
   init_args:
     num_classes: 200
+    use_pretrained: True
+    lr: 0.01
+    optimizer: SGD
+    scheduler_patience: 5
 
 adv_hparams:
-    num_classes: 200
+  lr: 0.1
+  scheduler_patience: 100
 
 data:
   class_path: dataset.CUB

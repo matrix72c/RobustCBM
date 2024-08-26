@@ -7,9 +7,16 @@ model:
     base: resnet50
     num_classes: 200
     num_concepts: 112
+    use_pretrained: True
+    concept_weight: 5
+    lr: 0.01
+    optimizer: SGD
+    embed_size: 16
+    vib_lambda: 0.01
+    scheduler_patience: 5
 
 adv_hparams:
-  step_size: [30, 60]
+  scheduler_patience: 20
 
 data:
   class_path: dataset.CUB

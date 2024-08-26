@@ -108,6 +108,7 @@ input/
 saved/
 checkpoints/
 lightning_logs/
+wandb/
 
 # editor, os cache directory
 .vscode/
