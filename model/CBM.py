@@ -1,5 +1,5 @@
 import lightning as L
-from utils import batchnorm_no_update_context
+from utils import batchnorm_no_update_context, initialize_weights
 import torch
 import torchvision
 from torch import nn
@@ -19,6 +19,8 @@ class CBM(L.LightningModule):
         lr: float,
         optimizer: str,
         scheduler_patience: int,
+        classifier: str = "FC",
+        use_concept_logits: bool = True,
         adv_mode: bool = False,
     ):
         super().__init__()
@@ -31,7 +33,9 @@ class CBM(L.LightningModule):
                     else None
                 ),
             )
-            self.base.fc = nn.Linear(self.base.fc.in_features, num_concepts)
+            self.base.fc = nn.Linear(self.base.fc.in_features, num_concepts).apply(
+                initialize_weights
+            )
         elif base == "inceptionv3":
             self.base = torchvision.models.inception_v3(
                 weights=(
@@ -41,10 +45,20 @@ class CBM(L.LightningModule):
                 ),
                 aux_logits=False,
             )
-            self.base.fc = nn.Linear(2048, num_concepts)
+            self.base.fc = nn.Linear(2048, num_concepts).apply(initialize_weights)
         else:
             raise ValueError("Unknown base model")
-        self.classifier = nn.Linear(num_concepts, num_classes)
+
+        if classifier == "FC":
+            self.classifier = nn.Linear(num_concepts, num_classes).apply(
+                initialize_weights
+            )
+        elif classifier == "MLP":
+            self.classifier = nn.Sequential(
+                nn.Linear(num_concepts, 3 * num_concepts),
+                nn.ReLU(),
+                nn.Linear(3 * num_concepts, num_classes),
+            ).apply(initialize_weights)
 
         self.concept_acc = Accuracy(task="multilabel", num_labels=num_concepts)
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
@@ -82,7 +96,11 @@ class CBM(L.LightningModule):
 
     def forward(self, x):
         concept_pred = self.base(x)
-        label_pred = self.classifier(concept_pred)
+        label_pred = self.classifier(
+            concept_pred
+            if self.hparams.use_concept_logits
+            else torch.sigmoid(concept_pred)
+        )
         if self.get_adv_img:
             return label_pred
         return label_pred, concept_pred

@@ -1,0 +1,25 @@
+run_name: BoolCBM_CUB
+seed_everything: 42
+
+model:
+  class_path: model.CBM
+  init_args:
+    base: resnet50
+    num_classes: 200
+    num_concepts: 112
+    use_pretrained: True
+    concept_weight: 5
+    lr: 0.01
+    optimizer: SGD
+    scheduler_patience: 5
+    use_concept_logits: False
+
+adv_hparams:
+  lr: 0.1
+  scheduler_patience: 50
+
+data:
+  class_path: dataset.CUB
+  init_args:
+    data_path: ./data
+    batch_size: 128
