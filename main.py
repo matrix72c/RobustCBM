@@ -63,7 +63,7 @@ if __name__ == "__main__":
         mode="max",
         enable_version_counter=False,
     )
-    early_stopping = EarlyStopping(monitor="adv_val_loss", patience=200, mode="min")
+    early_stopping = EarlyStopping(monitor="val_loss", patience=200, mode="min")
     lr_monitor = LearningRateMonitor(logging_interval="epoch")
     callbacks = [checkpoint_callback, early_stopping, lr_monitor]
     trainer = Trainer(

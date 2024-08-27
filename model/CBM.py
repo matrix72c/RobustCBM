@@ -73,7 +73,7 @@ class CBM(L.LightningModule):
                     patience=self.hparams.scheduler_patience,
                     min_lr=1e-4,
                 ),
-                "monitor": "val_loss" if not self.adv_mode else "adv_val_loss",
+                "monitor": "val_loss",
                 "interval": "epoch",
                 "frequency": 1,
                 "strict": True,
@@ -123,10 +123,16 @@ class CBM(L.LightningModule):
         img, label, concepts = batch
         if self.adv_mode:
             adv_img = self.generate_adv_img(img, label, "val")
-            loss, label_pred, concept_pred = self.shared_step(adv_img, label, concepts)
-            self.adv_concept_acc(concept_pred, concepts)
-            self.adv_acc(label_pred, label)
-            self.log("adv_val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+            img = torch.cat([adv_img, img], dim=0)
+            loss, label_pred, concept_pred = self.shared_step(
+                img,
+                torch.cat([label, label], dim=0),
+                torch.cat([concepts, concepts], dim=0),
+            )
+            adv_label_pred, label_pred = torch.chunk(label_pred, 2)
+            adv_concept_pred, concept_pred = torch.chunk(concept_pred, 2)
+            self.adv_concept_acc(adv_concept_pred, concepts)
+            self.adv_acc(adv_label_pred, label)
             self.log(
                 "adv_val_concept_acc",
                 self.adv_concept_acc,
@@ -137,7 +143,8 @@ class CBM(L.LightningModule):
             self.log(
                 "adv_val_acc", self.adv_acc, prog_bar=True, on_epoch=True, on_step=False
             )
-        loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
+        else:
+            loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
         self.concept_acc(concept_pred, concepts)
         self.acc(label_pred, label)
         self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
@@ -154,10 +161,16 @@ class CBM(L.LightningModule):
         img, label, concepts = batch
         if self.adv_mode:
             adv_img = self.generate_adv_img(img, label, "test")
-            loss, label_pred, concept_pred = self.shared_step(adv_img, label, concepts)
-            self.adv_concept_acc(concept_pred, concepts)
-            self.adv_acc(label_pred, label)
-            self.log("adv_test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+            img = torch.cat([adv_img, img], dim=0)
+            loss, label_pred, concept_pred = self.shared_step(
+                img,
+                torch.cat([label, label], dim=0),
+                torch.cat([concepts, concepts], dim=0),
+            )
+            adv_label_pred, label_pred = torch.chunk(label_pred, 2)
+            adv_concept_pred, concept_pred = torch.chunk(concept_pred, 2)
+            self.adv_concept_acc(adv_concept_pred, concepts)
+            self.adv_acc(adv_label_pred, label)
             self.log(
                 "adv_test_concept_acc",
                 self.adv_concept_acc,
@@ -172,7 +185,8 @@ class CBM(L.LightningModule):
                 on_epoch=True,
                 on_step=False,
             )
-        loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
+        else:
+            loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
         self.concept_acc(concept_pred, concepts)
         self.acc(label_pred, label)
         self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)

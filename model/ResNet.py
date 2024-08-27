@@ -53,7 +53,7 @@ class ResNet(L.LightningModule):
                     patience=self.hparams.scheduler_patience,
                     min_lr=1e-4,
                 ),
-                "monitor": "val_loss" if not self.adv_mode else "adv_val_loss",
+                "monitor": "val_loss",
                 "interval": "epoch",
                 "frequency": 1,
                 "strict": True,
@@ -94,10 +94,14 @@ class ResNet(L.LightningModule):
     def validation_step(self, batch):
         img, label, concepts = batch
         if self.adv_mode:
-            adv_img = self.generate_adv_img(img, label, "val")
-            loss, label_pred = self.shared_step(adv_img, label)
-            self.adv_acc(label_pred, label)
-            self.log("adv_val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+            adv_img = self.generate_adv_img(img, label, "test")
+            img = torch.cat([adv_img, img], dim=0)
+            loss, label_pred = self.shared_step(
+                img,
+                torch.cat([label, label], dim=0),
+            )
+            adv_label_pred, label_pred = torch.chunk(label_pred, 2)
+            self.adv_acc(adv_label_pred, label)
             self.log(
                 "adv_val_concept_acc",
                 0,
@@ -124,9 +128,13 @@ class ResNet(L.LightningModule):
         img, label, concepts = batch
         if self.adv_mode:
             adv_img = self.generate_adv_img(img, label, "test")
-            loss, label_pred = self.shared_step(adv_img, label)
-            self.adv_acc(label_pred, label)
-            self.log("adv_test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+            img = torch.cat([adv_img, img], dim=0)
+            loss, label_pred = self.shared_step(
+                img,
+                torch.cat([label, label], dim=0),
+            )
+            adv_label_pred, label_pred = torch.chunk(label_pred, 2)
+            self.adv_acc(adv_label_pred, label)
             self.log(
                 "adv_test_concept_acc",
                 0,
@@ -141,7 +149,8 @@ class ResNet(L.LightningModule):
                 on_epoch=True,
                 on_step=False,
             )
-        loss, label_pred = self.shared_step(img, label)
+        else:
+            loss, label_pred = self.shared_step(img, label)
         self.acc(label_pred, label)
         self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
         self.log(
