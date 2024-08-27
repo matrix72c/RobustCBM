@@ -17,6 +17,7 @@ class VCBM(CBM):
         optimizer: str,
         vib_lambda: float,
         scheduler_patience: int,
+        classifier: str = "FC",
         adv_mode: bool = False,
     ):
         super().__init__(
@@ -28,6 +29,7 @@ class VCBM(CBM):
             lr,
             optimizer,
             scheduler_patience,
+            classifier,
             adv_mode,
         )
         self.base.fc = nn.Linear(self.base.fc.in_features, 2 * num_concepts)  # encoder

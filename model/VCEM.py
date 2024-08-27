@@ -19,6 +19,7 @@ class VCEM(CBM):
         vib_lambda: float,
         embed_size: int,
         scheduler_patience: int,
+        classifier: str = "FC",
         adv_mode: bool = False,
     ):
         super().__init__(
@@ -30,6 +31,7 @@ class VCEM(CBM):
             lr,
             optimizer,
             scheduler_patience,
+            classifier,
             adv_mode,
         )
         self.base.fc = nn.Linear(
