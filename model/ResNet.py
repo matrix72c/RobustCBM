@@ -112,7 +112,8 @@ class ResNet(L.LightningModule):
             self.log(
                 "adv_val_acc", self.adv_acc, prog_bar=True, on_epoch=True, on_step=False
             )
-        loss, label_pred = self.shared_step(img, label)
+        else:
+            loss, label_pred = self.shared_step(img, label)
         self.acc(label_pred, label)
         self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
         self.log(
