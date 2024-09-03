@@ -1,0 +1,21 @@
+run_name: ResNet_AwA
+seed_everything: 42
+
+model:
+  class_path: model.ResNet
+  init_args:
+    num_classes: 50
+    use_pretrained: True
+    lr: 0.1
+    optimizer: SGD
+    scheduler_patience: 5
+
+adv_hparams:
+  lr: 0.1
+  scheduler_patience: 50
+
+data:
+  class_path: dataset.AwA
+  init_args:
+    data_path: ./data/
+    batch_size: 128
