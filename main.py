@@ -118,6 +118,6 @@ if __name__ == "__main__":
     tb = wandb.Table(dataframe=new_row)
     wandb.log({"Results": tb})
 
-    df = pd.read_csv("result.csv")
-    df = pd.concat([df, new_row], ignore_index=True)
-    df.to_csv("result.csv", index=False)
+    # df = pd.read_csv("result.csv")
+    # df = pd.concat([df, new_row], ignore_index=True)
+    # df.to_csv("result.csv", index=False)
