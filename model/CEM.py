@@ -1,10 +1,7 @@
-import lightning as L
 import torch
-import torchvision
 from torch import nn
-import torch.nn.functional as F
-from torchmetrics import Accuracy
 from model import CBM
+from utils import initialize_weights
 
 
 class CEM(CBM):
@@ -19,6 +16,7 @@ class CEM(CBM):
         optimizer: str,
         embed_size: int,
         scheduler_patience: int,
+        classifier: str = "FC",
         adv_mode: bool = False,
     ):
         super().__init__(
@@ -34,9 +32,22 @@ class CEM(CBM):
         )
         self.base.fc = nn.Linear(
             self.base.fc.in_features, 2 * embed_size * num_concepts
-        )
-        self.concept_prob_gen = nn.Linear(2 * embed_size * num_concepts, num_concepts)
-        self.classifier = nn.Linear(embed_size * num_concepts, num_classes)
+        ).apply(initialize_weights)
+
+        self.concept_prob_gen = nn.Linear(
+            2 * embed_size * num_concepts, num_concepts
+        ).apply(initialize_weights)
+
+        if classifier == "FC":
+            self.classifier = nn.Linear(embed_size * num_concepts, num_classes).apply(
+                initialize_weights
+            )
+        elif classifier == "MLP":
+            self.classifier = nn.Sequential(
+                nn.Linear(embed_size * num_concepts, 3 * embed_size * num_concepts),
+                nn.ReLU(),
+                nn.Linear(3 * embed_size * num_concepts, num_classes),
+            ).apply(initialize_weights)
 
     def forward(self, x):
         concept_context = self.base(x)

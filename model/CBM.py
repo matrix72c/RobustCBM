@@ -19,6 +19,7 @@ class CBM(L.LightningModule):
         lr: float,
         optimizer: str,
         scheduler_patience: int,
+        classifier: str = "FC",
         use_concept_logits: bool = True,
         adv_mode: bool = False,
     ):
@@ -47,12 +48,14 @@ class CBM(L.LightningModule):
             self.base.fc = nn.Linear(2048, num_concepts).apply(initialize_weights)
         else:
             raise ValueError("Unknown base model")
-
-        self.classifier = nn.Sequential(
-            nn.Linear(num_concepts, 3 * num_concepts),
-            nn.ReLU(),
-            nn.Linear(3 * num_concepts, num_classes),
-        ).apply(initialize_weights)
+        if classifier == "FC":
+            self.classifier = nn.Linear(num_concepts, num_classes).apply(initialize_weights)
+        elif classifier == "MLP":
+            self.classifier = nn.Sequential(
+                nn.Linear(num_concepts, 3 * num_concepts),
+                nn.ReLU(),
+                nn.Linear(3 * num_concepts, num_classes),
+            ).apply(initialize_weights)
 
         self.concept_acc = Accuracy(task="multilabel", num_labels=num_concepts)
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
@@ -93,7 +96,7 @@ class CBM(L.LightningModule):
         label_pred = self.classifier(
             concept_pred
             if self.hparams.use_concept_logits
-            else torch.sigmoid(concept_pred)
+            else torch.sigmoid(concept_pred).ge(0.5).float()
         )
         if self.get_adv_img:
             return label_pred

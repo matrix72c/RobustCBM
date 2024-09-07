@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torchmetrics import Accuracy
 from model import CBM
 from model.scaler import Scaler
+from utils import initialize_weights
 
 
 class RCEM(CBM):
@@ -40,12 +41,29 @@ class RCEM(CBM):
         )
         self.base.fc = nn.Linear(
             self.base.fc.in_features, 4 * embed_size * num_concepts
-        )
-        self.concept_prob_gen = nn.Linear(2 * embed_size * num_concepts, num_concepts)
-        self.classifier = nn.Linear(embed_size * num_concepts, num_classes)
+        ).apply(initialize_weights)
 
-        self.mu_bn = nn.BatchNorm1d(2 * embed_size * num_concepts, affine=False)
-        self.std_bn = nn.BatchNorm1d(2 * embed_size * num_concepts, affine=False)
+        self.concept_prob_gen = nn.Linear(
+            2 * embed_size * num_concepts, num_concepts
+        ).apply(initialize_weights)
+
+        if classifier == "FC":
+            self.classifier = nn.Linear(embed_size * num_concepts, num_classes).apply(
+                initialize_weights
+            )
+        elif classifier == "MLP":
+            self.classifier = nn.Sequential(
+                nn.Linear(embed_size * num_concepts, 3 * embed_size * num_concepts),
+                nn.ReLU(),
+                nn.Linear(3 * embed_size * num_concepts, num_classes),
+            ).apply(initialize_weights)
+
+        self.mu_bn = nn.BatchNorm1d(2 * embed_size * num_concepts, affine=False).apply(
+            initialize_weights
+        )
+        self.std_bn = nn.BatchNorm1d(2 * embed_size * num_concepts, affine=False).apply(
+            initialize_weights
+        )
         self.scaler = Scaler()
 
     def forward(self, x):

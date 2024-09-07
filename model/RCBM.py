@@ -1,13 +1,10 @@
 import math
-from numbers import Number
-import lightning as L
 import torch
-import torchvision
 from torch import nn
 import torch.nn.functional as F
-from torchmetrics import Accuracy
 from model import CBM
 from model.scaler import Scaler
+from utils import initialize_weights
 
 
 class RCBM(CBM):
@@ -37,9 +34,9 @@ class RCBM(CBM):
             classifier,
             adv_mode,
         )
-        self.base.fc = nn.Linear(self.base.fc.in_features, 2 * num_concepts)  # encoder
-        self.mu_bn = nn.BatchNorm1d(num_concepts, affine=False)
-        self.std_bn = nn.BatchNorm1d(num_concepts, affine=False)
+        self.base.fc = nn.Linear(self.base.fc.in_features, 2 * num_concepts).apply(initialize_weights)  # encoder
+        self.mu_bn = nn.BatchNorm1d(num_concepts, affine=False).apply(initialize_weights)
+        self.std_bn = nn.BatchNorm1d(num_concepts, affine=False).apply(initialize_weights)
         self.scaler = Scaler()
 
     def forward(self, x):
