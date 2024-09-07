@@ -6,3 +6,6 @@ from .VCEM import VCEM
 from .RCBM import RCBM
 from .RCEM import RCEM
 from .scaler import Scaler
+from .VQ import VectorQuantizeEMA
+from .VQCBM import VQCBM
+from .VQCEM import VQCEM
