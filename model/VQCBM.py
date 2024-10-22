@@ -18,13 +18,15 @@ class VQCBM(CBM):
         concept_weight: float,
         lr: float,
         optimizer: str,
+        scheduler_patience: int,
+        adv_mode: bool,
+        adv_strategy: str,
+        use_concept_logits: bool,
+        # VQ params
         embedding_dim: int,
         codebook_size: int,
         codebook_weight: float,
         quantizer: str,
-        scheduler_patience: int,
-        classifier: str = "FC",
-        adv_mode: bool = False,
     ):
         super().__init__(
             base,
@@ -36,6 +38,8 @@ class VQCBM(CBM):
             optimizer,
             scheduler_patience,
             adv_mode,
+            adv_strategy,
+            use_concept_logits,
         )
         self.base.fc = nn.Linear(
             self.base.fc.in_features, embedding_dim * num_concepts
@@ -47,16 +51,9 @@ class VQCBM(CBM):
             embedding_dim * num_concepts, num_concepts
         ).apply(initialize_weights)
 
-        if classifier == "FC":
-            self.classifier = nn.Linear(
-                embedding_dim * num_concepts, num_classes
-            ).apply(initialize_weights)
-        elif classifier == "MLP":
-            self.classifier = nn.Sequential(
-                nn.Linear(embedding_dim * num_concepts, 3 * num_concepts),
-                nn.ReLU(),
-                nn.Linear(3 * num_concepts, num_classes),
-            ).apply(initialize_weights)
+        self.classifier = nn.Linear(
+            embedding_dim * num_concepts, num_classes
+        ).apply(initialize_weights)
 
         if quantizer == "EMA":
             self.quantizer = VectorQuantizeEMA(embedding_dim, codebook_size)

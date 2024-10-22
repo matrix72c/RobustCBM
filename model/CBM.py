@@ -5,7 +5,7 @@ import torchvision
 from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
-from attacks import PGD, AutoAttack
+from attacks import PGD
 
 
 class CBM(L.LightningModule):
@@ -19,9 +19,9 @@ class CBM(L.LightningModule):
         lr: float,
         optimizer: str,
         scheduler_patience: int,
-        classifier: str = "FC",
-        use_concept_logits: bool = True,
-        adv_mode: bool = False,
+        adv_mode: bool,
+        adv_strategy: str,
+        use_concept_logits: bool,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -48,26 +48,15 @@ class CBM(L.LightningModule):
             self.base.fc = nn.Linear(2048, num_concepts).apply(initialize_weights)
         else:
             raise ValueError("Unknown base model")
-        if classifier == "FC":
-            self.classifier = nn.Linear(num_concepts, num_classes).apply(initialize_weights)
-        elif classifier == "MLP":
-            self.classifier = nn.Sequential(
-                nn.Linear(num_concepts, 3 * num_concepts),
-                nn.ReLU(),
-                nn.Linear(3 * num_concepts, num_classes),
-            ).apply(initialize_weights)
+        self.classifier = nn.Linear(num_concepts, num_classes).apply(initialize_weights)
 
         self.concept_acc = Accuracy(task="multilabel", num_labels=num_concepts)
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
-        self.adv_concept_acc = Accuracy(task="multilabel", num_labels=num_concepts)
-        self.adv_acc = Accuracy(task="multiclass", num_classes=num_classes)
         self.adv_mode = adv_mode
 
     def setup(self, stage):
-        self.train_atk = PGD(self, steps=7)
-        self.pgd_atk = PGD(self)
-        self.auto_atk = AutoAttack(self, n_classes=self.hparams.num_classes)
-        self.eval_atk = self.pgd_atk
+        self.train_atk = PGD(self, eps=8 / 255, steps=7)
+        self.eval_atk = PGD(self, eps=8 / 255, steps=10)
         self.get_adv_img = False
 
     def configure_optimizers(self):
@@ -96,7 +85,7 @@ class CBM(L.LightningModule):
         label_pred = self.classifier(
             concept_pred
             if self.hparams.use_concept_logits
-            else torch.sigmoid(concept_pred).ge(0.5).float()
+            else torch.sigmoid(concept_pred).float()
         )
         if self.get_adv_img:
             return label_pred
@@ -137,29 +126,11 @@ class CBM(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         img, label, concepts = batch
         if self.adv_mode:
-            adv_img = self.generate_adv_img(img, label, "val")
-            img = torch.cat([adv_img, img], dim=0)
-            loss, label_pred, concept_pred = self.shared_step(
-                img,
-                torch.cat([label, label], dim=0),
-                torch.cat([concepts, concepts], dim=0),
-            )
-            adv_label_pred, label_pred = torch.chunk(label_pred, 2)
-            adv_concept_pred, concept_pred = torch.chunk(concept_pred, 2)
-            self.adv_concept_acc(adv_concept_pred, concepts)
-            self.adv_acc(adv_label_pred, label)
-            self.log(
-                "adv_val_concept_acc",
-                self.adv_concept_acc,
-                prog_bar=True,
-                on_epoch=True,
-                on_step=False,
-            )
-            self.log(
-                "adv_val_acc", self.adv_acc, prog_bar=True, on_epoch=True, on_step=False
-            )
-        else:
-            loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
+            adv_img = self.generate_adv_img(img, label, "eval")
+            img = torch.cat([img, adv_img], dim=0)
+            label = torch.cat([label, label], dim=0)
+            concepts = torch.cat([concepts, concepts], dim=0)
+        loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
         self.concept_acc(concept_pred, concepts)
         self.acc(label_pred, label)
         self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
@@ -175,41 +146,9 @@ class CBM(L.LightningModule):
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
         if self.adv_mode:
-            adv_img = self.generate_adv_img(img, label, "test")
-            img = torch.cat([adv_img, img], dim=0)
-            loss, label_pred, concept_pred = self.shared_step(
-                img,
-                torch.cat([label, label], dim=0),
-                torch.cat([concepts, concepts], dim=0),
-            )
-            adv_label_pred, label_pred = torch.chunk(label_pred, 2)
-            adv_concept_pred, concept_pred = torch.chunk(concept_pred, 2)
-            self.adv_concept_acc(adv_concept_pred, concepts)
-            self.adv_acc(adv_label_pred, label)
-            self.log(
-                "adv_test_concept_acc",
-                self.adv_concept_acc,
-                prog_bar=True,
-                on_epoch=True,
-                on_step=False,
-            )
-            self.log(
-                "adv_test_acc",
-                self.adv_acc,
-                prog_bar=True,
-                on_epoch=True,
-                on_step=False,
-            )
-        else:
-            loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
+            img = self.generate_adv_img(img, label, "eval")
+        loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
         self.concept_acc(concept_pred, concepts)
         self.acc(label_pred, label)
-        self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
-        self.log(
-            "test_concept_acc",
-            self.concept_acc,
-            prog_bar=True,
-            on_epoch=True,
-            on_step=False,
-        )
-        self.log("test_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
+        self.log("concept_acc", self.concept_acc, on_epoch=True, on_step=False)
+        self.log("acc", self.acc, on_epoch=True, on_step=False)

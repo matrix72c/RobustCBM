@@ -20,31 +20,6 @@ def initialize_weights(module: nn.Module):
         nn.init.ones_(module.weight)
         nn.init.zeros_(module.bias)
 
-@contextmanager
-def eval_context(net: torch.nn.Module):
-    """Temporarily switch to evaluation mode."""
-    istrain = net.training
-    try:
-        if istrain:
-            net.eval()
-        yield net
-    finally:
-        if istrain:
-            net.train()
-
-
-@contextmanager
-def train_context(net: torch.nn.Module):
-    """Temporarily switch to training mode."""
-    istrain = net.training
-    try:
-        if not istrain:
-            net.train()
-        yield net
-    finally:
-        if not istrain:
-            net.eval()
-
 
 @contextmanager
 def batchnorm_no_update_context(net: torch.nn.Module):
