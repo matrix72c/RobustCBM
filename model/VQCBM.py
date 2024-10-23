@@ -21,7 +21,6 @@ class VQCBM(CBM):
         scheduler_patience: int,
         adv_mode: bool,
         adv_strategy: str,
-        use_concept_logits: bool,
         # VQ params
         embedding_dim: int,
         codebook_size: int,
@@ -39,7 +38,6 @@ class VQCBM(CBM):
             scheduler_patience,
             adv_mode,
             adv_strategy,
-            use_concept_logits,
         )
         self.base.fc = nn.Linear(
             self.base.fc.in_features, embedding_dim * num_concepts

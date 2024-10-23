@@ -1,22 +1,22 @@
-run_name: CEM_CUB
+run_name: CUB_VCEM_AT
 seed_everything: 42
+patience: 30
 
 model:
-  class_path: model.CEM
+  class_path: model.VCEM
   init_args:
     base: resnet50
     num_classes: 200
     num_concepts: 112
     use_pretrained: True
-    concept_weight: 5
-    lr: 0.01
+    concept_weight: 10
+    lr: 0.1
     optimizer: SGD
+    scheduler_patience: 15
+    adv_mode: True
+    adv_strategy: AT
+    vib_lambda: 0.01
     embed_size: 16
-    scheduler_patience: 5
-
-adv_hparams:
-  lr: 0.1
-  scheduler_patience: 50
 
 data:
   class_path: dataset.CUB

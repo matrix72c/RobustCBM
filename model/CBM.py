@@ -21,7 +21,6 @@ class CBM(L.LightningModule):
         scheduler_patience: int,
         adv_mode: bool,
         adv_strategy: str,
-        use_concept_logits: bool,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -53,8 +52,6 @@ class CBM(L.LightningModule):
         self.concept_acc = Accuracy(task="multilabel", num_labels=num_concepts)
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
         self.adv_mode = adv_mode
-
-    def setup(self, stage):
         self.train_atk = PGD(self, eps=8 / 255, steps=7)
         self.eval_atk = PGD(self, eps=8 / 255, steps=10)
         self.get_adv_img = False
@@ -82,11 +79,7 @@ class CBM(L.LightningModule):
 
     def forward(self, x):
         concept_pred = self.base(x)
-        label_pred = self.classifier(
-            concept_pred
-            if self.hparams.use_concept_logits
-            else torch.sigmoid(concept_pred).float()
-        )
+        label_pred = self.classifier(concept_pred)
         if self.get_adv_img:
             return label_pred
         return label_pred, concept_pred

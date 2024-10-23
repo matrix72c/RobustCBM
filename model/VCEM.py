@@ -1,10 +1,8 @@
-import math
-from numbers import Number
 import torch
 from torch import nn
 import torch.nn.functional as F
 from model import CBM
-from utils import initialize_weights
+from utils import calc_info_loss, initialize_weights
 
 
 class VCEM(CBM):
@@ -17,11 +15,11 @@ class VCEM(CBM):
         concept_weight: float,
         lr: float,
         optimizer: str,
-        vib_lambda: float,
-        embed_size: int,
         scheduler_patience: int,
-        classifier: str = "FC",
-        adv_mode: bool = False,
+        adv_mode: bool,
+        adv_strategy: str,
+        embed_size: int,
+        vib_lambda: float,
     ):
         super().__init__(
             base,
@@ -32,8 +30,8 @@ class VCEM(CBM):
             lr,
             optimizer,
             scheduler_patience,
-            classifier,
             adv_mode,
+            adv_strategy,
         )
         self.base.fc = nn.Linear(
             self.base.fc.in_features, 4 * embed_size * num_concepts
@@ -43,16 +41,9 @@ class VCEM(CBM):
             2 * embed_size * num_concepts, num_concepts
         ).apply(initialize_weights)
 
-        if classifier == "FC":
-            self.classifier = nn.Linear(embed_size * num_concepts, num_classes).apply(
-                initialize_weights
-            )
-        elif classifier == "MLP":
-            self.classifier = nn.Sequential(
-                nn.Linear(embed_size * num_concepts, 3 * embed_size * num_concepts),
-                nn.ReLU(),
-                nn.Linear(3 * embed_size * num_concepts, num_classes),
-            ).apply(initialize_weights)
+        self.classifier = nn.Linear(embed_size * num_concepts, num_classes).apply(
+            initialize_weights
+        )
 
     def forward(self, x):
         statistics = self.base(x)
@@ -78,8 +69,7 @@ class VCEM(CBM):
     def shared_step(self, img, label, concepts):
         label_pred, concept_pred, mu, var = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(concept_pred, concepts)
-        var = torch.clamp(var, min=1e-8)  # avoid var -> 0
-        info_loss = -0.5 * torch.mean(1 + var.log() - mu.pow(2) - var) / math.log(2)
+        info_loss = calc_info_loss(mu, var)
         self.log(
             "info_loss",
             info_loss,

@@ -1,10 +1,9 @@
-import math
 import torch
 from torch import nn
 import torch.nn.functional as F
 from model import CBM
 from model.scaler import Scaler
-from utils import initialize_weights
+from utils import calc_info_loss, initialize_weights
 
 
 class RCBM(CBM):
@@ -17,10 +16,10 @@ class RCBM(CBM):
         concept_weight: float,
         lr: float,
         optimizer: str,
-        vib_lambda: float,
         scheduler_patience: int,
-        classifier: str = "FC",
-        adv_mode: bool = False,
+        adv_mode: bool,
+        adv_strategy: str,
+        vib_lambda: float,
     ):
         super().__init__(
             base,
@@ -31,8 +30,8 @@ class RCBM(CBM):
             lr,
             optimizer,
             scheduler_patience,
-            classifier,
             adv_mode,
+            adv_strategy,
         )
         self.base.fc = nn.Linear(self.base.fc.in_features, 2 * num_concepts).apply(initialize_weights)  # encoder
         self.mu_bn = nn.BatchNorm1d(num_concepts, affine=False).apply(initialize_weights)
@@ -55,8 +54,7 @@ class RCBM(CBM):
     def shared_step(self, img, label, concepts):
         label_pred, concept_pred, mu, var = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(concept_pred, concepts)
-        var = torch.clamp(var, min=1e-8)
-        info_loss = 0.5 * torch.mean(mu**2 + var - var.log() - 1) / math.log(2)
+        info_loss = calc_info_loss(mu, var)
         self.log(
             "info_loss",
             info_loss,

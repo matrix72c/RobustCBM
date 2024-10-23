@@ -33,8 +33,6 @@ class ResNet(L.LightningModule):
         self.adv_acc = Accuracy(task="multiclass", num_classes=num_classes)
 
         self.adv_mode = adv_mode
-
-    def setup(self, stage: str):
         self.train_atk = PGD(self, eps=8 / 255, steps=7)
         self.eval_atk = PGD(self, eps=8 / 255, steps=10)
 
@@ -93,7 +91,7 @@ class ResNet(L.LightningModule):
     def validation_step(self, batch):
         img, label, concepts = batch
         if self.adv_mode:
-            adv_img = self.generate_adv_img(img, label, "train")
+            adv_img = self.generate_adv_img(img, label, "eval")
             img = torch.cat([img, adv_img], dim=0)
             label = torch.cat([label, label], dim=0)
         loss, label_pred = self.shared_step(img, label)
@@ -111,9 +109,7 @@ class ResNet(L.LightningModule):
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
         if self.adv_mode:
-            adv_img = self.generate_adv_img(img, label, "train")
-            img = torch.cat([img, adv_img], dim=0)
-            label = torch.cat([label, label], dim=0)
+            img = self.generate_adv_img(img, label, "eval")
         loss, label_pred = self.shared_step(img, label)
         self.acc(label_pred, label)
         self.log("concept_acc", 0, on_epoch=True, on_step=False)

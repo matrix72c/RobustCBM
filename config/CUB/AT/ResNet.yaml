@@ -1,0 +1,19 @@
+run_name: CUB_ResNet_AT
+seed_everything: 42
+patience: 30
+
+model:
+  class_path: model.ResNet
+  init_args:
+    num_classes: 200
+    use_pretrained: True
+    lr: 0.1
+    optimizer: SGD
+    scheduler_patience: 15
+    adv_mode: True
+
+data:
+  class_path: dataset.CUB
+  init_args:
+    data_path: ./data
+    batch_size: 128

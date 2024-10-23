@@ -1,9 +1,9 @@
-run_name: CUB_CBM_AT
+run_name: CUB_RCEM_AT
 seed_everything: 42
-patience: 50
+patience: 30
 
 model:
-  class_path: model.CBM
+  class_path: model.RCEM
   init_args:
     base: resnet50
     num_classes: 200
@@ -12,10 +12,11 @@ model:
     concept_weight: 10
     lr: 0.1
     optimizer: SGD
-    scheduler_patience: 20
+    scheduler_patience: 15
     adv_mode: True
     adv_strategy: AT
-    use_concept_logits: False
+    vib_lambda: 0.01
+    embed_size: 16
 
 data:
   class_path: dataset.CUB

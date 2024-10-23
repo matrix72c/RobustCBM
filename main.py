@@ -15,7 +15,7 @@ from attacks import FGSM, PGD, Square
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         parser.add_argument("--run_name", default="run")
-        parser.add_argument("--patience", default=50)
+        parser.add_argument("--patience", default=30)
 
 
 def train(model, dm):
@@ -52,40 +52,15 @@ def eval(model):
     trainer = Trainer(precision="16-mixed")
 
     wandb.init(project="RobustCBM", name="Eval_" + cli.config.run_name)
-    table = wandb.Table(
-        columns=[
-            "run_name",
-            "Clean",
-            "Clean_Concept",
-            "FGSM(1, 2)",
-            "FGSM(1, 2)_Concept",
-            "FGSM(1, 8)",
-            "FGSM(1, 8)_Concept",
-            "PGD(10, 2)",
-            "PGD(10, 2)_Concept",
-            "PGD(10, 8)",
-            "PGD(10, 8)_Concept",
-            "Square(500, 8)",
-            "Square(500, 8)_Concept",
-        ]
-    )
-    attackers = [
-        FGSM(model, eps=2 / 255),
-        FGSM(model, eps=8 / 255),
-        PGD(model, steps=10, eps=2 / 255),
-        PGD(model, steps=10, eps=8 / 255),
-        Square(model, n_queries=500, eps=8 / 255),
-    ]
-
-    res = [cli.config.run_name]
-    res.extend(list(trainer.test(model, datamodule=dm)[0].values()))
-
-    for attacker in attackers:
-        model.eval_atk = attacker
-        res.extend(list(trainer.test(model, datamodule=dm)[0].values()))
-
-    table.add_data(*res)
-    wandb.log({"Evaluation": table})
+    for j in [1, 2, 4, 10]:
+        for i in range(11):
+            if i > 0:
+                model.eval_atk = PGD(model, steps=10, eps=i / 255.0)
+                model.adv_mode = True
+            else:
+                model.adv_mode = False
+            acc = trainer.test(model, datamodule=dm)[0]["acc"]
+            wandb.log({"PGD" + str(j): acc, "eps": i})
     wandb.finish()
 
 
@@ -99,6 +74,7 @@ if __name__ == "__main__":
         print("Loading checkpoint:", ckpt_path)
     else:
         train(model, dm)
+        wandb.finish()
 
     # Evaluate robust model
     model = model.__class__.load_from_checkpoint(ckpt_path)

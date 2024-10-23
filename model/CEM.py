@@ -14,10 +14,10 @@ class CEM(CBM):
         concept_weight: float,
         lr: float,
         optimizer: str,
-        embed_size: int,
         scheduler_patience: int,
-        classifier: str = "FC",
-        adv_mode: bool = False,
+        adv_mode: bool,
+        adv_strategy: str,
+        embed_size: int,
     ):
         super().__init__(
             base,
@@ -29,6 +29,7 @@ class CEM(CBM):
             optimizer,
             scheduler_patience,
             adv_mode,
+            adv_strategy,
         )
         self.base.fc = nn.Linear(
             self.base.fc.in_features, 2 * embed_size * num_concepts
@@ -38,16 +39,9 @@ class CEM(CBM):
             2 * embed_size * num_concepts, num_concepts
         ).apply(initialize_weights)
 
-        if classifier == "FC":
-            self.classifier = nn.Linear(embed_size * num_concepts, num_classes).apply(
-                initialize_weights
-            )
-        elif classifier == "MLP":
-            self.classifier = nn.Sequential(
-                nn.Linear(embed_size * num_concepts, 3 * embed_size * num_concepts),
-                nn.ReLU(),
-                nn.Linear(3 * embed_size * num_concepts, num_classes),
-            ).apply(initialize_weights)
+        self.classifier = nn.Linear(embed_size * num_concepts, num_classes).apply(
+            initialize_weights
+        )
 
     def forward(self, x):
         concept_context = self.base(x)
