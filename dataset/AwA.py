@@ -2,8 +2,6 @@
 General utils for training, evaluation and data loading
 """
 
-import os
-from glob import glob
 import pandas as pd
 import torch
 import numpy as np

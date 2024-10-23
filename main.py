@@ -9,7 +9,7 @@ from lightning.pytorch.callbacks import (
     LearningRateMonitor,
 )
 import wandb
-from attacks import FGSM, PGD, Square
+from attacks import PGD
 
 
 class MyLightningCLI(LightningCLI):

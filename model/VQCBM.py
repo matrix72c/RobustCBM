@@ -1,9 +1,5 @@
-import lightning as L
-import torch
-import torchvision
 from torch import nn
 import torch.nn.functional as F
-from torchmetrics import Accuracy
 from model import CBM, VectorQuantizeEMA
 from utils import initialize_weights
 

@@ -4,7 +4,7 @@ import torchvision
 from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
-from attacks import PGD, AutoAttack
+from attacks import PGD
 from utils import batchnorm_no_update_context, initialize_weights
 
 

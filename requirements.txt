@@ -1,8 +1,7 @@
 lightning==2.4.0
-numpy==2.1.0
-pandas==2.2.2
-Pillow==10.4.0
-torch==2.3.0+cu121
-torchmetrics==1.4.1
-torchvision==0.18.0+cu121
-wandb==0.17.7
+numpy==2.1.2
+pandas==2.2.3
+scikit_learn==1.4.1.post1
+torch==2.1.1
+torchmetrics==1.4.0
+torchvision==0.16.1

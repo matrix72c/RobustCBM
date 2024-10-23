@@ -1,6 +1,6 @@
 import torch
 import pickle
-import lightning as pl
+import lightning as L
 
 from PIL import Image
 from torch.utils.data import Dataset
@@ -60,7 +60,7 @@ class CUBDataSet(Dataset):
         return len(self.data)
 
 
-class CUB(pl.LightningDataModule):
+class CUB(L.LightningDataModule):
     def __init__(self, data_path, batch_size):
         super().__init__()
         self.data_path = data_path
