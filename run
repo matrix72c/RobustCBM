@@ -1,6 +1,6 @@
 #!/bin/bash
 
-root_dir="./config/CUB/"
+root_dir="./config/CUB/AT/"
 
 find "$root_dir" -type f -name "*.yaml" | while read -r yaml_file; do
     echo "Processing $yaml_file"

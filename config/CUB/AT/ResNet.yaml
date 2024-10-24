@@ -9,7 +9,7 @@ model:
     use_pretrained: True
     lr: 0.1
     optimizer: SGD
-    scheduler_patience: 15
+    step_size: 20
     adv_mode: True
 
 data:

@@ -15,7 +15,7 @@ class VCEM(CBM):
         concept_weight: float,
         lr: float,
         optimizer: str,
-        scheduler_patience: int,
+        step_size: int,
         adv_mode: bool,
         adv_strategy: str,
         embed_size: int,
@@ -29,7 +29,7 @@ class VCEM(CBM):
             concept_weight,
             lr,
             optimizer,
-            scheduler_patience,
+            step_size,
             adv_mode,
             adv_strategy,
         )
