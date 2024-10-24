@@ -5,13 +5,13 @@ from main import MyLightningCLI, train
 
 
 def sweep_train():
-    wandb.init(project="RobustCBM")
+    wandb.init(project="SweepCBM")
 
     for k, v in wandb.config.items():
         cli.config["model"]["init_args"][k] = v
     cli.config["run_name"] = "Sweep_" + cli.config["run_name"]
     cli.instantiate_classes()
-    train(cli.model, cli.dm, cli)
+    train(cli.model, cli.datamodule, cli)
 
 
 torch.set_float32_matmul_precision("high")
@@ -29,5 +29,5 @@ sweep_config = {
     },
 }
 
-sweep_id = wandb.sweep(sweep_config, project="RobustCBM")
+sweep_id = wandb.sweep(sweep_config, project="SweepCBM")
 wandb.agent(sweep_id, sweep_train)
