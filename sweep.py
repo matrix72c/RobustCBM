@@ -1,67 +1,33 @@
-from lightning.pytorch.cli import LightningCLI
 from lightning.pytorch.trainer import Trainer
 import torch
-from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
 import wandb
-from lightning.pytorch.loggers import WandbLogger
+from main import MyLightningCLI, train
 
 
-class MyLightningCLI(LightningCLI):
-    def add_arguments_to_parser(self, parser):
-        parser.add_argument("--run_name", default="run")
-        parser.add_argument("--adv_hparams", default=None)
+def sweep_train():
+    wandb.init(project="RobustCBM")
+
+    for k, v in wandb.config.items():
+        cli.config["model"]["init_args"][k] = v
+    cli.config["run_name"] = "Sweep_" + cli.config["run_name"]
+    cli.instantiate_classes()
+    train(cli.model, cli.dm, cli)
 
 
 torch.set_float32_matmul_precision("high")
 cli = MyLightningCLI(save_config_callback=None, run=False)
-
-
-def train():
-    wandb.init(project="CBM-sweeps")
-    logger = WandbLogger(project="CBM-sweeps")
-    early_stopping = EarlyStopping(monitor="val_loss", patience=15, mode="min")
-    checkpoint_callback = ModelCheckpoint(
-        monitor="val_acc",
-        dirpath="checkpoints/",
-        filename=cli.config.run_name,
-        save_top_k=1,
-        mode="max",
-    )
-    trainer = Trainer(
-        log_every_n_steps=10,
-        logger=logger,
-        callbacks=[early_stopping, checkpoint_callback],
-        max_epochs=-1,
-        precision="16-mixed",
-    )
-
-    for k, v in wandb.config.items():
-        cli.config["model"]["init_args"][k] = v
-
-    cli.instantiate_classes()
-    model = cli.model
-    dm = cli.datamodule
-    trainer.fit(model, dm)
-
 sweep_config = {
     "method": "random",
     "metric": {"goal": "maximize", "name": "val_acc"},
     "parameters": {
-        "base": {"values": ["resnet50", "inceptionv3"]},
-        "use_pretrained": {"values": [True, False]},
-        "concept_weight": {
-            "distribution": "uniform",
-            "min": 0.01,
-            "max": 10,
-        },
         "optimizer": {"values": ["Adam", "SGD"]},
         "lr": {
             "values": [1e-1, 1e-2, 1e-3],
         },
-        "classifier": {"values": ["FC", "MLP"]},
-        "scheduler_patience": {"values": [3, 5, 10]},
+        "step_size": {"values": [10, 20, 30]},
+        "vib_lambda": {"values": [1, 0.1, 0.01]},
     },
 }
 
-sweep_id = wandb.sweep(sweep_config, project="CBM-sweeps")
-wandb.agent(sweep_id, train)
+sweep_id = wandb.sweep(sweep_config, project="RobustCBM")
+wandb.agent(sweep_id, sweep_train)

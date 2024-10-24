@@ -18,7 +18,7 @@ class MyLightningCLI(LightningCLI):
         parser.add_argument("--patience", default=30)
 
 
-def train(model, dm):
+def train(model, dm, cli):
     logger = WandbLogger(name=cli.config.run_name, project="RobustCBM")
     checkpoint_callback = ModelCheckpoint(
         monitor="val_acc",
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     if os.path.exists(ckpt_path):
         print("Loading checkpoint:", ckpt_path)
     else:
-        train(model, dm)
+        train(model, dm, cli)
         wandb.finish()
 
     # Evaluate robust model
