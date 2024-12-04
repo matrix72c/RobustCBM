@@ -7,7 +7,7 @@ model:
   class_path: model.ResNet
   init_args:
     num_classes: 200
-    use_pretrained: False
+    use_pretrained: True
     lr: 0.1
     optimizer: SGD
     scheduler_arg: 50
