@@ -9,13 +9,13 @@ model:
     num_classes: 200
     num_concepts: 112
     use_pretrained: True
-    concept_weight: 10
+    concept_weight: 1
     lr: 0.1
     optimizer: SGD
-    step_size: 20
+    scheduler_arg: 20
     adv_mode: True
     adv_strategy: AT
-    vib_lambda: 0.01
+    vib_lambda: 0.1
     embed_size: 16
 
 data:

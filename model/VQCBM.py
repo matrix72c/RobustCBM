@@ -14,7 +14,7 @@ class VQCBM(CBM):
         concept_weight: float,
         lr: float,
         optimizer: str,
-        step_size: int,
+        scheduler_arg: int,
         adv_mode: bool,
         adv_strategy: str,
         # VQ params
@@ -31,7 +31,7 @@ class VQCBM(CBM):
             concept_weight,
             lr,
             optimizer,
-            step_size,
+            scheduler_arg,
             adv_mode,
             adv_strategy,
         )

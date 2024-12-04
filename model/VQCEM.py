@@ -19,7 +19,7 @@ class VQCEM(CBM):
         codebook_size: int,
         codebook_weight: float,
         quantizer: str,
-        step_size: int,
+        scheduler_arg: int,
         classifier: str = "FC",
         adv_mode: bool = False,
     ):
@@ -31,7 +31,7 @@ class VQCEM(CBM):
             concept_weight,
             lr,
             optimizer,
-            step_size,
+            scheduler_arg,
             adv_mode,
         )
         self.base.fc = nn.Linear(

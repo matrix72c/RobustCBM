@@ -15,7 +15,7 @@ class ResNet(L.LightningModule):
         use_pretrained: bool,
         lr: float,
         optimizer: str,
-        step_size: int,
+        scheduler_arg: int,
         adv_mode: bool,
     ):
         super().__init__()
@@ -30,7 +30,8 @@ class ResNet(L.LightningModule):
             initialize_weights
         )
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
-        self.adv_acc = Accuracy(task="multiclass", num_classes=num_classes)
+        self.acc5 = Accuracy(task="multiclass", num_classes=num_classes, top_k=5)
+        self.acc10 = Accuracy(task="multiclass", num_classes=num_classes, top_k=10)
 
         self.adv_mode = adv_mode
         self.train_atk = PGD(self, eps=8 / 255, steps=7)
@@ -40,24 +41,22 @@ class ResNet(L.LightningModule):
         optimizer = getattr(torch.optim, self.hparams.optimizer)(
             self.parameters(), lr=self.hparams.lr, weight_decay=5e-4
         )
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=self.hparams.step_size, gamma=0.1)
-        return [optimizer], [scheduler]
-        # return {
-        #     "optimizer": optimizer,
-        #     "lr_scheduler": {
-        #         "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
-        #             optimizer,
-        #             mode="min",
-        #             factor=0.1,
-        #             patience=self.hparams.step_size,
-        #             min_lr=1e-4,
-        #         ),
-        #         "monitor": "val_loss",
-        #         "interval": "epoch",
-        #         "frequency": 1,
-        #         "strict": True,
-        #     },
-        # }
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    optimizer,
+                    mode="min",
+                    factor=0.1,
+                    patience=self.hparams.scheduler_arg,
+                    min_lr=1e-4,
+                ),
+                "monitor": "val_loss",
+                "interval": "epoch",
+                "frequency": 1,
+                "strict": True,
+            },
+        }
 
     def forward(self, x):
         x = self.base(x)
@@ -114,5 +113,9 @@ class ResNet(L.LightningModule):
             img = self.generate_adv_img(img, label, "eval")
         loss, label_pred = self.shared_step(img, label)
         self.acc(label_pred, label)
+        self.acc5(label_pred, label)
+        self.acc10(label_pred, label)
         self.log("concept_acc", 0, on_epoch=True, on_step=False)
         self.log("acc", self.acc, on_epoch=True, on_step=False)
+        self.log("acc5", self.acc5, on_epoch=True, on_step=False)
+        self.log("acc10", self.acc10, on_epoch=True, on_step=False)

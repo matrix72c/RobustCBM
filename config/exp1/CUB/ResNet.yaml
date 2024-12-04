@@ -1,20 +1,17 @@
-run_name: CUB_CBM_AT
+run_name: exp1_CUB_ResNet
 seed_everything: 42
 patience: 30
+adv: False
 
 model:
-  class_path: model.CBM
+  class_path: model.ResNet
   init_args:
-    base: resnet50
     num_classes: 200
-    num_concepts: 112
-    use_pretrained: True
-    concept_weight: 10
+    use_pretrained: False
     lr: 0.1
     optimizer: SGD
-    step_size: 20
+    scheduler_arg: 20
     adv_mode: True
-    adv_strategy: AT
 
 data:
   class_path: dataset.CUB

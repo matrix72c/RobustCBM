@@ -1,21 +1,21 @@
-run_name: CUB_VCBM_AT
+run_name: exp1_CUB_CBM
 seed_everything: 42
-patience: 30
+patience: 100
+adv: False
 
 model:
-  class_path: model.VCBM
+  class_path: model.CBM
   init_args:
     base: resnet50
     num_classes: 200
     num_concepts: 112
     use_pretrained: True
-    concept_weight: 10
+    concept_weight: 5
     lr: 0.1
     optimizer: SGD
-    step_size: 20
+    scheduler_arg: 50
     adv_mode: True
     adv_strategy: AT
-    vib_lambda: 0.01
 
 data:
   class_path: dataset.CUB

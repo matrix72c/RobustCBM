@@ -1,16 +1,21 @@
-run_name: CUB_ResNet_AT
+run_name: CUB_VCBM_AT
 seed_everything: 42
 patience: 30
 
 model:
-  class_path: model.ResNet
+  class_path: model.VCBM
   init_args:
+    base: resnet50
     num_classes: 200
+    num_concepts: 112
     use_pretrained: True
+    concept_weight: 0.01
     lr: 0.1
     optimizer: SGD
-    step_size: 20
+    scheduler_arg: 20
     adv_mode: True
+    adv_strategy: AT
+    vib_lambda: 0.1
 
 data:
   class_path: dataset.CUB

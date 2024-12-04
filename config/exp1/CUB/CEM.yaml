@@ -1,24 +1,22 @@
-run_name: CUB_VQCBM_AT
+run_name: exp1_CUB_CEM
 seed_everything: 42
 patience: 30
+adv: False
 
 model:
-  class_path: model.VQCBM
+  class_path: model.CEM
   init_args:
     base: resnet50
     num_classes: 200
     num_concepts: 112
-    use_pretrained: True
-    concept_weight: 10
+    use_pretrained: False
+    concept_weight: 0.01
     lr: 0.1
     optimizer: SGD
-    step_size: 20
+    scheduler_arg: 20
     adv_mode: True
     adv_strategy: AT
-    embedding_dim: 64
-    codebook_size: 5120
-    codebook_weight: 0.25
-    quantizer: EMA
+    embed_size: 16
 
 data:
   class_path: dataset.CUB

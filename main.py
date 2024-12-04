@@ -9,13 +9,14 @@ from lightning.pytorch.callbacks import (
     LearningRateMonitor,
 )
 import wandb
-from attacks import PGD
+from attacks import AutoAttack
 
 
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         parser.add_argument("--run_name", default="run")
         parser.add_argument("--patience", default=30)
+        parser.add_argument("--adv", default=True)
 
 
 def train(model, dm, cli):
@@ -35,32 +36,37 @@ def train(model, dm, cli):
     lr_monitor = LearningRateMonitor(logging_interval="epoch")
     callbacks = [checkpoint_callback, early_stopping, lr_monitor]
     trainer = Trainer(
+        min_epochs=1000,
         log_every_n_steps=10,
         logger=logger,
         callbacks=callbacks,
         max_epochs=-1,
-        precision="16-mixed",
     )
 
-    # Adversarial training
-    model.adv_mode = True
+    model.adv_mode = cli.config.adv
     trainer.fit(model, dm)
 
 
 def eval(model):
     model.adv_mode = False
-    trainer = Trainer(precision="16-mixed")
+    trainer = Trainer()
 
     wandb.init(project="RobustCBM", name="Eval_" + cli.config.run_name)
-    for j in [1, 2, 4, 10]:
-        for i in range(11):
-            if i > 0:
-                model.eval_atk = PGD(model, steps=10, eps=i / 255.0)
-                model.adv_mode = True
-            else:
-                model.adv_mode = False
-            acc = trainer.test(model, datamodule=dm)[0]["acc"]
-            wandb.log({"PGD" + str(j): acc, "eps": i})
+    if "exp1" in cli.config.run_name:
+        eps = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0]
+    else:
+        eps = range(11)
+    for i in eps:
+        if i > 0:
+            model.eval_atk = AutoAttack(model, eps=i / 255.0, n_classes=model.num_classes)
+            model.adv_mode = True
+        else:
+            model.adv_mode = False
+        ret = trainer.test(model, datamodule=dm)[0]
+        acc, acc5, acc10 = ret["acc"], ret["acc5"], ret["acc10"]
+        wandb.log({"Acc@1" : acc, "eps": i})
+        wandb.log({"Acc@5" : acc5, "eps": i})
+        wandb.log({"Acc@10": acc10, "eps": i})
     wandb.finish()
 
 
