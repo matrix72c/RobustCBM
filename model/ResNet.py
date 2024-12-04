@@ -4,7 +4,7 @@ import torchvision
 from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
-from attacks import PGD
+from attacks import AutoAttack
 from utils import batchnorm_no_update_context, initialize_weights
 
 
@@ -34,8 +34,8 @@ class ResNet(L.LightningModule):
         self.acc10 = Accuracy(task="multiclass", num_classes=num_classes, top_k=10)
 
         self.adv_mode = adv_mode
-        self.train_atk = PGD(self, eps=8 / 255, steps=7)
-        self.eval_atk = PGD(self, eps=8 / 255, steps=10)
+        self.train_atk = AutoAttack(self, eps=8 / 255, n_classes=num_classes)
+        self.eval_atk = AutoAttack(self, eps=8 / 255, n_classes=num_classes)
 
     def configure_optimizers(self):
         optimizer = getattr(torch.optim, self.hparams.optimizer)(

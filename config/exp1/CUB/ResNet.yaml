@@ -1,6 +1,6 @@
 run_name: exp1_CUB_ResNet
 seed_everything: 42
-patience: 30
+patience: 100
 adv: False
 
 model:
@@ -9,8 +9,8 @@ model:
     num_classes: 200
     use_pretrained: False
     lr: 0.1
-    optimizer: SGD
-    scheduler_arg: 20
+    optimizer: Adam
+    scheduler_arg: 50
     adv_mode: True
 
 data:

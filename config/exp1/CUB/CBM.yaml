@@ -10,9 +10,9 @@ model:
     num_classes: 200
     num_concepts: 112
     use_pretrained: True
-    concept_weight: 5
+    concept_weight: 0.01
     lr: 0.1
-    optimizer: SGD
+    optimizer: Adam
     scheduler_arg: 50
     adv_mode: True
     adv_strategy: AT

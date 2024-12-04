@@ -1,6 +1,6 @@
 run_name: exp1_CUB_CEM
 seed_everything: 42
-patience: 30
+patience: 100
 adv: False
 
 model:
@@ -12,8 +12,8 @@ model:
     use_pretrained: False
     concept_weight: 0.01
     lr: 0.1
-    optimizer: SGD
-    scheduler_arg: 20
+    optimizer: Adam
+    scheduler_arg: 50
     adv_mode: True
     adv_strategy: AT
     embed_size: 16
