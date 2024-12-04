@@ -9,7 +9,7 @@ model:
     base: resnet50
     num_classes: 200
     num_concepts: 112
-    use_pretrained: False
+    use_pretrained: True
     concept_weight: 0.01
     lr: 0.1
     optimizer: SGD
