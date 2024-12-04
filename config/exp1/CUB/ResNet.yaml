@@ -9,7 +9,7 @@ model:
     num_classes: 200
     use_pretrained: False
     lr: 0.1
-    optimizer: Adam
+    optimizer: SGD
     scheduler_arg: 50
     adv_mode: True
 

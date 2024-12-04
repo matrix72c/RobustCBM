@@ -12,7 +12,7 @@ model:
     use_pretrained: False
     concept_weight: 0.01
     lr: 0.1
-    optimizer: Adam
+    optimizer: SGD
     scheduler_arg: 50
     adv_mode: True
     adv_strategy: AT
