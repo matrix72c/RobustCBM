@@ -16,5 +16,5 @@ model:
 data:
   class_path: dataset.AwA
   init_args:
-    data_path: ./data
+    data_path: ./data/
     batch_size: 128
