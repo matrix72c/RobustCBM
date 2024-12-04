@@ -9,7 +9,7 @@ from lightning.pytorch.callbacks import (
     LearningRateMonitor,
 )
 import wandb
-from attacks import AutoAttack
+from attacks import PGD
 
 
 class MyLightningCLI(LightningCLI):
@@ -36,7 +36,6 @@ def train(model, dm, cli):
     lr_monitor = LearningRateMonitor(logging_interval="epoch")
     callbacks = [checkpoint_callback, early_stopping, lr_monitor]
     trainer = Trainer(
-        min_epochs=1000,
         log_every_n_steps=10,
         logger=logger,
         callbacks=callbacks,
@@ -50,15 +49,16 @@ def train(model, dm, cli):
 def eval(model):
     model.adv_mode = False
     trainer = Trainer()
+    # dm.batch_size = int(dm.batch_size / 2)
 
     wandb.init(project="RobustCBM", name="Eval_" + cli.config.run_name)
     if "exp1" in cli.config.run_name:
-        eps = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0]
+        eps = [0, 0.001, 0.01, 0.1, 1.0]
     else:
-        eps = range(11)
+        eps = range(5)
     for i in eps:
         if i > 0:
-            model.eval_atk = AutoAttack(model, eps=i / 255.0, n_classes=model.num_classes)
+            model.eval_atk = PGD(model, eps=i / 255.0, alpha=i / 255.0 / 4.0, steps=10)
             model.adv_mode = True
         else:
             model.adv_mode = False

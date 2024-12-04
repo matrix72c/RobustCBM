@@ -5,7 +5,7 @@ import torchvision
 from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
-from attacks import AutoAttack
+from attacks import PGD
 
 
 class CBM(L.LightningModule):
@@ -55,8 +55,8 @@ class CBM(L.LightningModule):
         self.acc5 = Accuracy(task="multiclass", num_classes=num_classes, top_k=5)
         self.acc10 = Accuracy(task="multiclass", num_classes=num_classes, top_k=10)
         self.adv_mode = adv_mode
-        self.train_atk = AutoAttack(self, eps=8 / 255, n_classes=num_classes)
-        self.eval_atk = AutoAttack(self, eps=8 / 255, n_classes=num_classes)
+        self.train_atk = PGD(self, eps=4 / 255, alpha=1 /255, steps=7)
+        self.eval_atk = PGD(self, eps=4 / 255, alpha=1 /255, steps=10)
         self.get_adv_img = False
 
     def configure_optimizers(self):
