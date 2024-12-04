@@ -1,0 +1,25 @@
+run_name: exp1_AwA_CEM_1e1
+seed_everything: 42
+patience: 100
+adv: False
+
+model:
+  class_path: model.CEM
+  init_args:
+    base: resnet50
+    num_classes: 50
+    num_concepts: 85
+    use_pretrained: True
+    concept_weight: 10
+    lr: 0.1
+    optimizer: SGD
+    scheduler_arg: 50
+    adv_mode: True
+    adv_strategy: AT
+    embed_size: 16
+
+data:
+  class_path: dataset.AwA
+  init_args:
+    data_path: ./data
+    batch_size: 128
