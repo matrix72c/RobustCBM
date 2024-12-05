@@ -11,7 +11,7 @@ model:
     lr: 0.1
     optimizer: SGD
     scheduler_arg: 50
-    adv_mode: True
+    adv_mode: False
 
 data:
   class_path: dataset.CUB
