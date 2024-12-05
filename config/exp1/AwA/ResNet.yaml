@@ -10,7 +10,7 @@ model:
     use_pretrained: True
     lr: 0.1
     optimizer: SGD
-    scheduler_arg: 50
+    scheduler_arg: 30
     adv_mode: False
 
 data:

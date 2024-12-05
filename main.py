@@ -16,7 +16,6 @@ class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         parser.add_argument("--run_name", default="run")
         parser.add_argument("--patience", default=100)
-        parser.add_argument("--max_epoch", default=300)
         parser.add_argument("--adv", default=True)
 
 
@@ -40,7 +39,7 @@ def train(model, dm, cli):
         log_every_n_steps=10,
         logger=logger,
         callbacks=callbacks,
-        max_epochs=cli.config.max_epoch,
+        max_epochs=-1,
     )
 
     model.adv_mode = cli.config.adv
