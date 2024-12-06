@@ -1,7 +1,7 @@
 run_name: exp2_CUB_CBM
 seed_everything: 42
 patience: 160
-adv: False
+adv: True
 
 model:
   class_path: model.CBM
