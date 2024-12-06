@@ -1,0 +1,24 @@
+run_name: exp2_CUB_nonCBM
+seed_everything: 42
+patience: 160
+adv: False
+
+model:
+  class_path: model.CBM
+  init_args:
+    base: resnet50
+    num_classes: 200
+    num_concepts: 112
+    use_pretrained: True
+    concept_weight: 0
+    lr: 0.1
+    optimizer: SGD
+    scheduler_arg: 50
+    adv_mode: True
+    adv_strategy: AT
+
+data:
+  class_path: dataset.CUB
+  init_args:
+    data_path: ./data
+    batch_size: 128

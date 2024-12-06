@@ -1,0 +1,20 @@
+run_name: exp2_AwA_ResNet
+seed_everything: 42
+patience: 160
+adv: False
+
+model:
+  class_path: model.ResNet
+  init_args:
+    num_classes: 50
+    use_pretrained: True
+    lr: 0.1
+    optimizer: SGD
+    scheduler_arg: 50
+    adv_mode: True
+
+data:
+  class_path: dataset.AwA
+  init_args:
+    data_path: ./data/
+    batch_size: 128
