@@ -1,7 +1,7 @@
 run_name: exp2_AwA_ResNet
 seed_everything: 42
 patience: 160
-adv: False
+adv: True
 
 model:
   class_path: model.ResNet
