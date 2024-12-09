@@ -9,13 +9,14 @@ from torch.utils.data import DataLoader
 
 
 class CUBDataSet(Dataset):
-    def __init__(self, data_path, stage):
+    def __init__(self, data_path, stage, num_concepts):
         self.data = []
         self.image_dir = "images"
         if data_path[-1] != "/":
             data_path += "/"
         data_path += "CUB_200_2011/"
         self.data_path = data_path
+        self.num_concepts = num_concepts
         if stage == "fit":
             self.data.extend(pickle.load(open(data_path + "train.pkl", "rb")))
             self.transform = transforms.Compose(
@@ -54,20 +55,20 @@ class CUBDataSet(Dataset):
         label = img_data["class_label"]
         img = self.transform(img)
         attr_label = img_data["attribute_label"]
-        return img, label, torch.FloatTensor(attr_label)
+        return img, label, torch.FloatTensor(attr_label)[:self.num_concepts]
 
     def __len__(self):
         return len(self.data)
 
 
 class CUB(L.LightningDataModule):
-    def __init__(self, data_path, batch_size):
+    def __init__(self, data_path, batch_size, num_concepts=112):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
-        self.train_data = CUBDataSet(self.data_path, "fit")
-        self.val_data = CUBDataSet(self.data_path, "val")
-        self.test_data = CUBDataSet(self.data_path, "test")
+        self.train_data = CUBDataSet(self.data_path, "fit", num_concepts)
+        self.val_data = CUBDataSet(self.data_path, "val", num_concepts)
+        self.test_data = CUBDataSet(self.data_path, "test", num_concepts)
 
     def train_dataloader(self):
         return DataLoader(

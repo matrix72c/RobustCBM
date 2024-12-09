@@ -14,8 +14,9 @@ import lightning as L
 
 
 class AwADataset(Dataset):
-    def __init__(self, data_path, stage):
+    def __init__(self, data_path, stage, num_concepts):
         self.path = data_path
+        self.num_concepts = num_concepts
         class_to_index = dict()
         with open(self.path + "Animals_with_Attributes2/classes.txt") as f:
             index = 1
@@ -67,17 +68,17 @@ class AwADataset(Dataset):
 
         attr_label = self.label_to_attr[class_label, :]
 
-        return img, class_label, torch.Tensor(attr_label)
+        return img, class_label, torch.Tensor(attr_label)[:self.num_concepts]
 
 
 class AwA(L.LightningDataModule):
-    def __init__(self, data_path, batch_size):
+    def __init__(self, data_path, batch_size, num_concepts=85):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
-        self.train = AwADataset(self.data_path, stage="fit")
-        self.val = AwADataset(self.data_path, stage="val")
-        self.test = AwADataset(self.data_path, stage="test")
+        self.train = AwADataset(self.data_path, "fit", num_concepts)
+        self.val = AwADataset(self.data_path, "val", num_concepts)
+        self.test = AwADataset(self.data_path, "test", num_concepts)
 
     def train_dataloader(self):
         return DataLoader(

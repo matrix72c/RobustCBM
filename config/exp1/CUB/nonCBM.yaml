@@ -22,3 +22,4 @@ data:
   init_args:
     data_path: ./data
     batch_size: 128
+    num_concepts: 112
