@@ -66,9 +66,15 @@ class AwADataset(Dataset):
         if self.transform:
             img = self.transform(img)
 
-        attr_label = self.label_to_attr[class_label, :]
+        attr_label = torch.Tensor(self.label_to_attr[class_label, :])
+        if self.num_concepts < 85:
+            attr_label = attr_label[: self.num_concepts]
+        else:
+            attr_label = torch.cat(
+                (attr_label, torch.zeros(self.num_concepts - 85)), dim=0
+            )
 
-        return img, class_label, torch.Tensor(attr_label)[:self.num_concepts]
+        return img, class_label, attr_label
 
 
 class AwA(L.LightningDataModule):
