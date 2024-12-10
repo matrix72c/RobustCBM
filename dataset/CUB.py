@@ -54,8 +54,14 @@ class CUBDataSet(Dataset):
         img = Image.open(self.data_path + img_path).convert("RGB")
         label = img_data["class_label"]
         img = self.transform(img)
-        attr_label = img_data["attribute_label"]
-        return img, label, torch.FloatTensor(attr_label)[:self.num_concepts]
+        attr_label = torch.FloatTensor(img_data["attribute_label"])
+        if self.num_concepts < 112:
+            attr_label = attr_label[: self.num_concepts]
+        else:
+            attr_label = torch.cat(
+                (attr_label, torch.zeros(self.num_concepts - attr_label.shape[0]))
+            )
+        return img, label, attr_label
 
     def __len__(self):
         return len(self.data)
