@@ -54,8 +54,10 @@ def eval(model):
     wandb.init(project="RobustCBM", name="Eval_" + cli.config.run_name)
     if "exp1" in cli.config.run_name:
         eps = [0, 0.001, 0.01, 0.1, 1.0]
+        mode = "Standard"
     else:
         eps = range(5)
+        mode = "Robust"
     for i in eps:
         if i > 0:
             model.eval_atk = PGD(model, eps=i / 255.0, alpha=i / 255.0 / 4.0, steps=10)
@@ -64,9 +66,19 @@ def eval(model):
             model.adv_mode = False
         ret = trainer.test(model, datamodule=dm)[0]
         acc, acc5, acc10 = ret["acc"], ret["acc5"], ret["acc10"]
-        wandb.log({"Acc@1" : acc, "eps": i})
-        wandb.log({"Acc@5" : acc5, "eps": i})
-        wandb.log({"Acc@10": acc10, "eps": i})
+        if i == 0:
+            ca, ca5, ca10 = acc, acc5, acc10
+            asr, asr5, asr10 = 0, 0, 0
+        else:
+            asr = (ca - acc) / ca
+            asr5 = (ca5 - acc5) / ca5
+            asr10 = (ca10 - acc10) / ca10
+        wandb.log({mode + "_Acc@1": acc, "eps": i})
+        wandb.log({mode + "_Acc@5": acc5, "eps": i})
+        wandb.log({mode + "_Acc@10": acc10, "eps": i})
+        wandb.log({mode + "_ASR@1": asr, "eps": i})
+        wandb.log({mode + "_ASR@5": asr5, "eps": i})
+        wandb.log({mode + "_ASR@10": asr10, "eps": i})
     wandb.finish()
 
 
