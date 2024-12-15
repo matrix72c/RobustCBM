@@ -1,3 +1,4 @@
+import itertools
 import torch
 import pickle
 import lightning as L
@@ -41,6 +42,7 @@ class CUBDataSet(Dataset):
                     ),
                 ]
             )
+        self.combos = list(itertools.combinations(range(112), 2))
 
     def __getitem__(self, index):
         img_data = self.data[index]
@@ -55,11 +57,14 @@ class CUBDataSet(Dataset):
         label = img_data["class_label"]
         img = self.transform(img)
         attr_label = torch.FloatTensor(img_data["attribute_label"])
+        combo_attr = torch.zeros(len(self.combos))
+        for i, (a, b) in enumerate(self.combos):
+            combo_attr[i] = attr_label[a] * attr_label[b]
         if self.num_concepts < 112:
             attr_label = attr_label[: self.num_concepts]
-        else:
+        elif self.num_concepts > 112:
             attr_label = torch.cat(
-                (attr_label, torch.zeros(self.num_concepts - attr_label.shape[0]))
+                [attr_label, combo_attr[: self.num_concepts - 112]], dim=0
             )
         return img, label, attr_label
 
@@ -68,10 +73,16 @@ class CUBDataSet(Dataset):
 
 
 class CUB(L.LightningDataModule):
-    def __init__(self, data_path, batch_size, num_concepts=112):
+    def __init__(
+        self,
+        data_path,
+        batch_size,
+        num_concepts=112,
+    ):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
+        self.num_concepts = num_concepts
         self.train_data = CUBDataSet(self.data_path, "fit", num_concepts)
         self.val_data = CUBDataSet(self.data_path, "val", num_concepts)
         self.test_data = CUBDataSet(self.data_path, "test", num_concepts)

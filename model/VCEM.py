@@ -8,30 +8,28 @@ from utils import calc_info_loss, initialize_weights
 class VCEM(CBM):
     def __init__(
         self,
-        base: str,
         num_classes: int,
         num_concepts: int,
-        use_pretrained: bool,
-        concept_weight: float,
-        lr: float,
-        optimizer: str,
-        scheduler_arg: int,
-        adv_mode: bool,
-        adv_strategy: str,
-        embed_size: int,
-        vib_lambda: float,
+        real_concepts: int,
+        base: str = "resnet50",
+        use_pretrained: bool = True,
+        concept_weight: float = 1,
+        lr: float = 0.1,
+        scheduler_arg: int = 30,
+        adv_mode: bool = False,
+        vib_lambda: float = 0.1,
+        embed_size: int = 16,
     ):
         super().__init__(
-            base,
-            num_classes,
-            num_concepts,
-            use_pretrained,
-            concept_weight,
-            lr,
-            optimizer,
-            scheduler_arg,
-            adv_mode,
-            adv_strategy,
+            num_classes=num_classes,
+            num_concepts=num_concepts,
+            real_concepts=real_concepts,
+            base=base,
+            use_pretrained=use_pretrained,
+            concept_weight=concept_weight,
+            lr=lr,
+            scheduler_arg=scheduler_arg,
+            adv_mode=adv_mode,
         )
         self.base.fc = nn.Linear(
             self.base.fc.in_features, 4 * embed_size * num_concepts
@@ -62,21 +60,12 @@ class VCEM(CBM):
         concept_pred = concept_pred.squeeze(-1)
 
         label_pred = self.classifier(concept_embed)
-        if self.get_adv_img:
-            return label_pred
         return label_pred, concept_pred, mu, std**2
 
     def shared_step(self, img, label, concepts):
         label_pred, concept_pred, mu, var = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(concept_pred, concepts)
         info_loss = calc_info_loss(mu, var)
-        self.log(
-            "info_loss",
-            info_loss,
-            prog_bar=True,
-            on_step=True,
-            on_epoch=False,
-        )
         class_loss = F.cross_entropy(label_pred, label)
         loss = (
             class_loss

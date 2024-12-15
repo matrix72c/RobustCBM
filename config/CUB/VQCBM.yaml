@@ -1,20 +1,18 @@
-run_name: CUB_VQCBM_AT
 seed_everything: 42
-patience: 30
+patience: 100
 
 model:
   class_path: model.VQCBM
   init_args:
-    base: resnet50
-    num_classes: 200
     num_concepts: 112
+    num_classes: 200
+    real_concepts: 112
+    base: resnet50
     use_pretrained: True
-    concept_weight: 1
+    concept_weight: 0.01
     lr: 0.1
-    optimizer: SGD
-    scheduler_arg: 20
-    adv_mode: True
-    adv_strategy: AT
+    scheduler_arg: 30
+    adv_mode: False
     embedding_dim: 64
     codebook_size: 5120
     codebook_weight: 0.25

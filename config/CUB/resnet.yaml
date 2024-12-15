@@ -1,17 +1,18 @@
-run_name: exp2_CUB_ResNet
 seed_everything: 42
-patience: 160
-adv: True
+patience: 100
 
 model:
-  class_path: model.ResNet
+  class_path: model.resnet
   init_args:
+    num_concepts: 112
     num_classes: 200
+    real_concepts: 112
+    base: resnet50
     use_pretrained: True
+    concept_weight: 0
     lr: 0.1
-    optimizer: SGD
-    scheduler_arg: 50
-    adv_mode: True
+    scheduler_arg: 30
+    adv_mode: False
 
 data:
   class_path: dataset.CUB

@@ -7,29 +7,27 @@ from utils import initialize_weights
 class CEM(CBM):
     def __init__(
         self,
-        base: str,
         num_classes: int,
         num_concepts: int,
-        use_pretrained: bool,
-        concept_weight: float,
-        lr: float,
-        optimizer: str,
-        scheduler_arg: int,
-        adv_mode: bool,
-        adv_strategy: str,
-        embed_size: int,
+        real_concepts: int,
+        base: str = "resnet50",
+        use_pretrained: bool = True,
+        concept_weight: float = 1,
+        lr: float = 0.1,
+        scheduler_arg: int = 30,
+        adv_mode: bool = False,
+        embed_size: int = 16,
     ):
         super().__init__(
-            base,
-            num_classes,
-            num_concepts,
-            use_pretrained,
-            concept_weight,
-            lr,
-            optimizer,
-            scheduler_arg,
-            adv_mode,
-            adv_strategy,
+            num_classes=num_classes,
+            num_concepts=num_concepts,
+            real_concepts=real_concepts,
+            base=base,
+            use_pretrained=use_pretrained,
+            concept_weight=concept_weight,
+            lr=lr,
+            scheduler_arg=scheduler_arg,
+            adv_mode=adv_mode,
         )
         self.base.fc = nn.Linear(
             self.base.fc.in_features, 2 * embed_size * num_concepts
@@ -57,6 +55,4 @@ class CEM(CBM):
         concept_pred = concept_pred.squeeze(-1)
 
         label_pred = self.classifier(concept_embed)
-        if self.get_adv_img:
-            return label_pred
         return label_pred, concept_pred

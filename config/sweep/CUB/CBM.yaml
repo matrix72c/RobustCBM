@@ -1,0 +1,11 @@
+method: random
+metric:
+  goal: maximize
+  name: val_acc
+parameters:
+  concept_weight:
+    values: [0.01]
+  num_concepts:
+    values: [32]
+  adv_mode:
+    values: [False]

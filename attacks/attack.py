@@ -77,6 +77,7 @@ class Attack(object):
         if self._normalization_applied is False:
             inputs = self.normalize(inputs)
         logits = self.model(inputs)
+        logits = logits[0] if isinstance(logits, tuple) else logits
         return logits
 
     @wrapper_method
