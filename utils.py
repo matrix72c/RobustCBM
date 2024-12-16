@@ -83,9 +83,9 @@ class OssCheckpointIO(CheckpointIO):
 
     def load_checkpoint(self, path, map_location=None):
         path = os.path.relpath(path, os.getcwd())
-        uri = f"oss://{self.name}/{path}"
-        with self.connector.reader(uri) as reader:
-            ckpt = torch.load(reader, map_location=map_location)
+        path = path.replace("RobustCBM/", "")
+        self.bucket.get_object_to_file(path, f"checkpoints/{path}")
+        ckpt = torch.load(f"checkpoints/{path}", map_location=map_location)
         return ckpt
 
     def remove_checkpoint(self, path):
