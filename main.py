@@ -60,6 +60,7 @@ def exp(model, dm, cfg, train=True):
         if train:
             bucket.delete_object(ckpt_path)
             trainer.fit(model, dm)
+            print("Train from scratch: ", md5)
         else:
             bucket.get_object_to_file(ckpt_path, f"checkpoints/{md5}.ckpt")
             model = model.__class__.load_from_checkpoint(f"checkpoints/{md5}.ckpt")

@@ -4,7 +4,7 @@ metric:
   name: val_acc
 parameters:
   concept_weight:
-    values: [0.01, 0.1, 1, 10]
+    values: [0, 0.01, 0.1, 1, 10]
   num_concepts:
     values: [32, 64, 112, 128, 256]
   adv_mode:
