@@ -4,8 +4,8 @@ patience: 100
 model:
   class_path: model.VCBM
   init_args:
-    num_concepts: 112
     num_classes: 200
+    num_concepts: 112
     real_concepts: 112
     base: resnet50
     use_pretrained: True

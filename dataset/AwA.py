@@ -2,6 +2,7 @@
 General utils for training, evaluation and data loading
 """
 
+import itertools
 import pandas as pd
 import torch
 import numpy as np
@@ -29,9 +30,7 @@ class AwADataset(Dataset):
             df = pd.read_csv(self.path + "Animals_with_Attributes2/train.csv")
             self.transform = transforms.Compose(
                 [
-                    transforms.ColorJitter(
-                        brightness=32 / 255, saturation=(0.5, 1.5)
-                    ),
+                    transforms.ColorJitter(brightness=32 / 255, saturation=(0.5, 1.5)),
                     transforms.RandomResizedCrop(224),
                     transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),
@@ -56,6 +55,7 @@ class AwADataset(Dataset):
                 dtype="float32",
             )
         )
+        self.combos = list(itertools.combinations(range(85), 2))
 
     def __len__(self):
         return len(self.img_names)
@@ -67,11 +67,14 @@ class AwADataset(Dataset):
             img = self.transform(img)
 
         attr_label = torch.Tensor(self.label_to_attr[class_label, :])
+        combo_attr = torch.zeros(len(self.combos))
+        for i, (a, b) in enumerate(self.combos):
+            combo_attr[i] = attr_label[a] * attr_label[b]
         if self.num_concepts < 85:
             attr_label = attr_label[: self.num_concepts]
         else:
             attr_label = torch.cat(
-                (attr_label, torch.zeros(self.num_concepts - 85)), dim=0
+                (attr_label, combo_attr[: self.num_concepts - 85]), dim=0
             )
 
         return img, class_label, attr_label

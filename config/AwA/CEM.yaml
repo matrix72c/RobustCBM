@@ -1,21 +1,18 @@
-run_name: exp1_AwA_CEM_1e1
 seed_everything: 42
 patience: 100
-adv: False
 
 model:
   class_path: model.CEM
   init_args:
-    base: resnet50
     num_classes: 50
     num_concepts: 85
+    real_concepts: 85
+    base: resnet50
     use_pretrained: True
-    concept_weight: 10
+    concept_weight: 0.01
     lr: 0.1
-    optimizer: SGD
     scheduler_arg: 30
     adv_mode: False
-    adv_strategy: AT
     embed_size: 16
 
 data:
