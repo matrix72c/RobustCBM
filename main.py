@@ -24,14 +24,15 @@ class MyLightningCLI(LightningCLI):
 def exp(model, dm, cfg, train=True):
     md5 = get_md5(cfg)
     print("MD5:", md5)
+    wandb.config.update({"md5": md5})
 
-    bucket, connector = get_oss()
-    oss_checkpoint_io = OssCheckpointIO(bucket, connector, os.environ['OSS_BUCKET'])
+    bucket = get_oss()
+    oss_checkpoint_io = OssCheckpointIO(bucket)
 
     logger = WandbLogger()
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss",
-        dirpath="RobustCBM/",
+        dirpath="checkpoints/",
         filename=md5,
         save_top_k=1,
         mode="min",
@@ -46,7 +47,6 @@ def exp(model, dm, cfg, train=True):
     callbacks = [checkpoint_callback, early_stopping, lr_monitor]
     trainer = Trainer(
         log_every_n_steps=10,
-        check_val_every_n_epoch=5,
         logger=logger,
         callbacks=callbacks,
         max_epochs=-1,
@@ -55,23 +55,23 @@ def exp(model, dm, cfg, train=True):
         plugins=[AsyncCheckpointIO(oss_checkpoint_io)],
     )
 
-    ckpt_path = f"RobustCBM/{md5}.ckpt"
+    ckpt_path = f"checkpoints/{md5}.ckpt"
     if bucket.object_exists(ckpt_path):
         if train:
             bucket.delete_object(ckpt_path)
             trainer.fit(model, dm)
             print("Train from scratch: ", md5)
         else:
-            bucket.get_object_to_file(ckpt_path, f"checkpoints/{md5}.ckpt")
-            model = model.__class__.load_from_checkpoint(f"checkpoints/{md5}.ckpt")
+            bucket.get_object_to_file(ckpt_path, ckpt_path)
+            model = model.__class__.load_from_checkpoint(ckpt_path)
             print("Load from checkpoint: ", md5)
     else:
         trainer.fit(model, dm)
 
-    if not model.hparams.adv_mode:
+    if not model.adv_mode:
         eps = [0, 0.001, 0.01, 0.1, 1.0]
     else:
-        eps = range(11)
+        eps = list(range(11))
     accs, acc5s, acc10s, asrs, asr5s, asr10s = [], [], [], [], [], []
     for i in eps:
         if i > 0:
@@ -108,5 +108,5 @@ if __name__ == "__main__":
     args = get_args(cli.config.as_dict())
     args["model"] = model.__class__.__name__
     args["dataset"] = dm.__class__.__name__
-    wandb.init(project="RobustCBM", config=args, tags=[model.__class__.__name__, dm.__class__.__name__])
+    wandb.init(project="SweepCBM", config=args, tags=[model.__class__.__name__, dm.__class__.__name__])
     exp(model, dm, args, cli.config["train"])

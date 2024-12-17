@@ -9,7 +9,6 @@ import torch.nn as nn
 from lightning.pytorch.plugins.io import CheckpointIO
 import oss2
 from oss2.credentials import EnvironmentVariableCredentialsProvider
-from osstorchconnector import OssCheckpoint
 def initialize_weights(module: nn.Module):
     """Initialize the weights of a module."""
     if isinstance(module, nn.Sequential):
@@ -56,6 +55,8 @@ def get_args(cfg):
     for k, v in cfg.items():
         if v is None or v is False:
             continue
+        if k == "sweep_id":
+            continue
         if isinstance(v, dict):
             args.update({f"{kk}": vv for kk, vv in v["init_args"].items() if (vv is not None and vv is not False)})
         else:
@@ -69,23 +70,22 @@ def get_md5(obj):
     return hashlib.md5(args_str.encode()).hexdigest()
 
 class OssCheckpointIO(CheckpointIO):
-    def __init__(self, bucket, connector, name):
+    def __init__(self, bucket):
         super().__init__()
         self.bucket = bucket
-        self.connector = connector
-        self.name = name
 
     def save_checkpoint(self, checkpoint, path, storage_options=None):
         path = os.path.relpath(path, os.getcwd())
-        uri = f"oss://{self.name}/{path}"
-        with self.connector.writer(uri) as writer:
-            torch.save(checkpoint, writer)
+        with open(path, "wb") as f:
+            torch.save(checkpoint, f)
+        self.bucket.put_object_from_file(path, path)
 
     def load_checkpoint(self, path, map_location=None):
         path = os.path.relpath(path, os.getcwd())
-        path = path.replace("RobustCBM/", "")
-        self.bucket.get_object_to_file(path, f"checkpoints/{path}")
-        ckpt = torch.load(f"checkpoints/{path}", map_location=map_location)
+        if not os.path.exists(path):
+            self.bucket.get_object_to_file(path, path)
+        with open(path, "rb") as f:
+            ckpt = torch.load(f, map_location=map_location)
         return ckpt
 
     def remove_checkpoint(self, path):
@@ -96,5 +96,4 @@ def get_oss():
     bucket_name, endpoint, region = os.environ['OSS_BUCKET'], os.environ['OSS_ENDPOINT'], os.environ['OSS_REGION']
     auth = oss2.ProviderAuthV4(EnvironmentVariableCredentialsProvider())
     bucket = oss2.Bucket(auth, endpoint, bucket_name, region=region)
-    connector = OssCheckpoint(endpoint, os.environ["OSS_CRED_PATH"], os.environ["OSS_CONFIG_PATH"])
-    return bucket, connector
+    return bucket

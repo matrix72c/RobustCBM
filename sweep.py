@@ -13,6 +13,8 @@ def sweep_exp():
             cli.config["data"]["init_args"]["num_concepts"] = v
     cli.instantiate_classes()
     args = get_args(cli.config.as_dict())
+    args["model"] = cli.model.__class__.__name__
+    args["dataset"] = cli.datamodule.__class__.__name__
     wandb.config.update(args)
     exp(cli.model, cli.datamodule, args)
 
