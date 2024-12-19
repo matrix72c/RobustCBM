@@ -71,7 +71,7 @@ def exp(model, dm, cfg, train=True):
     if not model.adv_mode:
         eps = [0, 0.001, 0.01, 0.1, 1.0]
     else:
-        eps = list(range(5))
+        eps = list(range(11))
     accs, acc5s, acc10s, asrs, asr5s, asr10s = [], [], [], [], [], []
     for i in eps:
         if i > 0:
