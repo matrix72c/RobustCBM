@@ -59,8 +59,8 @@ class CBM(L.LightningModule):
         self.acc10 = Accuracy(task="multiclass", num_classes=num_classes, top_k=10)
 
         self.adv_mode = adv_mode
-        self.train_atk = PGD(self, eps=8 / 255, alpha=2 /255, steps=7)
-        self.eval_atk = PGD(self, eps=8 / 255, alpha=2 /255, steps=8)
+        self.train_atk = PGD(self, eps=4 / 255, alpha=1 /255, steps=7)
+        self.eval_atk = PGD(self, eps=4 / 255, alpha=1 /255, steps=10)
 
 
     def configure_optimizers(self):
