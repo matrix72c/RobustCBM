@@ -42,7 +42,11 @@ class CUBDataSet(Dataset):
                     ),
                 ]
             )
-        self.combos = list(itertools.combinations(range(112), 2))
+        concept_counts = torch.zeros(len(self.data[0]["attribute_label"]))
+        for img_data in self.data:
+            concept_counts += torch.FloatTensor(img_data["attribute_label"])
+        most_common = concept_counts.argsort(descending=True)
+        self.combos = list(itertools.combinations(most_common[:32], 2))
 
     def __getitem__(self, index):
         img_data = self.data[index]

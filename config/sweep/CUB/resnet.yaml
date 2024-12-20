@@ -1,7 +1,0 @@
-method: random
-metric:
-  goal: maximize
-  name: val_acc
-parameters:
-  adv_mode:
-    values: [True, False]

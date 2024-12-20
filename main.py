@@ -66,16 +66,16 @@ def exp(model, dm, cfg, train=True):
             model = model.__class__.load_from_checkpoint(ckpt_path)
             print("Load from checkpoint: ", md5)
     else:
-        if model.adv_mode:
-            normal_cfg = copy.deepcopy(cfg)
-            normal_cfg.pop("adv_mode")
-            normal_md5 = get_md5(normal_cfg)
-            normal_ckpt_path = f"checkpoints/{normal_md5}.ckpt"
-            if bucket.object_exists(normal_ckpt_path):
-                bucket.get_object_to_file(normal_ckpt_path, normal_ckpt_path)
-                model = model.__class__.load_from_checkpoint(normal_ckpt_path)
-                model.adv_mode = True
-                print("Load from normal checkpoint: ", normal_md5)
+        # if model.adv_mode:
+        #     normal_cfg = copy.deepcopy(cfg)
+        #     normal_cfg.pop("adv_mode")
+        #     normal_md5 = get_md5(normal_cfg)
+        #     normal_ckpt_path = f"checkpoints/{normal_md5}.ckpt"
+        #     if bucket.object_exists(normal_ckpt_path):
+        #         bucket.get_object_to_file(normal_ckpt_path, normal_ckpt_path)
+        #         model = model.__class__.load_from_checkpoint(normal_ckpt_path)
+        #         model.adv_mode = True
+        #         print("Load from normal checkpoint: ", normal_md5)
         trainer.fit(model, dm)
 
     if not model.adv_mode:
@@ -85,7 +85,7 @@ def exp(model, dm, cfg, train=True):
     accs, acc5s, acc10s, asrs, asr5s, asr10s = [], [], [], [], [], []
     for i in eps:
         if i > 0:
-            model.eval_atk = PGD(model, eps=i / 255.0, alpha=i / 255.0 / 4.0, steps=8)
+            model.eval_atk = PGD(model, eps=i / 255.0, alpha=i / 2550, steps=10)
             model.adv_mode = True
         else:
             model.adv_mode = False
@@ -118,5 +118,5 @@ if __name__ == "__main__":
     args = get_args(cli.config.as_dict())
     args["model"] = model.__class__.__name__
     args["dataset"] = dm.__class__.__name__
-    wandb.init(project="SweepCBM", config=args, tags=[model.__class__.__name__, dm.__class__.__name__])
+    wandb.init(project="RobustCBM", config=args, tags=[model.__class__.__name__, dm.__class__.__name__])
     exp(model, dm, args, cli.config["train"])

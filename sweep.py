@@ -1,6 +1,5 @@
 import torch
 import wandb
-import yaml
 from main import MyLightningCLI, exp
 from utils import get_args
 
@@ -22,4 +21,4 @@ torch.set_float32_matmul_precision("high")
 cli = MyLightningCLI(save_config_callback=None, run=False)
 
 sweep_id = cli.config["sweep_id"]
-wandb.agent(sweep_id, function=sweep_exp, entity="matrix72c-jesse", project="SweepCBM")
+wandb.agent(sweep_id, function=sweep_exp, entity="matrix72c-jesse", project="RobustCBM")

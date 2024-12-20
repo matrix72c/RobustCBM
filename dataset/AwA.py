@@ -55,7 +55,9 @@ class AwADataset(Dataset):
                 dtype="float32",
             )
         )
-        self.combos = list(itertools.combinations(range(85), 2))
+        concept_counts = np.sum(self.label_to_attr, axis=0)
+        most_common = np.argsort(concept_counts)[::-1]
+        self.combos = list(itertools.combinations(most_common[:32], 2))
 
     def __len__(self):
         return len(self.img_names)
