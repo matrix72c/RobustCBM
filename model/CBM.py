@@ -60,7 +60,7 @@ class CBM(L.LightningModule):
 
         self.adv_mode = adv_mode
         self.train_atk = PGD(self, eps=4 / 255, alpha=1 /255, steps=7)
-        self.eval_atk = PGD(self, eps=4 / 255, alpha=1 /255, steps=10)
+        self.eval_atk = PGD(self, eps=4 / 255, alpha=1 /255, steps=8)
 
 
     def configure_optimizers(self):
@@ -113,7 +113,9 @@ class CBM(L.LightningModule):
         if self.adv_mode:
             bs = img.shape[0] // 2
             adv_img = self.generate_adv_img(img[:bs], label[:bs], "train")
-            img[:bs] = adv_img
+            img = torch.cat([img[:bs], adv_img], dim=0)
+            label = torch.cat([label[:bs], label[:bs]], dim=0)
+            concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
         loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
         self.log("train_loss", loss, prog_bar=True, on_step=True, on_epoch=False)
         return loss
