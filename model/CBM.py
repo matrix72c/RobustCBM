@@ -79,7 +79,7 @@ class CBM(L.LightningModule):
                 ),
                 "monitor": "val_loss",
                 "interval": "epoch",
-                "frequency": 5,
+                "frequency": 1,
                 "strict": True,
             },
         }
