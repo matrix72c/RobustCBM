@@ -55,7 +55,7 @@ def get_args(cfg):
     for k, v in cfg.items():
         if v is None or v is False:
             continue
-        if k == "sweep_id":
+        if k == "sweep_id" or k == "train":
             continue
         if isinstance(v, dict):
             args.update({f"{kk}": vv for kk, vv in v["init_args"].items() if (vv is not None and vv is not False)})

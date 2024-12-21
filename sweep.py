@@ -4,7 +4,7 @@ from main import MyLightningCLI, exp
 from utils import get_args
 
 def sweep_exp():
-    wandb.init(project="SweepCBM")
+    wandb.init(project="RobustCBM")
     wandb.run.tags = [cli.model.__class__.__name__, cli.datamodule.__class__.__name__]
     for k, v in wandb.config.items():
         cli.config["model"]["init_args"][k] = v

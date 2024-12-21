@@ -38,7 +38,7 @@ def exp(model, dm, cfg, train=True):
         mode="min",
         enable_version_counter=False,
         save_weights_only=True,
-        every_n_epochs=30,
+        every_n_epochs=10,
     )
     early_stopping = EarlyStopping(
         monitor="val_loss", patience=cfg["patience"], mode="min"
@@ -77,11 +77,12 @@ def exp(model, dm, cfg, train=True):
         #         model.adv_mode = True
         #         print("Load from normal checkpoint: ", normal_md5)
         trainer.fit(model, dm)
+        train = True
 
     if not model.adv_mode:
         eps = [0, 0.001, 0.01, 0.1, 1.0]
     else:
-        eps = list(range(11))
+        eps = list(range(5))
     accs, acc5s, acc10s, asrs, asr5s, asr10s = [], [], [], [], [], []
     for i in eps:
         if i > 0:
