@@ -20,6 +20,7 @@ class CBM(L.LightningModule):
         lr: float = 0.1,
         scheduler_arg: int = 30,
         adv_mode: bool = False,
+        hidden_dim: int = 0,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -48,11 +49,16 @@ class CBM(L.LightningModule):
             )
         else:
             raise ValueError("Unknown base model")
-        self.classifier = nn.Sequential(
-            nn.Linear(num_concepts, 128),
-            nn.LeakyReLU(),
-            nn.Linear(128, num_classes),
-        ).apply(initialize_weights)
+        if hidden_dim > 0:
+            self.classifier = nn.Sequential(
+                nn.Linear(num_concepts, hidden_dim),
+                nn.LeakyReLU(),
+                nn.Linear(hidden_dim, num_classes),
+            ).apply(initialize_weights)
+        else:
+            self.classifier = nn.Linear(num_concepts, num_classes).apply(
+                initialize_weights
+            )
         self.real_concepts = real_concepts
         self.num_classes = num_classes
         self.num_concepts = num_concepts
