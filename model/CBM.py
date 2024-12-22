@@ -48,7 +48,11 @@ class CBM(L.LightningModule):
             )
         else:
             raise ValueError("Unknown base model")
-        self.classifier = nn.Linear(num_concepts, num_classes).apply(initialize_weights)
+        self.classifier = nn.Sequential(
+            nn.Linear(num_concepts, 128),
+            nn.LeakyReLU(),
+            nn.Linear(128, num_classes),
+        ).apply(initialize_weights)
         self.real_concepts = real_concepts
         self.num_classes = num_classes
         self.num_concepts = num_concepts
@@ -59,13 +63,13 @@ class CBM(L.LightningModule):
         self.acc10 = Accuracy(task="multiclass", num_classes=num_classes, top_k=10)
 
         self.adv_mode = adv_mode
-        self.train_atk = PGD(self, eps=4 / 255, alpha=0.5 /255, steps=8)
-        self.eval_atk = self.train_atk
+        self.train_atk = PGD(self, eps=4 / 255, alpha=1 /255, steps=8)
+        self.eval_atk = PGD(self, eps=4 / 255, alpha=1 /255, steps=10)
 
 
     def configure_optimizers(self):
         optimizer = torch.optim.SGD(
-            self.parameters(), lr=self.hparams.lr
+            self.parameters(), lr=self.hparams.lr, momentum=0.9, weight_decay=4e-5
         )
         return {
             "optimizer": optimizer,
