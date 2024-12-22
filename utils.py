@@ -50,12 +50,12 @@ def calc_info_loss(mu, var):
 
 def get_args(cfg):
     args = {}
-    cfg.pop("trainer")
-    cfg.pop("config")
+    cfg.pop("trainer", None)
+    cfg.pop("config", None)
     for k, v in cfg.items():
         if v is None or v is False:
             continue
-        if k == "sweep_id" or k == "train":
+        if k in {"sweep_id", "train"}:
             continue
         if isinstance(v, dict):
             args.update({f"{kk}": vv for kk, vv in v["init_args"].items() if (vv is not None and vv is not False)})

@@ -1,5 +1,3 @@
-import copy
-import os
 from lightning.pytorch.plugins.io import AsyncCheckpointIO
 from lightning.pytorch.cli import LightningCLI
 from lightning.pytorch.trainer import Trainer
@@ -86,7 +84,7 @@ def exp(model, dm, cfg, train=True):
     accs, acc5s, acc10s, asrs, asr5s, asr10s = [], [], [], [], [], []
     for i in eps:
         if i > 0:
-            model.eval_atk = PGD(model, eps=i / 255.0, alpha=i / 2550, steps=10)
+            model.eval_atk = PGD(model, eps=i / 255.0, alpha=1 / 255, steps=10)
             model.adv_mode = True
         else:
             model.adv_mode = False
