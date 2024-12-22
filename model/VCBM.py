@@ -31,12 +31,13 @@ class VCBM(CBM):
             adv_mode=adv_mode,
         )
         self.base.fc = nn.Linear(self.base.fc.in_features, 2 * num_concepts)  # encoder
+        self.gate = nn.Sigmoid()
 
     def forward(self, x):
         statistics = self.base(x)
         std, mu = torch.chunk(statistics, 2, dim=1)
         concept_pred = mu + std * torch.randn_like(std)
-        label_pred = self.classifier(concept_pred)
+        label_pred = self.classifier(concept_pred * torch.sigmoid(std) * 2.0)
         return label_pred, concept_pred, mu, std**2
 
     def shared_step(self, img, label, concepts):
