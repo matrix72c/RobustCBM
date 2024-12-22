@@ -4,10 +4,11 @@ from main import MyLightningCLI, exp
 from utils import get_args
 
 def sweep_exp():
+    wandb.init(project="RobustCBM")
     wandb.run.tags = [cli.model.__class__.__name__, cli.datamodule.__class__.__name__]
     for k, v in wandb.config.items():
-        if k == "patience":
-            cli.config["patience"] = v
+        if k == "patience_rate":
+            cli.config["patience"] = int(v * wandb.config["scheduler_arg"])
             continue
         cli.config["model"]["init_args"][k] = v
         if k == "num_concepts":
