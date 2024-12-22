@@ -11,8 +11,8 @@ model:
     use_pretrained: True
     concept_weight: 0
     lr: 0.1
-    scheduler_arg: 15
-    adv_mode: False
+    scheduler_arg: 10
+    adv_mode: True
 
 data:
   class_path: dataset.CUB
