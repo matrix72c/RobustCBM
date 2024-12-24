@@ -32,7 +32,10 @@ class CUBDataSet(Dataset):
                 ]
             )
         else:
-            self.data.extend(pickle.load(open(data_path + "val.pkl", "rb")))
+            if stage == "val":
+                self.data.extend(pickle.load(open(data_path + "val.pkl", "rb")))
+            elif stage == "test":
+                self.data.extend(pickle.load(open(data_path + "test.pkl", "rb")))
             self.transform = transforms.Compose(
                 [
                     transforms.CenterCrop(224),
