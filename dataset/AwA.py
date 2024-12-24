@@ -2,7 +2,10 @@
 General utils for training, evaluation and data loading
 """
 
+import glob
 import itertools
+import os
+from sklearn.model_selection import train_test_split
 import pandas as pd
 import torch
 import numpy as np
@@ -19,15 +22,32 @@ class AwADataset(Dataset):
         self.path = data_path
         self.num_concepts = num_concepts
         class_to_index = dict()
-        with open(self.path + "Animals_with_Attributes2/classes.txt") as f:
+        with open(self.path + "/Animals_with_Attributes2/classes.txt") as f:
             index = 1
             for line in f:
                 class_name = line.split("\t")[1].strip()
                 class_to_index[class_name] = index
                 index += 1
+        img_names = []
+        img_index = []
+        for c in class_to_index.keys():
+            class_name = c
+            FOLDER_DIR = os.path.join(f'{data_path}/Animals_with_Attributes2/JPEGImages', class_name)
+            file_descriptor = os.path.join(FOLDER_DIR, '*.jpg')
+            files = glob.glob(file_descriptor)
+
+            class_index = class_to_index[class_name]
+            for file_name in files:
+                img_names.append(file_name)
+                img_index.append(class_index)
+
+        train_img_names, eval_img_names, train_img_index, eval_img_index = train_test_split(img_names, img_index, test_size=0.3, random_state=42)
+        test_img_names, val_img_names, test_img_index, val_img_index = train_test_split(eval_img_names, eval_img_index, test_size=0.33, random_state=42)
+
 
         if stage == "fit":
-            df = pd.read_csv(self.path + "Animals_with_Attributes2/train.csv")
+            self.img_names = train_img_names
+            self.img_index = train_img_index
             self.transform = transforms.Compose(
                 [
                     transforms.ColorJitter(brightness=32 / 255, saturation=(0.5, 1.5)),
@@ -37,8 +57,13 @@ class AwADataset(Dataset):
                     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[2, 2, 2]),
                 ]
             )
-        elif stage == "val" or stage == "test":
-            df = pd.read_csv(self.path + "Animals_with_Attributes2/" + stage + ".csv")
+        else:
+            if stage == "val":
+                self.img_names = val_img_names
+                self.img_index = val_img_index
+            elif stage == "test":
+                self.img_names = test_img_names
+                self.img_index = test_img_index
             self.transform = transforms.Compose(
                 [
                     transforms.CenterCrop(224),
@@ -46,12 +71,10 @@ class AwADataset(Dataset):
                     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[2, 2, 2]),
                 ]
             )
-        self.img_names = df["img_name"].tolist()
-        self.img_index = df["img_index"].tolist()
         self.label_to_num = class_to_index
         self.label_to_attr = np.array(
             np.genfromtxt(
-                self.path + "Animals_with_Attributes2/predicate-matrix-binary.txt",
+                self.path + "/Animals_with_Attributes2/predicate-matrix-binary.txt",
                 dtype="float32",
             )
         )
@@ -113,7 +136,7 @@ if __name__ == "__main__":
     resol = 224
     batch_size = 128
     dm = AwA(data_path, resol, batch_size)
-    dm.setup()
+    dm.setup("fit")
     for x, y, z in dm.train:
         print(x.shape, y, z.shape)
         break
