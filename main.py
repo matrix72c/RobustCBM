@@ -15,11 +15,11 @@ from utils import OssCheckpointIO, get_args, get_md5, get_oss
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         parser.add_argument("--patience", default=100)
-        parser.add_argument("--train", default=False)
-        parser.link_arguments("data.init_args.num_concepts", "model.init_args.num_concepts")
+        parser.add_argument("--ckpt_path", default=None)
         parser.add_argument("--sweep_id", default=None)
+        parser.link_arguments("data.init_args.num_concepts", "model.init_args.num_concepts")
 
-def exp(model, dm, cfg, train=True):
+def exp(model, dm, cfg, ckpt_path):
     md5 = get_md5(cfg)
     print("MD5:", md5)
     wandb.config.update({"md5": md5})
@@ -53,16 +53,10 @@ def exp(model, dm, cfg, train=True):
         plugins=[AsyncCheckpointIO(oss_checkpoint_io)],
     )
 
-    ckpt_path = f"checkpoints/{md5}.ckpt"
-    if bucket.object_exists(ckpt_path):
-        if train:
-            bucket.delete_object(ckpt_path)
-            trainer.fit(model, dm)
-            print("Train from scratch: ", md5)
-        else:
-            bucket.get_object_to_file(ckpt_path, ckpt_path)
-            model = model.__class__.load_from_checkpoint(ckpt_path)
-            print("Load from checkpoint: ", md5)
+    if ckpt_path is not None and bucket.object_exists(ckpt_path):
+        bucket.get_object_to_file(ckpt_path, ckpt_path)
+        model = model.__class__.load_from_checkpoint(ckpt_path)
+        print("Load from checkpoint: ", ckpt_path)
     else:
         # if model.adv_mode:
         #     normal_cfg = copy.deepcopy(cfg)
@@ -84,7 +78,7 @@ def exp(model, dm, cfg, train=True):
     accs, acc5s, acc10s, asrs, asr5s, asr10s = [], [], [], [], [], []
     for i in eps:
         if i > 0:
-            model.eval_atk = PGD(model, eps=i / 255.0, alpha=1 / 255, steps=10)
+            model.eval_atk = PGD(model, eps=i / 255.0, alpha=i / 2550.0, steps=10)
             model.adv_mode = True
         else:
             model.adv_mode = False
@@ -118,4 +112,4 @@ if __name__ == "__main__":
     args["model"] = model.__class__.__name__
     args["dataset"] = dm.__class__.__name__
     wandb.init(project="RobustCBM", config=args, tags=[model.__class__.__name__, dm.__class__.__name__])
-    exp(model, dm, args, cli.config["train"])
+    exp(model, dm, args, cli.config["ckpt_path"])

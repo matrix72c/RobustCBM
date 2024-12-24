@@ -9,6 +9,8 @@ import torch.nn as nn
 from lightning.pytorch.plugins.io import CheckpointIO
 import oss2
 from oss2.credentials import EnvironmentVariableCredentialsProvider
+import tempfile
+
 def initialize_weights(module: nn.Module):
     """Initialize the weights of a module."""
     if isinstance(module, nn.Sequential):
@@ -55,7 +57,7 @@ def get_args(cfg):
     for k, v in cfg.items():
         if v is None or v is False:
             continue
-        if k in {"sweep_id", "train"}:
+        if k in {"sweep_id", "ckpt_path"}:
             continue
         if isinstance(v, dict):
             args.update({f"{kk}": vv for kk, vv in v["init_args"].items() if (vv is not None and vv is not False)})
@@ -63,28 +65,25 @@ def get_args(cfg):
             args[k] = v
     return args
 
-
-
 def get_md5(obj):
     args_str = json.dumps(obj, sort_keys=True)
     return hashlib.md5(args_str.encode()).hexdigest()
 
 class OssCheckpointIO(CheckpointIO):
-    def __init__(self, bucket):
+    def __init__(self, bucket: oss2.Bucket):
         super().__init__()
         self.bucket = bucket
 
     def save_checkpoint(self, checkpoint, path, storage_options=None):
-        path = os.path.relpath(path, os.getcwd())
-        with open(path, "wb") as f:
+        key = os.path.relpath(path, os.getcwd())
+        with tempfile.TemporaryFile() as f:
             torch.save(checkpoint, f)
-        self.bucket.put_object_from_file(path, path)
+            self.bucket.put_object(key, f)
 
     def load_checkpoint(self, path, map_location=None):
-        path = os.path.relpath(path, os.getcwd())
-        if not os.path.exists(path):
-            self.bucket.get_object_to_file(path, path)
-        with open(path, "rb") as f:
+        key = os.path.relpath(path, os.getcwd())
+        with tempfile.NamedTemporaryFile(delete=True) as f:
+            self.bucket.get_object_to_file(key, f.name)
             ckpt = torch.load(f, map_location=map_location)
         return ckpt
 
