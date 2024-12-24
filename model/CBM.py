@@ -75,7 +75,7 @@ class CBM(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.SGD(
-            self.parameters(), lr=self.hparams.lr, momentum=0.9, weight_decay=4e-5
+            self.parameters(), lr=self.hparams.lr
         )
         return {
             "optimizer": optimizer,
