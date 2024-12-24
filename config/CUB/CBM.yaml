@@ -9,7 +9,7 @@ model:
     real_concepts: 112
     base: resnet50
     use_pretrained: True
-    concept_weight: 10
+    concept_weight: 1
     lr: 0.1
     scheduler_arg: 10
     adv_mode: True

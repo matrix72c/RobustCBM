@@ -21,6 +21,7 @@ class CBM(L.LightningModule):
         scheduler_arg: int = 30,
         adv_mode: bool = False,
         hidden_dim: int = 0,
+        cbm_mode: str = "hybrid", # "bool", "fuzzy", "hybrid"
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -69,8 +70,8 @@ class CBM(L.LightningModule):
         self.acc10 = Accuracy(task="multiclass", num_classes=num_classes, top_k=10)
 
         self.adv_mode = adv_mode
-        self.train_atk = PGD(self, eps=4 / 255, alpha=1 /255, steps=8)
-        self.eval_atk = PGD(self, eps=4 / 255, alpha=1 /255, steps=10)
+        self.train_atk = PGD(self, eps=4 / 255, alpha=4 /2550.0, steps=10)
+        self.eval_atk = PGD(self, eps=4 / 255, alpha=4 /2550.0, steps=10)
 
 
     def configure_optimizers(self):
@@ -96,7 +97,13 @@ class CBM(L.LightningModule):
 
     def forward(self, x):
         concept_pred = self.base(x)
-        label_pred = self.classifier(concept_pred)
+        if self.hparams.cbm_mode == "fuzzy":
+            concept_pred = torch.sigmoid(concept_pred)
+        elif self.hparams.cbm_mode == "bool":
+            concept_pred = torch.sigmoid(concept_pred)
+            concept_pred = torch.where(concept_pred > 0.5, 1, 0).float()
+        elif self.hparams.cbm_mode == "hybrid":
+            label_pred = self.classifier(concept_pred)
         return label_pred, concept_pred
 
     @torch.enable_grad()
