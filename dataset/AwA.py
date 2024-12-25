@@ -1,12 +1,7 @@
-"""
-General utils for training, evaluation and data loading
-"""
-
 import glob
 import itertools
 import os
 from sklearn.model_selection import train_test_split
-import pandas as pd
 import torch
 import numpy as np
 import torchvision.transforms as transforms
@@ -32,8 +27,10 @@ class AwADataset(Dataset):
         img_index = []
         for c in class_to_index.keys():
             class_name = c
-            FOLDER_DIR = os.path.join(f'{data_path}/Animals_with_Attributes2/JPEGImages', class_name)
-            file_descriptor = os.path.join(FOLDER_DIR, '*.jpg')
+            FOLDER_DIR = os.path.join(
+                f"{data_path}/Animals_with_Attributes2/JPEGImages", class_name
+            )
+            file_descriptor = os.path.join(FOLDER_DIR, "*.jpg")
             files = glob.glob(file_descriptor)
 
             class_index = class_to_index[class_name]
@@ -41,9 +38,12 @@ class AwADataset(Dataset):
                 img_names.append(file_name)
                 img_index.append(class_index)
 
-        train_img_names, eval_img_names, train_img_index, eval_img_index = train_test_split(img_names, img_index, test_size=0.3, random_state=42)
-        test_img_names, val_img_names, test_img_index, val_img_index = train_test_split(eval_img_names, eval_img_index, test_size=0.33, random_state=42)
-
+        train_img_names, eval_img_names, train_img_index, eval_img_index = (
+            train_test_split(img_names, img_index, test_size=0.3, random_state=42)
+        )
+        test_img_names, val_img_names, test_img_index, val_img_index = train_test_split(
+            eval_img_names, eval_img_index, test_size=0.33, random_state=42
+        )
 
         if stage == "fit":
             self.img_names = train_img_names
@@ -117,17 +117,29 @@ class AwA(L.LightningDataModule):
 
     def train_dataloader(self):
         return DataLoader(
-            self.train, batch_size=self.batch_size, shuffle=True, num_workers=8
+            self.train,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=24,
+            pin_memory=True,
         )
 
     def val_dataloader(self):
         return DataLoader(
-            self.val, batch_size=self.batch_size, shuffle=False, num_workers=8
+            self.val,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=24,
+            pin_memory=True,
         )
 
     def test_dataloader(self):
         return DataLoader(
-            self.test, batch_size=self.batch_size, shuffle=False, num_workers=8
+            self.test,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=24,
+            pin_memory=True,
         )
 
 
