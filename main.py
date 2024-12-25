@@ -1,3 +1,5 @@
+import os
+import tempfile
 from lightning.pytorch.plugins.io import AsyncCheckpointIO
 from lightning.pytorch.cli import LightningCLI
 from lightning.pytorch.trainer import Trainer
@@ -54,20 +56,17 @@ def exp(model, dm, cfg, ckpt_path):
     )
 
     if ckpt_path is not None and bucket.object_exists(ckpt_path):
-        bucket.get_object_to_file(ckpt_path, ckpt_path)
-        model = model.__class__.load_from_checkpoint(ckpt_path)
+        mode = model.adv_mode
+        key = os.path.relpath(ckpt_path, os.getcwd())
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fp = os.path.join(tmpdir, os.path.basename(key))
+            print(f"Downloading {key} to {fp}")
+            bucket.get_object_to_file(key, fp)
+            model = model.__class__.load_from_checkpoint(fp)
+            model.adv_mode = mode
         print("Load from checkpoint: ", ckpt_path)
+        train = False
     else:
-        # if model.adv_mode:
-        #     normal_cfg = copy.deepcopy(cfg)
-        #     normal_cfg.pop("adv_mode")
-        #     normal_md5 = get_md5(normal_cfg)
-        #     normal_ckpt_path = f"checkpoints/{normal_md5}.ckpt"
-        #     if bucket.object_exists(normal_ckpt_path):
-        #         bucket.get_object_to_file(normal_ckpt_path, normal_ckpt_path)
-        #         model = model.__class__.load_from_checkpoint(normal_ckpt_path)
-        #         model.adv_mode = True
-        #         print("Load from normal checkpoint: ", normal_md5)
         trainer.fit(model, dm)
         train = True
 

@@ -78,13 +78,16 @@ class OssCheckpointIO(CheckpointIO):
         key = os.path.relpath(path, os.getcwd())
         with tempfile.TemporaryFile() as f:
             torch.save(checkpoint, f)
+            f.seek(0)
             self.bucket.put_object(key, f)
 
     def load_checkpoint(self, path, map_location=None):
         key = os.path.relpath(path, os.getcwd())
-        with tempfile.NamedTemporaryFile(delete=True) as f:
-            self.bucket.get_object_to_file(key, f.name)
-            ckpt = torch.load(f, map_location=map_location)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fp = os.path.join(tmpdir, os.path.basename(key))
+            self.bucket.get_object_to_file(key, fp)
+            with open(fp, "rb") as f:
+                ckpt = torch.load(f, map_location=map_location)
         return ckpt
 
     def remove_checkpoint(self, path):
