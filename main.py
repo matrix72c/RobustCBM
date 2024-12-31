@@ -11,10 +11,19 @@ from lightning.pytorch.callbacks import (
 import wandb
 import argparse, yaml
 from attacks import PGD
-from utils import OssCheckpointIO, get_args, get_md5, get_oss
-import dataset, model
+from utils import OssCheckpointIO, get_md5, get_oss
+import model as pl_model
+import dataset
 
-def exp(model, dm, cfg, ckpt_path):
+
+def exp(cfg, ckpt_path=None):
+    dm = getattr(dataset, cfg["dataset"])(**cfg)
+    model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
+    wandb.init(
+        project="RobustCBM",
+        config=config,
+        tags=[model.__class__.__name__, dm.__class__.__name__],
+    )
     md5 = get_md5(cfg)
     print("MD5:", md5)
     wandb.config.update({"md5": md5})
@@ -33,9 +42,7 @@ def exp(model, dm, cfg, ckpt_path):
         save_weights_only=True,
         every_n_epochs=20,
     )
-    early_stopping = EarlyStopping(
-        monitor="acc", patience=cfg["patience"], mode="max"
-    )
+    early_stopping = EarlyStopping(monitor="acc", patience=cfg["patience"], mode="max")
     lr_monitor = LearningRateMonitor(logging_interval="epoch")
     callbacks = [checkpoint_callback, early_stopping, lr_monitor]
     trainer = Trainer(
@@ -94,13 +101,11 @@ def exp(model, dm, cfg, ckpt_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
+    parser.add_argument("--ckpt_path", type=str, default=None)
     args = parser.parse_args()
-    with open(args.config, "r") as f:
+    with open("config.yaml", "r") as f:
         config = yaml.safe_load(f)
-    model = getattr(config["model"])(**config)
-    dm = cli.datamodule
-    args = get_args(cli.config.as_dict())
-    args["model"] = model.__class__.__name__
-    args["dataset"] = dm.__class__.__name__
-    wandb.init(project="RobustCBM", config=args, tags=[model.__class__.__name__, dm.__class__.__name__])
-    exp(model, dm, args, cli.config["ckpt_path"])
+    with open(args.config, "r") as f:
+        cfg = yaml.safe_load(f)
+    config.update(cfg)
+    exp(config, args.ckpt_path)

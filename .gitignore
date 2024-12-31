@@ -109,7 +109,7 @@ saved/
 checkpoints/
 lightning_logs/
 wandb/
-result.csv
+tmp*
 
 # editor, os cache directory
 .vscode/

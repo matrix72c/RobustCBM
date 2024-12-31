@@ -2,8 +2,7 @@ from .CBM import CBM
 from .CEM import CEM
 from .VCBM import VCBM
 from .VCEM import VCEM
-from .VQ import VectorQuantizeEMA
 from .VQCBM import VQCBM
 from .VQCEM import VQCEM
-from .resnet import resnet
+from .backbone import backbone
 from .resCBM import resCBM

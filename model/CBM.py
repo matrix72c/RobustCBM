@@ -12,9 +12,7 @@ from mtl import mtl
 class CBM(L.LightningModule):
     def __init__(
         self,
-        num_classes: int,
-        num_concepts: int,
-        real_concepts: int,
+        dm: L.LightningDataModule,
         base: str = "resnet50",
         use_pretrained: bool = True,
         concept_weight: float = 1,
@@ -23,12 +21,16 @@ class CBM(L.LightningModule):
         adv_mode: bool = False,
         hidden_dim: int = 0,
         cbm_mode: str = "hybrid",  # "bool", "fuzzy", "hybrid"
-        loss_mode: str = "combo",  # "ce", "bce", "combo"
+        adv_loss: str = "combo",  # "ce", "bce", "combo"
         mtl_mode: str = "normal",  # "normal", "equal", "ordered"
+        **kwargs,
     ):
         super().__init__()
         self.automatic_optimization = False
         self.save_hyperparameters()
+        num_classes = dm.num_classes
+        num_concepts = dm.num_concepts
+        real_concepts = dm.real_concepts
         if base == "resnet50":
             self.base = torchvision.models.resnet50(
                 weights=(
@@ -77,10 +79,10 @@ class CBM(L.LightningModule):
 
         self.adv_mode = adv_mode
         self.train_atk = PGD(
-            self, eps=4 / 255, alpha=4 / 2550.0, steps=10, loss_mode=loss_mode
+            self, eps=4 / 255, alpha=4 / 2550.0, steps=10, adv_loss=adv_loss
         )
         self.eval_atk = PGD(
-            self, eps=4 / 255, alpha=4 / 2550.0, steps=10, loss_mode=loss_mode
+            self, eps=4 / 255, alpha=4 / 2550.0, steps=10, adv_loss=adv_loss
         )
 
     def configure_optimizers(self):
@@ -113,14 +115,14 @@ class CBM(L.LightningModule):
             label_pred = self.classifier(concept_pred)
         return label_pred, concept_pred
 
-    def get_loss(self, logits, labels, loss_mode):
+    def get_loss(self, logits, labels, adv_loss):
         label, concept = labels
         label_pred, concept_pred = logits[0], logits[1]
-        if loss_mode == "bce":
+        if adv_loss == "bce":
             loss = F.binary_cross_entropy_with_logits(concept_pred, concept)
-        elif loss_mode == "ce":
+        elif adv_loss == "ce":
             loss = F.cross_entropy(label_pred, label)
-        elif loss_mode == "combo":
+        elif adv_loss == "combo":
             loss = F.cross_entropy(
                 label_pred, label
             ) + self.hparams.concept_weight * F.binary_cross_entropy_with_logits(
@@ -150,7 +152,7 @@ class CBM(L.LightningModule):
             self.optimizers().step()
         else:
             mtl(
-                [concept_loss, label_loss],
+                [label_loss, concept_loss],
                 self,
                 self.hparams.mtl_mode,
             )

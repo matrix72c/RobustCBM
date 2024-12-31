@@ -106,11 +106,13 @@ class AwADataset(Dataset):
 
 
 class AwA(L.LightningDataModule):
-    def __init__(self, data_path, batch_size, num_concepts=85):
+    def __init__(self, data_path, batch_size, num_concepts=85, **kwargs):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
         self.num_concepts = num_concepts
+        self.real_concepts = 85
+        self.num_classes = 50
         self.train = AwADataset(self.data_path, "fit", num_concepts)
         self.val = AwADataset(self.data_path, "val", num_concepts)
         self.test = AwADataset(self.data_path, "test", num_concepts)

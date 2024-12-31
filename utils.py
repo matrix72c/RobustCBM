@@ -50,20 +50,6 @@ def calc_info_loss(mu, var):
     info_loss = -0.5 * torch.mean(1 + var.log() - mu.pow(2) - var) / math.log(2)
     return info_loss
 
-def get_args(cfg):
-    args = {}
-    cfg.pop("trainer", None)
-    cfg.pop("config", None)
-    for k, v in cfg.items():
-        if v is None or v is False:
-            continue
-        if k in {"sweep_id", "ckpt_path"}:
-            continue
-        if isinstance(v, dict):
-            args.update({f"{kk}": vv for kk, vv in v["init_args"].items() if (vv is not None and vv is not False)})
-        else:
-            args[k] = v
-    return args
 
 def get_md5(obj):
     args_str = json.dumps(obj, sort_keys=True)

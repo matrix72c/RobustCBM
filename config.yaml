@@ -13,10 +13,17 @@ cbm_mode: hybrid
 adv_loss: combo
 mtl_mode: normal
 
-data: CUB
+dataset: CUB
 data_path: ./data
 batch_size: 128
 num_concepts: 112
 
 # CEM
 embed_size: 16
+# VIB
+vib_lambda: 0.01
+# VQ
+embedding_dim: 64
+codebook_size: 5120
+codebook_weight: 0.25
+quantizer: EMA

@@ -91,7 +91,7 @@ class celebaDataset(Dataset):
     def __getitem__(self, index):
         x, y = self.celeba[index]
         label, concept = y
-        if self.num_concepts < 6:
+        if self.num_concepts < 8:
             concept = concept[: self.num_concepts]
         else:
             concept = torch.cat(
@@ -104,7 +104,7 @@ class celebaDataset(Dataset):
 
 
 class celeba(L.LightningDataModule):
-    def __init__(self, data_path, batch_size):
+    def __init__(self, data_path, batch_size, **kwargs):
         super().__init__()
         self.batch_size = batch_size
         width = 1
@@ -215,7 +215,7 @@ class celeba(L.LightningDataModule):
             ],
             target_type=["identity", "attr"],
         )
-        celeba_train_data = celebaDataset(celeba_train_data)
+        celeba_train_data = celebaDataset(celeba_train_data, num_concepts)
 
         # And subsample to reduce its massive size
         factor = 12
