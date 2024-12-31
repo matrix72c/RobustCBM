@@ -1,9 +1,7 @@
 import os
 import tempfile
 from lightning.pytorch.plugins.io import AsyncCheckpointIO
-from lightning.pytorch.cli import LightningCLI
 from lightning.pytorch.trainer import Trainer
-import torch
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import (
     ModelCheckpoint,
@@ -11,15 +9,10 @@ from lightning.pytorch.callbacks import (
     LearningRateMonitor,
 )
 import wandb
+import argparse, yaml
 from attacks import PGD
 from utils import OssCheckpointIO, get_args, get_md5, get_oss
-
-class MyLightningCLI(LightningCLI):
-    def add_arguments_to_parser(self, parser):
-        parser.add_argument("--patience", default=100)
-        parser.add_argument("--ckpt_path", default=None)
-        parser.add_argument("--sweep_id", default=None)
-        parser.link_arguments("data.init_args.num_concepts", "model.init_args.num_concepts")
+import dataset, model
 
 def exp(model, dm, cfg, ckpt_path):
     md5 = get_md5(cfg)
@@ -99,8 +92,12 @@ def exp(model, dm, cfg, ckpt_path):
 
 
 if __name__ == "__main__":
-    cli = MyLightningCLI(save_config_callback=None, run=False)
-    model = cli.model
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, required=True)
+    args = parser.parse_args()
+    with open(args.config, "r") as f:
+        config = yaml.safe_load(f)
+    model = getattr(config["model"])(**config)
     dm = cli.datamodule
     args = get_args(cli.config.as_dict())
     args["model"] = model.__class__.__name__

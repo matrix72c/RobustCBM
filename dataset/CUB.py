@@ -85,11 +85,14 @@ class CUB(L.LightningDataModule):
         data_path,
         batch_size,
         num_concepts=112,
+        **kwargs,
     ):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
         self.num_concepts = num_concepts
+        self.real_concepts = 112
+        self.num_classes = 200
         self.train_data = CUBDataSet(self.data_path, "fit", num_concepts)
         self.val_data = CUBDataSet(self.data_path, "val", num_concepts)
         self.test_data = CUBDataSet(self.data_path, "test", num_concepts)

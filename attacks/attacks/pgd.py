@@ -29,14 +29,14 @@ class PGD(Attack):
 
     """
 
-    def __init__(self, model, eps=8 / 255, alpha=2 / 255, steps=10, random_start=True, loss_mode="ce"):
+    def __init__(self, model, eps=8 / 255, alpha=2 / 255, steps=10, random_start=True, adv_loss="ce"):
         super().__init__("PGD", model)
         self.eps = eps
         self.alpha = alpha
         self.steps = steps
         self.random_start = random_start
         self.supported_mode = ["default", "targeted"]
-        self.loss_mode = loss_mode
+        self.adv_loss = adv_loss
 
     def forward(self, images, labels):
         r"""
@@ -67,9 +67,9 @@ class PGD(Attack):
 
             # Calculate loss
             if self.targeted:
-                cost = -self.get_loss(outputs, target_labels, self.loss_mode)
+                cost = -self.get_loss(outputs, target_labels, self.adv_loss)
             else:
-                cost = self.get_loss(outputs, labels, self.loss_mode)
+                cost = self.get_loss(outputs, labels, self.adv_loss)
 
             # Update adversarial images
             grad = torch.autograd.grad(

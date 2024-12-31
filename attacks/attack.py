@@ -79,8 +79,8 @@ class Attack(object):
         logits = self.model(inputs)
         return logits
     
-    def get_loss(self, logits, labels, loss_mode):
-        return self.model.get_loss(logits, labels, loss_mode)
+    def get_loss(self, logits, labels, adv_loss):
+        return self.model.get_loss(logits, labels, adv_loss)
 
     @wrapper_method
     def _set_normalization_applied(self, flag):
