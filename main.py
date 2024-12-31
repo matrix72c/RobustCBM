@@ -31,17 +31,17 @@ def exp(model, dm, cfg, ckpt_path):
 
     logger = WandbLogger()
     checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss",
+        monitor="acc",
         dirpath="checkpoints/",
         filename=md5,
         save_top_k=1,
-        mode="min",
+        mode="max",
         enable_version_counter=False,
         save_weights_only=True,
-        every_n_epochs=10,
+        every_n_epochs=20,
     )
     early_stopping = EarlyStopping(
-        monitor="val_loss", patience=cfg["patience"], mode="min"
+        monitor="acc", patience=cfg["patience"], mode="max"
     )
     lr_monitor = LearningRateMonitor(logging_interval="epoch")
     callbacks = [checkpoint_callback, early_stopping, lr_monitor]
@@ -51,7 +51,6 @@ def exp(model, dm, cfg, ckpt_path):
         callbacks=callbacks,
         max_epochs=-1,
         gradient_clip_algorithm="norm",
-        gradient_clip_val=5.0,
         plugins=[AsyncCheckpointIO(oss_checkpoint_io)],
     )
 
@@ -65,10 +64,7 @@ def exp(model, dm, cfg, ckpt_path):
             model = model.__class__.load_from_checkpoint(fp)
             model.adv_mode = mode
         print("Load from checkpoint: ", ckpt_path)
-        train = False
-    else:
-        trainer.fit(model, dm)
-        train = True
+    trainer.fit(model, dm)
 
     if not model.adv_mode:
         eps = [0, 0.001, 0.01, 0.1, 1.0]
@@ -81,7 +77,7 @@ def exp(model, dm, cfg, ckpt_path):
             model.adv_mode = True
         else:
             model.adv_mode = False
-        ret = trainer.test(model, datamodule=dm, ckpt_path="best" if train else None)[0]
+        ret = trainer.test(model, datamodule=dm, ckpt_path="best")[0]
         acc, acc5, acc10 = ret["acc"], ret["acc5"], ret["acc10"]
         accs.append(acc), acc5s.append(acc5), acc10s.append(acc10)
         if i == 0:
@@ -103,7 +99,6 @@ def exp(model, dm, cfg, ckpt_path):
 
 
 if __name__ == "__main__":
-    torch.set_float32_matmul_precision("high")
     cli = MyLightningCLI(save_config_callback=None, run=False)
     model = cli.model
     dm = cli.datamodule

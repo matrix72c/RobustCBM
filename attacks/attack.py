@@ -77,8 +77,10 @@ class Attack(object):
         if self._normalization_applied is False:
             inputs = self.normalize(inputs)
         logits = self.model(inputs)
-        logits = logits[0] if isinstance(logits, tuple) else logits
         return logits
+    
+    def get_loss(self, logits, labels, loss_mode):
+        return self.model.get_loss(logits, labels, loss_mode)
 
     @wrapper_method
     def _set_normalization_applied(self, flag):

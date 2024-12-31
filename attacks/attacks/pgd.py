@@ -29,13 +29,14 @@ class PGD(Attack):
 
     """
 
-    def __init__(self, model, eps=8 / 255, alpha=2 / 255, steps=10, random_start=True):
+    def __init__(self, model, eps=8 / 255, alpha=2 / 255, steps=10, random_start=True, loss_mode="ce"):
         super().__init__("PGD", model)
         self.eps = eps
         self.alpha = alpha
         self.steps = steps
         self.random_start = random_start
         self.supported_mode = ["default", "targeted"]
+        self.loss_mode = loss_mode
 
     def forward(self, images, labels):
         r"""
@@ -43,12 +44,14 @@ class PGD(Attack):
         """
 
         images = images.clone().detach().to(self.device)
-        labels = labels.clone().detach().to(self.device)
+        if isinstance(labels, tuple):
+            labels = tuple(label.clone().detach().to(self.device) for label in labels)
+        else:
+            labels = labels.clone().detach().to(self.device)
 
         if self.targeted:
             target_labels = self.get_target_label(images, labels)
 
-        loss = nn.CrossEntropyLoss()
         adv_images = images.clone().detach()
 
         if self.random_start:
@@ -64,9 +67,9 @@ class PGD(Attack):
 
             # Calculate loss
             if self.targeted:
-                cost = -loss(outputs, target_labels)
+                cost = -self.get_loss(outputs, target_labels, self.loss_mode)
             else:
-                cost = loss(outputs, labels)
+                cost = self.get_loss(outputs, labels, self.loss_mode)
 
             # Update adversarial images
             grad = torch.autograd.grad(

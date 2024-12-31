@@ -6,6 +6,7 @@ from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
 from attacks import PGD
+from mtl import mtl
 
 
 class CBM(L.LightningModule):
@@ -21,9 +22,12 @@ class CBM(L.LightningModule):
         scheduler_arg: int = 30,
         adv_mode: bool = False,
         hidden_dim: int = 0,
-        cbm_mode: str = "hybrid", # "bool", "fuzzy", "hybrid"
+        cbm_mode: str = "hybrid",  # "bool", "fuzzy", "hybrid"
+        loss_mode: str = "combo",  # "ce", "bce", "combo"
+        mtl_mode: str = "normal",  # "normal", "equal", "ordered"
     ):
         super().__init__()
+        self.automatic_optimization = False
         self.save_hyperparameters()
         if base == "resnet50":
             self.base = torchvision.models.resnet50(
@@ -64,31 +68,34 @@ class CBM(L.LightningModule):
         self.num_classes = num_classes
         self.num_concepts = num_concepts
 
-        self.concept_acc = Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
+        self.concept_acc = Accuracy(
+            task="multilabel", num_labels=min(num_concepts, real_concepts)
+        )
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
         self.acc5 = Accuracy(task="multiclass", num_classes=num_classes, top_k=5)
         self.acc10 = Accuracy(task="multiclass", num_classes=num_classes, top_k=10)
 
         self.adv_mode = adv_mode
-        self.train_atk = PGD(self, eps=4 / 255, alpha=4 /2550.0, steps=10)
-        self.eval_atk = PGD(self, eps=4 / 255, alpha=4 /2550.0, steps=10)
-
+        self.train_atk = PGD(
+            self, eps=4 / 255, alpha=4 / 2550.0, steps=10, loss_mode=loss_mode
+        )
+        self.eval_atk = PGD(
+            self, eps=4 / 255, alpha=4 / 2550.0, steps=10, loss_mode=loss_mode
+        )
 
     def configure_optimizers(self):
-        optimizer = torch.optim.SGD(
-            self.parameters(), lr=self.hparams.lr
-        )
+        optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.lr)
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
                     optimizer,
-                    mode="min",
+                    mode="max",
                     factor=0.1,
                     patience=self.hparams.scheduler_arg,
                     min_lr=1e-4,
                 ),
-                "monitor": "val_loss",
+                "monitor": "acc",
                 "interval": "epoch",
                 "frequency": 1,
                 "strict": True,
@@ -106,6 +113,21 @@ class CBM(L.LightningModule):
             label_pred = self.classifier(concept_pred)
         return label_pred, concept_pred
 
+    def get_loss(self, logits, labels, loss_mode):
+        label, concept = labels
+        label_pred, concept_pred = logits[0], logits[1]
+        if loss_mode == "bce":
+            loss = F.binary_cross_entropy_with_logits(concept_pred, concept)
+        elif loss_mode == "ce":
+            loss = F.cross_entropy(label_pred, label)
+        elif loss_mode == "combo":
+            loss = F.cross_entropy(
+                label_pred, label
+            ) + self.hparams.concept_weight * F.binary_cross_entropy_with_logits(
+                concept_pred, concept
+            )
+        return loss
+
     @torch.enable_grad()
     @torch.inference_mode(False)
     def generate_adv_img(self, img, label, stage):
@@ -118,50 +140,47 @@ class CBM(L.LightningModule):
                 img = self.eval_atk(img, label)
         return img.clone().detach()
 
-    def shared_step(self, img, label, concepts):
+    def train_step(self, img, label, concepts):
         label_pred, concept_pred = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(concept_pred, concepts)
         label_loss = F.cross_entropy(label_pred, label)
         loss = label_loss + self.hparams.concept_weight * concept_loss
-        return loss, label_pred, concept_pred
+        if self.hparams.mtl_mode == "normal":
+            self.manual_backward(loss)
+            self.optimizers().step()
+        else:
+            mtl(
+                [concept_loss, label_loss],
+                self,
+                self.hparams.mtl_mode,
+            )
+        return loss
 
     def training_step(self, batch, batch_idx):
         img, label, concepts = batch
         if self.adv_mode:
             bs = img.shape[0] // 2
-            adv_img = self.generate_adv_img(img[:bs], label[:bs], "train")
+            adv_img = self.generate_adv_img(
+                img[:bs], (label[:bs], concepts[:bs]), "train"
+            )
             img = torch.cat([img[:bs], adv_img], dim=0)
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
-        loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
+        loss = self.train_step(img, label, concepts)
         self.log("train_loss", loss, prog_bar=True, on_step=True, on_epoch=False)
         return loss
 
-    def validation_step(self, batch, batch_idx):
-        img, label, concepts = batch
-        if self.adv_mode:
-            img = self.generate_adv_img(img, label, "eval")
-        loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
-        if concept_pred.shape[1] > self.real_concepts:
-            concept_pred = concept_pred[:, : self.real_concepts]
-            concepts = concepts[:, : self.real_concepts]
-        self.concept_acc(concept_pred, concepts)
-        self.acc(label_pred, label)
-        self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
-        self.log(
-            "val_concept_acc",
-            self.concept_acc,
-            prog_bar=True,
-            on_epoch=True,
-            on_step=False,
-        )
-        self.log("val_acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
+    def on_train_epoch_end(self):
+        sch = self.lr_schedulers()
+        if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            sch.step(self.trainer.callback_metrics["acc"])
 
-    def test_step(self, batch, batch_idx):
+    def eval_step(self, batch):
         img, label, concepts = batch
         if self.adv_mode:
-            img = self.generate_adv_img(img, label, "eval")
-        loss, label_pred, concept_pred = self.shared_step(img, label, concepts)
+            img = self.generate_adv_img(img, (label, concepts), "eval")
+        outputs = self(img)
+        label_pred, concept_pred = outputs[0], outputs[1]
         if concept_pred.shape[1] > self.real_concepts:
             concept_pred = concept_pred[:, : self.real_concepts]
             concepts = concepts[:, : self.real_concepts]
@@ -173,3 +192,9 @@ class CBM(L.LightningModule):
         self.log("acc", self.acc, on_epoch=True, on_step=False)
         self.log("acc5", self.acc5, on_epoch=True, on_step=False)
         self.log("acc10", self.acc10, on_epoch=True, on_step=False)
+
+    def validation_step(self, batch, batch_idx):
+        self.eval_step(batch)
+
+    def test_step(self, batch, batch_idx):
+        self.eval_step(batch)
