@@ -8,6 +8,7 @@ from lightning.pytorch.callbacks import (
     EarlyStopping,
     LearningRateMonitor,
 )
+from lightning.pytorch import seed_everything
 import wandb
 import argparse, yaml
 from attacks import PGD
@@ -17,6 +18,7 @@ import dataset
 
 
 def exp(cfg, ckpt_path=None):
+    seed_everything(cfg["seed"])
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
     wandb.init(
