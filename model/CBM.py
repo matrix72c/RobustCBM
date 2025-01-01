@@ -169,7 +169,7 @@ class CBM(L.LightningModule):
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
         loss = self.train_step(img, label, concepts)
-        self.log("train_loss", loss, prog_bar=True, on_step=True, on_epoch=False)
+        self.log("loss", loss, prog_bar=True, on_step=True, on_epoch=False)
         return loss
 
     def on_train_epoch_end(self):
@@ -190,8 +190,8 @@ class CBM(L.LightningModule):
         self.acc(label_pred, label)
         self.acc5(label_pred, label)
         self.acc10(label_pred, label)
-        self.log("concept_acc", self.concept_acc, on_epoch=True, on_step=False)
-        self.log("acc", self.acc, on_epoch=True, on_step=False)
+        self.log("concept_acc", self.concept_acc, on_epoch=True, on_step=False, prog_bar=True)
+        self.log("acc", self.acc, on_epoch=True, on_step=False, prog_bar=True)
         self.log("acc5", self.acc5, on_epoch=True, on_step=False)
         self.log("acc10", self.acc10, on_epoch=True, on_step=False)
 
