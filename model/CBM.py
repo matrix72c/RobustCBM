@@ -129,6 +129,13 @@ class CBM(L.LightningModule):
                 concept_pred, concept
             )
         return loss
+    
+    def shared_params(self):
+        shared_params = {}
+        for name, param in self.named_parameters():
+            if "base.fc" in name:
+                shared_params[name] = param
+        return shared_params
 
     @torch.enable_grad()
     @torch.inference_mode(False)

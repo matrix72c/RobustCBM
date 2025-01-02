@@ -86,22 +86,23 @@ def mgda(losses, model):
         return c and norm
         """
         if v1v2 >= v1v1:
-            c = 0.999
-            norm = v1v1
-        elif v1v2 >= v2v2:
-            c = 0.001
-            norm = v2v2
-        else:
-            c = -1.0 * (v1v2 - v2v2) / (v1v1 + v2v2 - 2 * v1v2)
-            norm = v1v1 + c * (v1v2 - v2v2)
-        return c, norm
+            gamma = 0.999
+            cost = v1v1
+            return gamma, cost
+        if v1v2 >= v2v2:
+            gamma = 0.001
+            cost = v2v2
+            return gamma, cost
+        gamma = -1.0 * ((v1v2 - v2v2) / (v1v1 + v2v2 - 2 * v1v2))
+        cost = v2v2 + gamma * (v1v2 - v2v2)
+        return gamma, cost
 
     def min_norm_2d(grad_mat):
         """
         Given a list of vectors (vecs), this method finds the minimum norm element in the convex hull
         as min_c |\sum c_i x_i|_2^2 st. \sum c_i = 1 , 1 >= c_i >= 0 for all i.
-        Only correct in 2d
-        Hence, we find the best 2-task solution, and then run the Frank Wolfe until convergence
+        Only correct in 2d.
+        Hence, we find the best 2-task solution, and then run the Frank Wolfe until convergence.
         """
         dmin = 1e10
         for i in range(grad_mat.size()[0]):
@@ -111,7 +112,7 @@ def mgda(losses, model):
                 )
                 if norm < dmin:
                     dmin = norm
-                    sol = [(i, j), c]
+                    sol = [(i, j), c, norm]
         return sol
 
     def projection2simplex(y):
@@ -146,12 +147,26 @@ def mgda(losses, model):
     STOP_CRIT = 1e-5
     grads = []
     grad_vec = []
+    grad_index = []
+    for name, param in model.shared_params().items():
+        grad_index.append(param.data.numel())
+    grad_dim = sum(grad_index)
     for loss in losses:
         grad = get_grad(loss, model)
         grads.append(grad)
-        grad_vec.append(grad2vec(grad))
+
+        vec = torch.zeros(grad_dim)
+        count = 0
+        for name, param in model.shared_params().items():
+            beg = 0 if count == 0 else sum(grad_index[:count])
+            end = sum(grad_index[: (count + 1)])
+            vec[beg:end] = grad[name].view(-1)
+            count += 1
+        grad_vec.append(vec)
+
     grad_vec = torch.stack(grad_vec)
-    grad_mat = torch.mm(grad_vec, grad_vec.t())
+    grad_mat = torch.matmul(grad_vec, grad_vec.t())
+
     init_sol = min_norm_2d(grad_mat)
     n = grad_vec.size()[0]
     sol_vec = torch.zeros(n, device=grad_vec.device)
@@ -159,17 +174,29 @@ def mgda(losses, model):
     sol_vec[init_sol[0][1]] = 1 - init_sol[1]
     if n > 2:
         for _ in range(MAX_ITER):
-            grad_dir = -1.0 * torch.mm(grad_mat, sol_vec)
+            grad_dir = -1.0 * torch.matmul(grad_mat, sol_vec)
             new_point = next_point(sol_vec, grad_dir, n)
-            v1v1 = torch.sum(sol_vec.unsqueeze(1).repeat(1, n)*sol_vec.unsqueeze(0).repeat(n, 1)*grad_mat)
-            v1v2 = torch.sum(sol_vec.unsqueeze(1).repeat(1, n)*new_point.unsqueeze(0).repeat(n, 1)*grad_mat)
-            v2v2 = torch.sum(new_point.unsqueeze(1).repeat(1, n)*new_point.unsqueeze(0).repeat(n, 1)*grad_mat)
-    
+            v1v1 = torch.sum(
+                sol_vec.unsqueeze(1).repeat(1, n)
+                * sol_vec.unsqueeze(0).repeat(n, 1)
+                * grad_mat
+            )
+            v1v2 = torch.sum(
+                sol_vec.unsqueeze(1).repeat(1, n)
+                * new_point.unsqueeze(0).repeat(n, 1)
+                * grad_mat
+            )
+            v2v2 = torch.sum(
+                new_point.unsqueeze(1).repeat(1, n)
+                * new_point.unsqueeze(0).repeat(n, 1)
+                * grad_mat
+            )
+
             nc, nd = min_norm_element_from2(v1v1, v1v2, v2v2)
-            new_sol_vec = nc*sol_vec + (1-nc)*new_point
+            new_sol_vec = nc * sol_vec + (1 - nc) * new_point
             change = new_sol_vec - sol_vec
             if torch.sum(torch.abs(change)) < STOP_CRIT:
-                return sol_vec
+                break
             sol_vec = new_sol_vec
     for name, param in model.named_parameters():
         param.grad = sum(
