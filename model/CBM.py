@@ -5,8 +5,8 @@ import torchvision
 from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
-from attacks import PGD
-from mtl import mtl
+import attacks
+from mtl import get_grad, gradient_normalize, gradient_ordered
 
 
 class CBM(L.LightningModule):
@@ -20,9 +20,10 @@ class CBM(L.LightningModule):
         scheduler_arg: int = 30,
         adv_mode: bool = False,
         hidden_dim: int = 0,
-        cbm_mode: str = "hybrid",  # "bool", "fuzzy", "hybrid"
-        adv_loss: str = "combo",  # "ce", "bce", "combo"
-        mtl_mode: str = "normal",  # "normal", "equal", "ordered"
+        cbm_mode: str = "hybrid",
+        attacker: str = "PGD",
+        attacker_args: dict = {},
+        mtl_mode: str = "normal",
         **kwargs,
     ):
         super().__init__()
@@ -31,6 +32,7 @@ class CBM(L.LightningModule):
         num_classes = dm.num_classes
         num_concepts = dm.num_concepts
         real_concepts = dm.real_concepts
+        self.dm = dm
         if base == "resnet50":
             self.base = torchvision.models.resnet50(
                 weights=(
@@ -78,12 +80,8 @@ class CBM(L.LightningModule):
         self.acc10 = Accuracy(task="multiclass", num_classes=num_classes, top_k=10)
 
         self.adv_mode = adv_mode
-        self.train_atk = PGD(
-            self, eps=4 / 255, alpha=4 / 2550.0, steps=10, adv_loss=adv_loss
-        )
-        self.eval_atk = PGD(
-            self, eps=4 / 255, alpha=4 / 2550.0, steps=10, adv_loss=adv_loss
-        )
+        self.train_atk = getattr(attacks, attacker)(self, **attacker_args)
+        self.eval_atk = getattr(attacks, attacker)(self, **attacker_args)
 
     def configure_optimizers(self):
         optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.lr)
@@ -107,12 +105,13 @@ class CBM(L.LightningModule):
     def forward(self, x):
         concept_pred = self.base(x)
         if self.hparams.cbm_mode == "fuzzy":
-            concept_pred = torch.sigmoid(concept_pred)
+            concept = torch.sigmoid(concept_pred)
         elif self.hparams.cbm_mode == "bool":
-            concept_pred = torch.sigmoid(concept_pred)
-            concept_pred = torch.where(concept_pred > 0.5, 1, 0).float()
+            concept = torch.sigmoid(concept_pred)
+            concept = torch.where(concept_pred > 0.5, 1, 0).float()
         elif self.hparams.cbm_mode == "hybrid":
-            label_pred = self.classifier(concept_pred)
+            concept = concept_pred
+        label_pred = self.classifier(concept)
         return label_pred, concept_pred
 
     def get_loss(self, logits, labels, adv_loss):
@@ -129,11 +128,11 @@ class CBM(L.LightningModule):
                 concept_pred, concept
             )
         return loss
-    
+
     def shared_params(self):
         shared_params = {}
         for name, param in self.named_parameters():
-            if "base.fc" in name:
+            if "classifier" not in name:
                 shared_params[name] = param
         return shared_params
 
@@ -151,18 +150,22 @@ class CBM(L.LightningModule):
 
     def train_step(self, img, label, concepts):
         label_pred, concept_pred = self(img)
-        concept_loss = F.binary_cross_entropy_with_logits(concept_pred, concepts)
+        concept_loss = F.binary_cross_entropy_with_logits(
+            concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
+        )
         label_loss = F.cross_entropy(label_pred, label)
         loss = label_loss + self.hparams.concept_weight * concept_loss
         if self.hparams.mtl_mode == "normal":
             self.manual_backward(loss)
-            self.optimizers().step()
         else:
-            mtl(
-                [label_loss, concept_loss],
-                self,
-                self.hparams.mtl_mode,
-            )
+            g0 = get_grad(label_loss, self)
+            g1 = get_grad(concept_loss, self)
+            if self.hparams.mtl_mode == "equal":
+                g = gradient_normalize(g0, g1)
+            else:
+                g = gradient_ordered(g0, g1)
+            for name, param in self.named_parameters():
+                param.grad = g[name]
         return loss
 
     def training_step(self, batch, batch_idx):
@@ -176,6 +179,8 @@ class CBM(L.LightningModule):
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
         loss = self.train_step(img, label, concepts)
+        self.optimizers().step()
+        self.optimizers().zero_grad()
         self.log("loss", loss, prog_bar=True, on_step=True, on_epoch=False)
         return loss
 
@@ -197,7 +202,9 @@ class CBM(L.LightningModule):
         self.acc(label_pred, label)
         self.acc5(label_pred, label)
         self.acc10(label_pred, label)
-        self.log("concept_acc", self.concept_acc, on_epoch=True, on_step=False, prog_bar=True)
+        self.log(
+            "concept_acc", self.concept_acc, on_epoch=True, on_step=False, prog_bar=True
+        )
         self.log("acc", self.acc, on_epoch=True, on_step=False, prog_bar=True)
         self.log("acc5", self.acc5, on_epoch=True, on_step=False)
         self.log("acc10", self.acc10, on_epoch=True, on_step=False)

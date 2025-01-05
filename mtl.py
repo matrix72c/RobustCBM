@@ -1,14 +1,6 @@
 import torch
 
 
-def mtl(losses, pl, mode):
-    if mode == "equal":
-        mgda(losses, pl)
-    elif mode == "ordered":
-        gradient_ordered(losses, pl)
-    pl.optimizers().step()
-
-
 def get_grad(loss, model):
     model.zero_grad()
     loss.backward(retain_graph=True)
@@ -42,30 +34,21 @@ def calc_grad_norm(grad_dict):
     return norm
 
 
-def gradient_normalize(losses, model):
-    grads = []
-    grads_norm = []
-    for loss in losses:
-        grad = get_grad(loss, model)
-        grads.append(grad)
-        grads_norm.append(calc_grad_norm(grad))
-    for name, param in model.named_parameters():
-        param.grad = sum(
-            [grad[name] / grad_norm for grad, grad_norm in zip(grads, grads_norm)]
-        )
+def gradient_normalize(g0, g1):
+    g0_norm = calc_grad_norm(g0)
+    g1_norm = calc_grad_norm(g1)
+    for name, param in g0.items():
+        g0[name] = g0[name] / g0_norm + g1[name] / g1_norm
+    return g0
 
 
-def gradient_ordered(losses, model):
-    grads = []
-    for loss in losses:
-        grad = get_grad(loss, model)
-        grads.append(grad)
-    g0, g1 = grads
+def gradient_ordered(g0, g1):
     g1_norm = calc_grad_norm(g1)
     # \gamma = \frac{\text{relu}(-\langle \boldsymbol{g}_0,\boldsymbol{g}_1\rangle)}{\Vert\boldsymbol{g}_1\Vert^2}
-    for name, param in model.named_parameters():
+    for name, param in g0.items():
         gamma = torch.relu(-torch.sum(g0[name] * g1[name]) / (g1_norm**2))
-        param.grad = g0[name] + gamma * g1[name]
+        g0[name] = g0[name] + gamma * g1[name]
+    return g0
 
 
 def mgda(losses, model):
@@ -100,7 +83,7 @@ def mgda(losses, model):
     def min_norm_2d(grad_mat):
         """
         Given a list of vectors (vecs), this method finds the minimum norm element in the convex hull
-        as min_c |\sum c_i x_i|_2^2 st. \sum c_i = 1 , 1 >= c_i >= 0 for all i.
+        as min_c |\\sum c_i x_i|_2^2 st. \\sum c_i = 1 , 1 >= c_i >= 0 for all i.
         Only correct in 2d.
         Hence, we find the best 2-task solution, and then run the Frank Wolfe until convergence.
         """
@@ -155,7 +138,7 @@ def mgda(losses, model):
         grad = get_grad(loss, model)
         grads.append(grad)
 
-        vec = torch.zeros(grad_dim)
+        vec = torch.zeros(grad_dim, device=model.device)
         count = 0
         for name, param in model.shared_params().items():
             beg = 0 if count == 0 else sum(grad_index[:count])
@@ -169,7 +152,7 @@ def mgda(losses, model):
 
     init_sol = min_norm_2d(grad_mat)
     n = grad_vec.size()[0]
-    sol_vec = torch.zeros(n, device=grad_vec.device)
+    sol_vec = torch.zeros(n, device=model.device)
     sol_vec[init_sol[0][0]] = init_sol[1]
     sol_vec[init_sol[0][1]] = 1 - init_sol[1]
     if n > 2:
@@ -202,3 +185,29 @@ def mgda(losses, model):
         param.grad = sum(
             [grad[name] * sol_vec[i].item() for i, grad in enumerate(grads)]
         )
+
+def mgda_ordered(losses, model):
+
+    MAX_ITER = 250
+    STOP_CRIT = 1e-5
+    grads = []
+    grad_vec = []
+    grad_index = []
+    for name, param in model.shared_params().items():
+        grad_index.append(param.data.numel())
+    grad_dim = sum(grad_index)
+    for loss in losses:
+        grad = get_grad(loss, model)
+        grads.append(grad)
+
+        vec = torch.zeros(grad_dim, device=model.device)
+        count = 0
+        for name, param in model.shared_params().items():
+            beg = 0 if count == 0 else sum(grad_index[:count])
+            end = sum(grad_index[: (count + 1)])
+            vec[beg:end] = grad[name].view(-1)
+            count += 1
+        grad_vec.append(vec)
+
+    grad_vec = torch.stack(grad_vec, device=model.device)
+    grad_mat = torch.matmul(grad_vec, grad_vec.t())
