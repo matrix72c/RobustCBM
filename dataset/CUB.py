@@ -7,6 +7,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
+from utils import cal_class_imbalance_weights
 
 
 class CUBDataSet(Dataset):
@@ -96,6 +97,7 @@ class CUB(L.LightningDataModule):
         self.train_data = CUBDataSet(self.data_path, "fit", num_concepts)
         self.val_data = CUBDataSet(self.data_path, "val", num_concepts)
         self.test_data = CUBDataSet(self.data_path, "test", num_concepts)
+        self.imbalance_weights = cal_class_imbalance_weights(self.train_data)
 
     def train_dataloader(self):
         return DataLoader(

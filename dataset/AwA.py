@@ -7,9 +7,11 @@ import numpy as np
 import torchvision.transforms as transforms
 
 from PIL import Image
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 
 import lightning as L
+
+from utils import cal_class_imbalance_weights
 
 
 class AwADataset(Dataset):
@@ -39,10 +41,10 @@ class AwADataset(Dataset):
                 img_index.append(class_index)
 
         train_img_names, eval_img_names, train_img_index, eval_img_index = (
-            train_test_split(img_names, img_index, test_size=0.3, random_state=42)
+            train_test_split(img_names, img_index, test_size=0.3)
         )
         test_img_names, val_img_names, test_img_index, val_img_index = train_test_split(
-            eval_img_names, eval_img_index, test_size=0.33, random_state=42
+            eval_img_names, eval_img_index, test_size=0.33
         )
 
         if stage == "fit":
@@ -116,6 +118,8 @@ class AwA(L.LightningDataModule):
         self.train = AwADataset(self.data_path, "fit", num_concepts)
         self.val = AwADataset(self.data_path, "val", num_concepts)
         self.test = AwADataset(self.data_path, "test", num_concepts)
+        sample = Subset(self.train, torch.arange(len(self.train) // 10))
+        self.imbalance_weights = cal_class_imbalance_weights(sample)
 
     def train_dataloader(self):
         return DataLoader(
