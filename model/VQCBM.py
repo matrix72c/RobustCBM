@@ -2,7 +2,7 @@ from torch import nn
 import torch.nn.functional as F
 from model import CBM
 from VQ import VectorQuantizeEMA
-from mtl import mtl
+from mtl import get_grad, gradient_ordered
 from utils import initialize_weights
 
 
@@ -51,7 +51,7 @@ class VQCBM(CBM):
     def train_step(self, img, label, concepts):
         label_pred, concept_pred, codebook_loss = self(img)
         label_loss = F.cross_entropy(label_pred, label)
-        concept_loss=F.binary_cross_entropy_with_logits(concept_pred, concepts)
+        concept_loss=F.binary_cross_entropy_with_logits(concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device))
         loss = (
             label_loss
             + self.hparams.concept_weight * concept_loss
@@ -59,11 +59,12 @@ class VQCBM(CBM):
         )
         if self.hparams.mtl_mode == "normal":
             self.manual_backward(loss)
-            self.optimizers().step()
         else:
-            mtl(
-                [label_loss, concept_loss, codebook_loss],
-                self,
-                self.hparams.mtl_mode,
-            )
+            g0 = get_grad(label_loss, self)
+            g1 = get_grad(concept_loss, self)
+            g2 = get_grad(codebook_loss, self)
+            g = gradient_ordered(g1, g2)
+            g = gradient_ordered(g0, g)
+            for name, param in self.named_parameters():
+                param.grad = g[name]
         return loss

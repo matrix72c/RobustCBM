@@ -2,8 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from model import VCBM
-from mtl import mtl
-from utils import calc_info_loss, initialize_weights
+from utils import initialize_weights
 
 
 class VCEM(VCBM):
