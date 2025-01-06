@@ -53,7 +53,7 @@ def exp(cfg, ckpt_path=None):
         callbacks=callbacks,
         max_epochs=-1,
         gradient_clip_algorithm="norm",
-        plugins=[AsyncCheckpointIO(oss_checkpoint_io)],
+        # plugins=[AsyncCheckpointIO(oss_checkpoint_io)],
     )
 
     if ckpt_path is not None and bucket.object_exists(ckpt_path):
@@ -98,6 +98,10 @@ def exp(cfg, ckpt_path=None):
     wandb.run.summary["ASR@1"] = asrs
     wandb.run.summary["ASR@5"] = asr5s
     wandb.run.summary["ASR@10"] = asr10s
+
+    ckpt_path = "checkpoints/" + md5 + ".ckpt"
+    bucket.put_object_from_file(ckpt_path, ckpt_path)
+    os.remove(ckpt_path)
 
 
 if __name__ == "__main__":
