@@ -4,6 +4,7 @@ from main import exp
 
 
 def sweep_exp():
+    wandb.init(project="RobustCBM")
     with open("config.yaml", "r") as f:
         config = yaml.safe_load(f)
     for k, v in wandb.config.items():
