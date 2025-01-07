@@ -21,11 +21,8 @@ def exp(cfg, ckpt_path=None):
     seed_everything(cfg["seed"])
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
-    wandb.init(
-        project="RobustCBM",
-        config=config,
-        tags=[model.__class__.__name__, dm.__class__.__name__],
-    )
+    wandb.run.tags = [cfg["model"], cfg["dataset"]]
+    wandb.config.update(cfg)
     md5 = get_md5(cfg)
     print("MD5:", md5)
     wandb.config.update({"md5": md5})
@@ -114,4 +111,5 @@ if __name__ == "__main__":
     with open(args.config, "r") as f:
         cfg = yaml.safe_load(f)
     config.update(cfg)
+    wandb.init(project="RobustCBM")
     exp(config, args.ckpt_path)
