@@ -28,7 +28,7 @@ embed_size: 16
 # VIB
 vib_lambda: 0.01
 # VQ
-embedding_dim: 64
+embedding_dim: 32
 codebook_size: 5120
 codebook_weight: 0.25
 quantizer: EMA
