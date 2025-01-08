@@ -32,3 +32,5 @@ embedding_dim: 64
 codebook_size: 5120
 codebook_weight: 0.25
 quantizer: EMA
+# gate
+use_gate: False
