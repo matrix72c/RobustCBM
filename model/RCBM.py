@@ -1,16 +1,16 @@
 from torch import nn
 import torch.nn.functional as F
-from model import CBM
+from model import CBM, VIB
 from VQ import VectorQuantizeEMA
 from mtl import get_grad, gradient_ordered
 from utils import initialize_weights
 
 
-class VQCBM(CBM):
+class RCBM(CBM):
     def __init__(
         self,
-        # VQ params
-        embedding_dim: int = 32,
+        vib_lambda: float = 0.1,
+        embedding_dim: int = 64,
         codebook_size: int = 5120,
         codebook_weight: float = 0.25,
         quantizer: str = "EMA",
@@ -23,9 +23,9 @@ class VQCBM(CBM):
             initialize_weights
         )  # output num_concepts embeddings for VQ
 
-        self.concept_prob_gen = nn.Linear(
+        self.concept_prob_gen = VIB(
             embedding_dim * self.num_concepts, self.num_concepts
-        ).apply(initialize_weights)
+        )
 
         self.classifier = nn.Linear(
             self.num_concepts, self.num_classes
@@ -40,20 +40,21 @@ class VQCBM(CBM):
             logits.size(0), self.hparams.num_concepts, -1
         )  # B, num_concepts, embedding_dim
         quantized_concept, codebook_loss, _ = self.quantizer(logits)
-        concept_pred = self.concept_prob_gen(
+        concept_pred, info_loss = self.concept_prob_gen(
             quantized_concept.view(quantized_concept.size(0), -1)
         )
         label_pred = self.classifier(concept_pred)
-        return label_pred, concept_pred, codebook_loss
+        return label_pred, concept_pred, codebook_loss, info_loss
 
     def train_step(self, img, label, concepts):
-        label_pred, concept_pred, codebook_loss = self(img)
+        label_pred, concept_pred, codebook_loss, info_loss = self(img)
         label_loss = F.cross_entropy(label_pred, label)
         concept_loss=F.binary_cross_entropy_with_logits(concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device))
         loss = (
             label_loss
             + self.hparams.concept_weight * concept_loss
             + self.hparams.codebook_weight * codebook_loss
+            + self.hparams.vib_lambda * info_loss
         )
         if self.hparams.mtl_mode == "normal":
             self.manual_backward(loss)

@@ -3,7 +3,24 @@ from torch import nn
 import torch.nn.functional as F
 from model import CBM
 from mtl import get_grad, gradient_ordered
-from utils import calc_info_loss
+from utils import calc_info_loss, initialize_weights
+
+
+class VIB(nn.Module):
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+    ):
+        super().__init__()
+        self.fc = nn.Linear(input_dim, 2 * output_dim).apply(initialize_weights)
+
+    def forward(self, x):
+        statistics = self.fc(x)
+        std, mu = torch.chunk(statistics, 2, dim=1)
+        x = mu + std * torch.randn_like(std)
+        loss = calc_info_loss(mu, std**2)
+        return x, loss
 
 
 class VCBM(CBM):
@@ -28,7 +45,9 @@ class VCBM(CBM):
 
     def train_step(self, img, label, concepts):
         label_pred, concept_pred, mu, var = self(img)
-        concept_loss = F.binary_cross_entropy_with_logits(concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device))
+        concept_loss = F.binary_cross_entropy_with_logits(
+            concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
+        )
         info_loss = calc_info_loss(mu, var)
         label_loss = F.cross_entropy(label_pred, label)
         loss = (
