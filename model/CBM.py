@@ -16,8 +16,11 @@ class CBM(L.LightningModule):
         base: str = "resnet50",
         use_pretrained: bool = True,
         concept_weight: float = 1,
+        optimizer: str = "SGD",
         lr: float = 0.1,
-        scheduler_arg: int = 30,
+        optimizer_args: dict = {},
+        scheduler: str = "ReduceLROnPlateau",
+        scheduler_args: dict = {},
         adv_mode: bool = False,
         hidden_dim: int = 0,
         cbm_mode: str = "hybrid",
@@ -84,23 +87,25 @@ class CBM(L.LightningModule):
         self.eval_atk = getattr(attacks, attacker)(self, **attacker_args)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.lr)
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
-                    optimizer,
-                    mode="max",
-                    factor=0.1,
-                    patience=self.hparams.scheduler_arg,
-                    min_lr=1e-4,
-                ),
-                "monitor": "acc",
-                "interval": "epoch",
-                "frequency": 1,
-                "strict": True,
-            },
-        }
+        optimizer = getattr(torch.optim, self.hparams.optimizer)(
+            self.parameters(), lr=self.hparams.lr, **self.hparams.optimizer_args
+        )
+        scheduler = getattr(torch.optim.lr_scheduler, self.hparams.scheduler)(
+            optimizer, **self.hparams.scheduler_args
+        )
+        if self.hparams.scheduler == "ReduceLROnPlateau":
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {
+                    "scheduler": scheduler,
+                    "monitor": "acc",
+                    "interval": "epoch",
+                    "frequency": 1,
+                    "strict": True,
+                },
+            }
+        else:
+            return optimizer, scheduler
 
     def forward(self, x):
         concept_pred = self.base(x)
