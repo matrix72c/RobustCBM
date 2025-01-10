@@ -24,12 +24,10 @@ class CUBDataSet(Dataset):
             self.transform = transforms.Compose(
                 [
                     transforms.ColorJitter(brightness=32 / 255, saturation=(0.5, 1.5)),
-                    transforms.RandomResizedCrop(224),
+                    transforms.RandomResizedCrop(299),
                     transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                    ),
+                    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[2, 2, 2]),
                 ]
             )
         else:
@@ -39,11 +37,9 @@ class CUBDataSet(Dataset):
                 self.data.extend(pickle.load(open(data_path + "test.pkl", "rb")))
             self.transform = transforms.Compose(
                 [
-                    transforms.CenterCrop(224),
+                    transforms.CenterCrop(299),
                     transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                    ),
+                    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[2, 2, 2]),
                 ]
             )
         concept_counts = torch.zeros(len(self.data[0]["attribute_label"]))
