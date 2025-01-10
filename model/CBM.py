@@ -50,12 +50,12 @@ class CBM(L.LightningModule):
         elif base == "inceptionv3":
             self.base = torchvision.models.inception_v3(
                 weights=(
-                    torchvision.models.Inception3_Weights.DEFAULT
+                    torchvision.models.Inception_V3_Weights.DEFAULT
                     if use_pretrained
                     else None
                 ),
-                aux_logits=False,
             )
+            self.base.aux_logits = False
             self.base.fc = nn.Linear(self.base.fc.in_features, num_concepts).apply(
                 initialize_weights
             )
@@ -105,7 +105,7 @@ class CBM(L.LightningModule):
                 },
             }
         else:
-            return optimizer, scheduler
+            return [optimizer], [scheduler]
 
     def forward(self, x):
         concept_pred = self.base(x)

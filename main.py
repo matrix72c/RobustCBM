@@ -9,6 +9,7 @@ from lightning.pytorch.callbacks import (
     LearningRateMonitor,
 )
 from lightning.pytorch import seed_everything
+import torch
 import wandb
 import argparse, yaml
 from attacks import PGD
@@ -21,24 +22,21 @@ def exp(cfg, ckpt_path=None):
     seed_everything(cfg["seed"])
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
+    wandb.run.name = cfg["experiment_name"]
     wandb.run.tags = [cfg["model"], cfg["dataset"]]
     wandb.config.update(cfg)
-    md5 = get_md5(cfg)
-    print("MD5:", md5)
-    wandb.config.update({"md5": md5})
 
     bucket = get_oss()
-    oss_checkpoint_io = OssCheckpointIO(bucket)
+    # oss_checkpoint_io = OssCheckpointIO(bucket)
 
     logger = WandbLogger()
     checkpoint_callback = ModelCheckpoint(
         monitor="acc",
         dirpath="checkpoints/",
-        filename=md5,
+        filename=wandb.run.name,
         save_top_k=1,
         mode="max",
         enable_version_counter=False,
-        save_weights_only=True,
         every_n_epochs=20,
     )
     early_stopping = EarlyStopping(monitor="acc", patience=cfg["patience"], mode="max")
@@ -48,8 +46,7 @@ def exp(cfg, ckpt_path=None):
         log_every_n_steps=10,
         logger=logger,
         callbacks=callbacks,
-        max_epochs=-1,
-        gradient_clip_algorithm="norm",
+        max_epochs=cfg["epochs"],
         # plugins=[AsyncCheckpointIO(oss_checkpoint_io)],
     )
 
@@ -96,12 +93,13 @@ def exp(cfg, ckpt_path=None):
     wandb.run.summary["ASR@5"] = asr5s
     wandb.run.summary["ASR@10"] = asr10s
 
-    ckpt_path = "checkpoints/" + md5 + ".ckpt"
+    ckpt_path = "checkpoints/" + wandb.run.name + ".ckpt"
     bucket.put_object_from_file(ckpt_path, ckpt_path)
     os.remove(ckpt_path)
 
 
 if __name__ == "__main__":
+    torch.set_float32_matmul_precision("high")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
     parser.add_argument("--ckpt_path", type=str, default=None)
