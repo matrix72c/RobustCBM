@@ -18,7 +18,7 @@ import model as pl_model
 import dataset
 
 
-def exp(cfg, ckpt_path=None):
+def exp(cfg):
     seed_everything(cfg["seed"])
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
@@ -37,6 +37,7 @@ def exp(cfg, ckpt_path=None):
         save_top_k=1,
         mode="max",
         enable_version_counter=False,
+        save_weights_only=True,
         every_n_epochs=20,
     )
     early_stopping = EarlyStopping(monitor="acc", patience=cfg["patience"], mode="max")
@@ -50,6 +51,7 @@ def exp(cfg, ckpt_path=None):
         # plugins=[AsyncCheckpointIO(oss_checkpoint_io)],
     )
 
+    ckpt_path = cfg.get("ckpt_path", None)
     if ckpt_path is not None and bucket.object_exists(ckpt_path):
         mode = model.adv_mode
         key = os.path.relpath(ckpt_path, os.getcwd())
@@ -102,7 +104,6 @@ if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
-    parser.add_argument("--ckpt_path", type=str, default=None)
     args = parser.parse_args()
     with open("config.yaml", "r") as f:
         config = yaml.safe_load(f)
@@ -110,4 +111,4 @@ if __name__ == "__main__":
         cfg = yaml.safe_load(f)
     config.update(cfg)
     wandb.init(project="RobustCBM")
-    exp(config, args.ckpt_path)
+    exp(config)
