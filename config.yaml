@@ -17,7 +17,7 @@ scheduler_args:
   mode: max
   factor: 0.1
   patience: 30
-  min_lr: 1e-4
+  min_lr: 0.0001
 adv_mode: True
 hidden_dim: 0
 cbm_mode: hybrid # "bool", "fuzzy", "hybrid"
