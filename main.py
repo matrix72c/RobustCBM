@@ -59,7 +59,7 @@ def exp(cfg):
             fp = os.path.join(tmpdir, os.path.basename(key))
             print(f"Downloading {key} to {fp}")
             bucket.get_object_to_file(key, fp)
-            model = model.__class__.load_from_checkpoint(fp)
+            model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
             model.adv_mode = mode
         print("Load from checkpoint: ", ckpt_path)
     trainer.fit(model, dm)
