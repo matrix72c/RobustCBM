@@ -1,5 +1,5 @@
-experiment_name: cub_std_inceptionv3_cbm
-model: CBM
+experiment_name: cub_std_inceptionv3_backbone
+model: backbone
 base: inceptionv3
 adv_mode: False
 

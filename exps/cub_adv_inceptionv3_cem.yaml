@@ -1,5 +1,5 @@
-experiment_name: cub_adv_inceptionv3_cbm
-model: CBM
+experiment_name: cub_adv_inceptionv3_cem
+model: CEM
 base: inceptionv3
 adv_mode: True
 
@@ -9,3 +9,5 @@ scheduler_args:
   factor: 0.1
   patience: 100
   min_lr: 0.0001
+
+concept_weight: 5

@@ -1,6 +1,6 @@
-experiment_name: cub_std_inceptionv3_cbm
+experiment_name: cub_std_resnet_cbm
 model: CBM
-base: inceptionv3
+base: resnet50
 adv_mode: False
 
 batch_size: 64

@@ -1,6 +1,6 @@
-experiment_name: cub_std_inceptionv3_cbm
-model: CBM
-base: inceptionv3
+experiment_name: cub_std_resnet_cem
+model: CEM
+base: resnet50
 adv_mode: False
 
 batch_size: 64
@@ -14,3 +14,5 @@ scheduler: StepLR
 scheduler_args:
   step_size: 1000
   gamma: 0.1
+
+concept_weight: 5

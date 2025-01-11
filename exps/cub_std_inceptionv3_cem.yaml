@@ -1,5 +1,5 @@
-experiment_name: cub_std_inceptionv3_cbm
-model: CBM
+experiment_name: cub_std_inceptionv3_cem
+model: CEM
 base: inceptionv3
 adv_mode: False
 
@@ -14,3 +14,5 @@ scheduler: StepLR
 scheduler_args:
   step_size: 1000
   gamma: 0.1
+
+concept_weight: 5
