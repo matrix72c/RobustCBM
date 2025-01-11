@@ -1,0 +1,15 @@
+experiment_name: cub_std_inceptionv3_cbm
+model: CBM
+base: inceptionv3
+batch_size: 64
+epochs: 1000
+patience: 1000
+lr: 0.001
+optimizer_args:
+  momentum: 0.9
+  weight_decay: 0.0004
+scheduler: StepLR
+scheduler_args:
+  step_size: 1000
+  gamma: 0.1
+adv_mode: False

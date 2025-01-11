@@ -1,0 +1,4 @@
+experiment_name: cub_std_inceptionv3_cbm
+model: CBM
+base: inceptionv3
+adv_mode: True
