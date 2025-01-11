@@ -2,10 +2,3 @@ experiment_name: cub_adv_resnet_backbone
 model: backbone
 base: resnet50
 adv_mode: True
-
-patience: 200
-scheduler_args:
-  mode: max
-  factor: 0.1
-  patience: 100
-  min_lr: 0.0001

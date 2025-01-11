@@ -3,11 +3,4 @@ model: CEM
 base: resnet50
 adv_mode: True
 
-patience: 200
-scheduler_args:
-  mode: max
-  factor: 0.1
-  patience: 100
-  min_lr: 0.0001
-
 concept_weight: 5
