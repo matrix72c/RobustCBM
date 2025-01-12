@@ -33,4 +33,4 @@ class CEM(CBM):
         concept_pred = concept_pred.squeeze(-1)
 
         label_pred = self.classifier(concept_embed)
-        return label_pred, concept_pred
+        return label_pred, torch.sigmoid(concept_pred)

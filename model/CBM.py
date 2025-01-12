@@ -113,23 +113,23 @@ class CBM(L.LightningModule):
             concept = torch.sigmoid(concept_pred)
         elif self.hparams.cbm_mode == "bool":
             concept = torch.sigmoid(concept_pred)
-            concept = torch.where(concept_pred > 0.5, 1, 0).float()
+            concept = torch.where(concept > 0.5, 1, 0).float()
         elif self.hparams.cbm_mode == "hybrid":
             concept = concept_pred
         label_pred = self.classifier(concept)
-        return label_pred, concept_pred
+        return label_pred, torch.sigmoid(concept_pred)
 
     def get_loss(self, logits, labels, adv_loss):
         label, concept = labels
         label_pred, concept_pred = logits[0], logits[1]
         if adv_loss == "bce":
-            loss = F.binary_cross_entropy_with_logits(concept_pred, concept)
+            loss = F.binary_cross_entropy(concept_pred, concept)
         elif adv_loss == "ce":
             loss = F.cross_entropy(label_pred, label)
         elif adv_loss == "combo":
             loss = F.cross_entropy(
                 label_pred, label
-            ) + self.hparams.concept_weight * F.binary_cross_entropy_with_logits(
+            ) + self.hparams.concept_weight * F.binary_cross_entropy(
                 concept_pred, concept
             )
         return loss
@@ -155,7 +155,7 @@ class CBM(L.LightningModule):
 
     def train_step(self, img, label, concepts):
         label_pred, concept_pred = self(img)
-        concept_loss = F.binary_cross_entropy_with_logits(
+        concept_loss = F.binary_cross_entropy(
             concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
         )
         label_loss = F.cross_entropy(label_pred, label)
