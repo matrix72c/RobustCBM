@@ -117,3 +117,18 @@ def get_oss():
     auth = oss2.ProviderAuthV4(EnvironmentVariableCredentialsProvider())
     bucket = oss2.Bucket(auth, endpoint, bucket_name, region=region)
     return bucket
+
+
+def modify_fc(model, base, out_size):
+    if base == "resnet50":
+        model.fc = nn.Linear(model.fc.in_features, out_size).apply(
+            initialize_weights
+        )
+    elif base == "vit":
+        model.heads.head = nn.Linear(model.heads.head.in_features, out_size).apply(
+            initialize_weights
+        )
+    elif base == "vgg16":
+        model.classifier[6] = nn.Linear(
+            model.classifier[6].in_features, out_size
+        ).apply(initialize_weights)

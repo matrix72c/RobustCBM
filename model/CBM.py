@@ -1,5 +1,5 @@
 import lightning as L
-from utils import batchnorm_no_update_context, initialize_weights
+from utils import batchnorm_no_update_context, initialize_weights, modify_fc
 import torch
 import torchvision
 from torch import nn
@@ -44,23 +44,26 @@ class CBM(L.LightningModule):
                     else None
                 ),
             )
-            self.base.fc = nn.Linear(self.base.fc.in_features, num_concepts).apply(
-                initialize_weights
-            )
-        elif base == "inceptionv3":
-            self.base = torchvision.models.inception_v3(
+        elif base == "vit":
+            self.base = torchvision.models.vit_b_16(
                 weights=(
-                    torchvision.models.Inception_V3_Weights.DEFAULT
+                    torchvision.models.ViT_B_16_Weights.DEFAULT
                     if use_pretrained
                     else None
                 ),
             )
-            self.base.aux_logits = False
-            self.base.fc = nn.Linear(self.base.fc.in_features, num_concepts).apply(
-                initialize_weights
+        elif base == "vgg16":
+            self.base = torchvision.models.vgg16(
+                weights=(
+                    torchvision.models.VGG16_Weights.DEFAULT
+                    if use_pretrained
+                    else None
+                ),
             )
         else:
             raise ValueError("Unknown base model")
+        modify_fc(self.base, base, num_concepts)
+
         if hidden_dim > 0:
             self.classifier = nn.Sequential(
                 nn.Linear(num_concepts, hidden_dim),
@@ -184,6 +187,7 @@ class CBM(L.LightningModule):
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
         loss = self.train_step(img, label, concepts)
+        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
         self.optimizers().step()
         self.optimizers().zero_grad()
         self.log("loss", loss, prog_bar=True, on_step=True, on_epoch=False)

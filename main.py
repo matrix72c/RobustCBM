@@ -13,17 +13,23 @@ import torch
 import wandb
 import argparse, yaml
 from attacks import PGD
-from utils import OssCheckpointIO, get_md5, get_oss
+from utils import OssCheckpointIO, get_oss
 import model as pl_model
 import dataset
 
 
 def exp(cfg):
+    torch.set_float32_matmul_precision("high")
     seed_everything(cfg["seed"])
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
     wandb.run.name = cfg["experiment_name"]
-    wandb.run.tags = [cfg["model"], cfg["dataset"]]
+    wandb.run.tags = [
+        cfg["model"],
+        cfg["dataset"],
+        "adv" if cfg["adv_mode"] else "std",
+        cfg["base"],
+    ]
     wandb.config.update(cfg)
 
     bucket = get_oss()
@@ -101,7 +107,6 @@ def exp(cfg):
 
 
 if __name__ == "__main__":
-    torch.set_float32_matmul_precision("high")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
     args = parser.parse_args()
