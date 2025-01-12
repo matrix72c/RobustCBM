@@ -31,7 +31,7 @@ class CBM(L.LightningModule):
     ):
         super().__init__()
         self.automatic_optimization = False
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore="dm")
         num_classes = dm.num_classes
         num_concepts = dm.num_concepts
         real_concepts = dm.real_concepts
