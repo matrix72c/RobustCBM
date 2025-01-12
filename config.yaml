@@ -1,5 +1,4 @@
 seed: 42
-experiment_name: exp
 patience: 50
 epochs: -1
 

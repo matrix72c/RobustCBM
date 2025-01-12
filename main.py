@@ -32,6 +32,7 @@ def exp(config):
     else:
         d = sorted(config.items(), key=lambda x: x[0])
         name = "_".join(["{}".format(t[1]) for t in d])
+        name = name.lower()
     wandb.run.name = name
     wandb.run.tags = [
         cfg["model"],

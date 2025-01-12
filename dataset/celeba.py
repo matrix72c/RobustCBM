@@ -3,9 +3,10 @@ import lightning as L
 
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, Subset
 
 import numpy as np
+from utils import cal_class_imbalance_weights
 
 
 SELECTED_CONCEPTS = [
@@ -107,6 +108,9 @@ class celeba(L.LightningDataModule):
     def __init__(self, data_path, batch_size, **kwargs):
         super().__init__()
         self.batch_size = batch_size
+        self.num_concepts = 6
+        self.real_concepts = 6
+        self.num_classes = 256
         width = 1
 
         def _binarize(concepts, selected, width):
@@ -120,7 +124,7 @@ class celeba(L.LightningDataModule):
         celeba_train_data = torchvision.datasets.CelebA(
             root=data_path,
             split="all",
-            download=True,
+            download=False,
             target_transform=lambda x: x[0].long() - 1,
             target_type=["attr"],
         )
@@ -147,14 +151,16 @@ class celeba(L.LightningDataModule):
         celeba_train_data = torchvision.datasets.CelebA(
             root=data_path,
             split="all",
-            download=True,
+            download=False,
             transform=transforms.Compose(
                 [
-                    transforms.Resize(64),
-                    transforms.CenterCrop(64),
+                    transforms.Resize(224),
+                    transforms.CenterCrop(224),
                     transforms.ToTensor(),
                     transforms.ConvertImageDtype(torch.float32),
-                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
                 ]
             ),
             target_transform=lambda x: [
@@ -190,14 +196,16 @@ class celeba(L.LightningDataModule):
         celeba_train_data = torchvision.datasets.CelebA(
             root=data_path,
             split="all",
-            download=True,
+            download=False,
             transform=transforms.Compose(
                 [
-                    transforms.Resize(64),
-                    transforms.CenterCrop(64),
+                    transforms.Resize(224),
+                    transforms.CenterCrop(224),
                     transforms.ToTensor(),
                     transforms.ConvertImageDtype(torch.float32),
-                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
                 ]
             ),
             target_transform=lambda x: [
@@ -236,6 +244,8 @@ class celeba(L.LightningDataModule):
             celeba_train_data,
             [train_samples, test_samples, val_samples],
         )
+        sample = Subset(self.train_data, torch.arange(len(self.train_data) // 10))
+        self.imbalance_weights = cal_class_imbalance_weights(sample)
 
     def train_dataloader(self):
         return DataLoader(
