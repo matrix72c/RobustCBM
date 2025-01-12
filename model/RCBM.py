@@ -10,65 +10,51 @@ from utils import initialize_weights
 class RCBM(CBM):
     def __init__(
         self,
-        vib_lambda: float = 0.1,
-        use_gate: bool = True,
-        embedding_dim: int = 64,
-        codebook_size: int = 5120,
-        codebook_weight: float = 0.25,
-        quantizer: str = "EMA",
+        embedding_dim: int = 32,
+        code_weight: float = 0.25,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.base.fc = nn.Linear(
             self.base.fc.in_features, embedding_dim * self.num_concepts
-        ).apply(
-            initialize_weights
-        )  # output num_concepts embeddings for VQ
+        ).apply(initialize_weights)
 
-        self.concept_prob_gen = VIB(
-            embedding_dim * self.num_concepts, self.num_concepts
-        )
-
-        self.classifier = nn.Linear(self.num_concepts, self.num_classes).apply(
+        self.embed = nn.Embedding(self.num_concepts, embedding_dim).apply(
             initialize_weights
         )
 
-        if quantizer == "EMA":
-            self.quantizer = VectorQuantizeEMA(embedding_dim, codebook_size)
+        self.classifier = nn.Linear(
+            embedding_dim * self.num_concepts, self.num_classes
+        ).apply(initialize_weights)
 
     def forward(self, x):
-        logits = self.base(x)
-        logits = logits.view(
-            logits.size(0), self.hparams.num_concepts, -1
+        z = self.base(x)
+        z = z.view(
+            z.size(0), self.hparams.num_concepts, -1
         )  # B, num_concepts, embedding_dim
-        quantized_concept, codebook_loss, _ = self.quantizer(logits)
-        concept_pred, info_loss = self.concept_prob_gen(
-            quantized_concept.view(quantized_concept.size(0), -1)
-        )
-        c = torch.sigmoid(concept_pred) * 2.0 if self.hparams.use_gate else 1.0
-        label_pred = self.classifier(concept_pred * c)
-        return label_pred, concept_pred, codebook_loss, info_loss
+        z_q = self.embed.weight.unsqueeze(0).expand(z.size(0), -1, -1)
+        concept_pred = F.cosine_similarity(z, z_q, dim=2)
+        concept_pred = (concept_pred + 1) / 2
+        diff = (z.detach() - z_q).pow(2).mean() + 0.25 * (z - z_q.detach()).pow(2).mean()
+        # z_q = z + (z_q - z).detach()
+        weight_z = z_q * concept_pred.unsqueeze(-1)
+        label_pred = self.classifier(weight_z.view(z.size(0), -1))
+        return label_pred, concept_pred, diff
 
     def train_step(self, img, label, concepts):
-        label_pred, concept_pred, codebook_loss, info_loss = self(img)
+        label_pred, concept_pred, code_loss = self(img)
         label_loss = F.cross_entropy(label_pred, label)
-        concept_loss = F.binary_cross_entropy_with_logits(
+        concept_loss = F.binary_cross_entropy(
             concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
         )
         loss = (
             label_loss
             + self.hparams.concept_weight * concept_loss
-            + self.hparams.codebook_weight * codebook_loss
-            + self.hparams.vib_lambda * info_loss
+            + self.hparams.code_weight * code_loss
         )
-        if self.hparams.mtl_mode == "normal":
-            self.manual_backward(loss)
-        else:
-            g0 = get_grad(label_loss, self)
-            g1 = get_grad(concept_loss, self)
-            g2 = get_grad(codebook_loss, self)
-            g = gradient_ordered(g1, g2)
-            g = gradient_ordered(g0, g)
-            for name, param in self.named_parameters():
-                param.grad = g[name]
+        self.log("label_loss", label_loss, prog_bar=True)
+        self.log("concept_loss", concept_loss, prog_bar=True)
+        self.log("code_loss", code_loss, prog_bar=True)
+        self.manual_backward(loss)
+        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
         return loss
