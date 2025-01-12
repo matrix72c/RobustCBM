@@ -18,7 +18,7 @@ scheduler_args:
   factor: 0.1
   patience: 30
   min_lr: 0.0001
-adv_mode: True
+adv_mode: adv
 hidden_dim: 0
 cbm_mode: hybrid # "bool", "fuzzy", "hybrid"
 attacker: PGD
@@ -43,4 +43,4 @@ codebook_size: 5120
 codebook_weight: 0.1
 quantizer: EMA
 # gate
-use_gate: True
+use_gate: nogate

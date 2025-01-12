@@ -21,7 +21,7 @@ class CBM(L.LightningModule):
         optimizer_args: dict = {},
         scheduler: str = "ReduceLROnPlateau",
         scheduler_args: dict = {},
-        adv_mode: bool = False,
+        adv_mode: str = "std",
         hidden_dim: int = 0,
         cbm_mode: str = "hybrid",
         attacker: str = "PGD",
@@ -178,7 +178,7 @@ class CBM(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         img, label, concepts = batch
-        if self.adv_mode:
+        if self.adv_mode == "adv":
             bs = img.shape[0] // 2
             adv_img = self.generate_adv_img(
                 img[:bs], (label[:bs], concepts[:bs]), "train"
@@ -200,7 +200,7 @@ class CBM(L.LightningModule):
 
     def eval_step(self, batch):
         img, label, concepts = batch
-        if self.adv_mode:
+        if self.adv_mode == "adv":
             img = self.generate_adv_img(img, (label, concepts), "eval")
         outputs = self(img)
         label_pred, concept_pred = outputs[0], outputs[1]

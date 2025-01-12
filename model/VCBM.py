@@ -27,7 +27,7 @@ class VCBM(CBM):
     def __init__(
         self,
         vib_lambda: float = 0.1,
-        use_gate: bool = False,
+        use_gate: str = "nogate",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -39,7 +39,7 @@ class VCBM(CBM):
         statistics = self.base(x)
         std, mu = torch.chunk(statistics, 2, dim=1)
         concept_pred = mu + std * torch.randn_like(std)
-        c = torch.sigmoid(std) * 2.0 if self.hparams.use_gate else 1.0
+        c = torch.sigmoid(std) * 2.0 if self.hparams.use_gate == "gate" else 1.0
         label_pred = self.classifier(concept_pred * c)
         return label_pred, concept_pred, mu, std**2
 
