@@ -28,6 +28,8 @@ def initialize_weights(module: nn.Module):
     elif isinstance(module, nn.BatchNorm2d):
         nn.init.ones_(module.weight)
         nn.init.zeros_(module.bias)
+    elif isinstance(module, nn.Embedding):
+        nn.init.xavier_normal_(module.weight)
 
 
 def cal_class_imbalance_weights(dataset: torch.utils.data.Dataset):
