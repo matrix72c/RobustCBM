@@ -25,6 +25,7 @@ def plot_by_mode(source, adv_mode, output_folder="figs"):
         horizontal_spacing=0.1,
     )
 
+    fixed_colors = ["#5760A8", "#F6B917", "#DE4849"]
     model_colors = {}
     legends = set()
     for i, base in enumerate(base_models):
@@ -35,11 +36,10 @@ def plot_by_mode(source, adv_mode, output_folder="figs"):
                 ]
             subset = subset.dropna(subset=[metric])
 
-            for run in subset['model'].unique():
+            for idx, run in enumerate(subset['model'].unique()):
                 data = subset[subset['model'] == run].iloc[0]
                 if run not in model_colors:
-                    model_colors[run] = \
-                        f'rgb({(len(model_colors) * 100) % 255}, {(len(model_colors) * 200) % 255}, {(len(model_colors) * 300) % 255})'
+                    model_colors[run] = fixed_colors[idx % len(fixed_colors)]
                 color = model_colors[run]
 
                 if run not in legends:
@@ -65,8 +65,21 @@ def plot_by_mode(source, adv_mode, output_folder="figs"):
         height=1500,
         width=2000,
         title_text=f"adv_mode = {adv_mode}",
-        showlegend=True
+        showlegend=True,
+        paper_bgcolor='white',
+        plot_bgcolor='white',
+        margin=dict(t=100, b=100, l=100, r=100),
+        xaxis=dict(showline=True, linecolor='black'),
+        yaxis=dict(showline=True, linecolor='black'),
     )
+
+    for i in range(1, 13):
+        fig.update_layout(
+            **{
+                f"xaxis{i}": dict(showline=True, linecolor="black", showgrid=False, mirror=True),
+                f"yaxis{i}": dict(showline=True, linecolor="black", showgrid=False, mirror=True),
+            }
+        )
 
     os.makedirs(output_folder, exist_ok=True)
     output_path = os.path.join(output_folder, f"pic_{adv_mode}.png")
