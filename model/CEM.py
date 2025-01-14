@@ -1,15 +1,13 @@
 import torch
 from torch import nn
 from model import CBM
-from utils import initialize_weights
+from utils import initialize_weights, modify_fc
 
 
 class CEM(CBM):
     def __init__(self, embed_size: int = 16, **kwargs):
         super().__init__(**kwargs)
-        self.base.fc = nn.Linear(
-            self.base.fc.in_features, 2 * embed_size * self.num_concepts
-        ).apply(initialize_weights)
+        modify_fc(self.base, kwargs["base"], 2 * embed_size * self.num_concepts)
 
         self.concept_prob_gen = nn.Linear(
             2 * embed_size * self.num_concepts, self.num_concepts

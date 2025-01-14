@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 from lightning.pytorch.plugins.io import AsyncCheckpointIO
@@ -13,17 +14,32 @@ import torch
 import wandb
 import argparse, yaml
 from attacks import PGD
-from utils import OssCheckpointIO, get_md5, get_oss
+from utils import OssCheckpointIO, get_oss
 import model as pl_model
 import dataset
 
 
-def exp(cfg):
+def exp(config):
+    with open("config.yaml", "r") as f:
+        cfg = yaml.safe_load(f)
+    cfg.update(config)
+    torch.set_float32_matmul_precision("high")
     seed_everything(cfg["seed"])
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
-    wandb.run.name = cfg["experiment_name"]
-    wandb.run.tags = [cfg["model"], cfg["dataset"]]
+    if config.get("experiment_name", None) is not None:
+        name = config["experiment_name"]
+    else:
+        d = sorted(config.items(), key=lambda x: x[0])
+        name = "_".join(["{}".format(t[1]) for t in d])
+        name = name.lower()
+    wandb.run.name = name
+    wandb.run.tags = [
+        cfg["model"],
+        cfg["dataset"],
+        cfg["adv_mode"],
+        cfg["base"],
+    ]
     wandb.config.update(cfg)
 
     bucket = get_oss()
@@ -64,7 +80,7 @@ def exp(cfg):
         print("Load from checkpoint: ", ckpt_path)
     trainer.fit(model, dm)
 
-    if not model.adv_mode:
+    if model.adv_mode == "std":
         eps = [0, 0.001, 0.01, 0.1, 1.0]
     else:
         eps = list(range(5))
@@ -72,9 +88,9 @@ def exp(cfg):
     for i in eps:
         if i > 0:
             model.eval_atk = PGD(model, eps=i / 255.0, alpha=i / 2550.0, steps=10)
-            model.adv_mode = True
+            model.adv_mode = "adv"
         else:
-            model.adv_mode = False
+            model.adv_mode = "atd"
         ret = trainer.test(model, datamodule=dm, ckpt_path="best")[0]
         acc, acc5, acc10 = ret["acc"], ret["acc5"], ret["acc10"]
         accs.append(acc), acc5s.append(acc5), acc10s.append(acc10)
@@ -101,14 +117,10 @@ def exp(cfg):
 
 
 if __name__ == "__main__":
-    torch.set_float32_matmul_precision("high")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
     args = parser.parse_args()
-    with open("config.yaml", "r") as f:
-        config = yaml.safe_load(f)
     with open(args.config, "r") as f:
-        cfg = yaml.safe_load(f)
-    config.update(cfg)
+        c = yaml.safe_load(f)
     wandb.init(project="RobustCBM")
-    exp(config)
+    exp(c)

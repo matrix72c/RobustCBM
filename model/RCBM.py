@@ -1,23 +1,19 @@
 from torch import nn
 import torch
 import torch.nn.functional as F
-from model import CBM, VIB
-from VQ import VectorQuantizeEMA
-from mtl import get_grad, gradient_ordered
-from utils import initialize_weights
+from model import CBM
+from utils import initialize_weights, modify_fc
 
 
 class RCBM(CBM):
     def __init__(
         self,
         embedding_dim: int = 32,
-        code_weight: float = 0.25,
+        codebook_weight: float = 0.1,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.base.fc = nn.Linear(
-            self.base.fc.in_features, embedding_dim * self.num_concepts
-        ).apply(initialize_weights)
+        modify_fc(self.base, kwargs["base"], embedding_dim * self.num_concepts)
 
         self.embed = nn.Embedding(self.num_concepts, embedding_dim).apply(
             initialize_weights
@@ -36,7 +32,6 @@ class RCBM(CBM):
         concept_pred = F.cosine_similarity(z, z_q, dim=2)
         concept_pred = (concept_pred + 1) / 2
         diff = (z.detach() - z_q).pow(2).mean() + 0.25 * (z - z_q.detach()).pow(2).mean()
-        # z_q = z + (z_q - z).detach()
         weight_z = z_q * concept_pred.unsqueeze(-1)
         label_pred = self.classifier(weight_z.view(z.size(0), -1))
         return label_pred, concept_pred, diff
@@ -50,11 +45,10 @@ class RCBM(CBM):
         loss = (
             label_loss
             + self.hparams.concept_weight * concept_loss
-            + self.hparams.code_weight * code_loss
+            + self.hparams.codebook_weight * code_loss
         )
         self.log("label_loss", label_loss, prog_bar=True)
         self.log("concept_loss", concept_loss, prog_bar=True)
         self.log("code_loss", code_loss, prog_bar=True)
         self.manual_backward(loss)
-        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
         return loss
