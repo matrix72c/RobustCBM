@@ -19,25 +19,37 @@ class RCBM(CBM):
             initialize_weights
         )
 
+        self.concept_prob = nn.ModuleList(
+            [nn.Linear(embedding_dim, 1) for _ in range(self.num_concepts)]
+        )
+
         self.classifier = nn.Linear(
             embedding_dim * self.num_concepts, self.num_classes
         ).apply(initialize_weights)
 
     def forward(self, x):
         z = self.base(x)
-        z = z.view(
-            z.size(0), self.hparams.num_concepts, -1
-        )  # B, num_concepts, embedding_dim
+        z = z.view(z.size(0), self.num_concepts, -1)  # B, num_concepts, embedding_dim
         z_q = self.embed.weight.unsqueeze(0).expand(z.size(0), -1, -1)
-        concept_pred = F.cosine_similarity(z, z_q, dim=2)
-        concept_pred = (concept_pred + 1) / 2
-        diff = (z.detach() - z_q).pow(2).mean() + 0.25 * (z - z_q.detach()).pow(2).mean()
+        concept_pred = torch.cat(
+            [
+                self.concept_prob[i].to(self.device)(z[:, i])
+                for i in range(self.num_concepts)
+            ],
+            dim=1,
+        )
+        concept_pred = torch.sigmoid(concept_pred)
         weight_z = z_q * concept_pred.unsqueeze(-1)
         label_pred = self.classifier(weight_z.view(z.size(0), -1))
-        return label_pred, concept_pred, diff
+        return label_pred, concept_pred, z, z_q
 
     def train_step(self, img, label, concepts):
-        label_pred, concept_pred, code_loss = self(img)
+        label_pred, concept_pred, z, z_q = self(img)
+        mask = concepts.unsqueeze(-1).expand(-1, -1, z.size(-1)).detach()
+        mask = (mask - 0.5) * 2
+        code_loss = F.mse_loss(z_q * mask, (z * mask).detach()) + 0.25 * F.mse_loss(
+            z * mask, (z_q * mask).detach()
+        )
         label_loss = F.cross_entropy(label_pred, label)
         concept_loss = F.binary_cross_entropy(
             concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
