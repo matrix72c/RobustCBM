@@ -25,6 +25,7 @@ def plot_by_mode(source, adv_mode, output_folder="figs"):
         horizontal_spacing=0.1,
     )
 
+    model_colors = {}
     legends = set()
     for i, base in enumerate(base_models):
         for j, (dataset, metric) in enumerate(datasets_metrics):
@@ -33,8 +34,14 @@ def plot_by_mode(source, adv_mode, output_folder="figs"):
                 (source['base'] == base)
                 ]
             subset = subset.dropna(subset=[metric])
+
             for run in subset['model'].unique():
                 data = subset[subset['model'] == run].iloc[0]
+                if run not in model_colors:
+                    model_colors[run] = \
+                        f'rgb({(len(model_colors) * 100) % 255}, {(len(model_colors) * 200) % 255}, {(len(model_colors) * 300) % 255})'
+                color = model_colors[run]
+
                 if run not in legends:
                     legends.add(run)
                     showlegend = True
@@ -46,6 +53,8 @@ def plot_by_mode(source, adv_mode, output_folder="figs"):
                         y=data[metric],
                         mode='lines+markers',
                         name=run,
+                        legendgroup=run,
+                        marker=dict(color=color),
                         showlegend=showlegend
                     ),
                     row=i + 1,
