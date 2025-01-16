@@ -10,7 +10,7 @@ class VQCBM(CBM):
     def __init__(
         self,
         # VQ params
-        embedding_dim: int = 32,
+        embed_dim: int = 32,
         codebook_size: int = 5120,
         codebook_weight: float = 0.25,
         quantizer: str = "EMA",
@@ -18,13 +18,13 @@ class VQCBM(CBM):
     ):
         super().__init__(**kwargs)
         self.base.fc = nn.Linear(
-            self.base.fc.in_features, embedding_dim * self.num_concepts
+            self.base.fc.in_features, embed_dim * self.num_concepts
         ).apply(
             initialize_weights
         )  # output num_concepts embeddings for VQ
 
         self.concept_prob_gen = nn.Linear(
-            embedding_dim * self.num_concepts, self.num_concepts
+            embed_dim * self.num_concepts, self.num_concepts
         ).apply(initialize_weights)
 
         self.classifier = nn.Linear(
@@ -32,13 +32,13 @@ class VQCBM(CBM):
         ).apply(initialize_weights)
 
         if quantizer == "EMA":
-            self.quantizer = VectorQuantizeEMA(embedding_dim, codebook_size)
+            self.quantizer = VectorQuantizeEMA(embed_dim, codebook_size)
 
     def forward(self, x):
         logits = self.base(x)
         logits = logits.view(
             logits.size(0), self.hparams.num_concepts, -1
-        )  # B, num_concepts, embedding_dim
+        )  # B, num_concepts, embed_dim
         quantized_concept, codebook_loss, _ = self.quantizer(logits)
         concept_pred = self.concept_prob_gen(
             quantized_concept.view(quantized_concept.size(0), -1)

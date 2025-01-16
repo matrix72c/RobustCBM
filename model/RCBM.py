@@ -8,7 +8,7 @@ from utils import initialize_weights, modify_fc
 class RCBM(CBM):
     def __init__(
         self,
-        embedding_dim: int = 32,
+        embed_dim: int = 32,
         codebook_weight: float = 0.1,
         **kwargs,
     ):
@@ -16,22 +16,22 @@ class RCBM(CBM):
         base = list(self.base.children())[:-2]
         self.base = nn.Sequential(*base)
 
-        self.embed = nn.Embedding(self.num_concepts, embedding_dim).apply(
+        self.embed = nn.Embedding(self.num_concepts, embed_dim).apply(
             initialize_weights
         )
 
         self.attn = nn.MultiheadAttention(
-            embedding_dim, 4, dropout=0.1, batch_first=True
+            embed_dim, 4, dropout=0.1, batch_first=True
         )
-        self.proj_z = nn.Linear(2048, embedding_dim).apply(initialize_weights)
-        self.attn_layernorm = nn.LayerNorm(embedding_dim)
+        self.proj_z = nn.Linear(2048, embed_dim).apply(initialize_weights)
+        self.attn_layernorm = nn.LayerNorm(embed_dim)
 
         self.concept_prob = nn.ModuleList(
-            [nn.Linear(embedding_dim, 1) for _ in range(self.num_concepts)]
+            [nn.Linear(embed_dim, 1) for _ in range(self.num_concepts)]
         )
 
         self.classifier = nn.Linear(
-            embedding_dim * self.num_concepts, self.num_classes
+            embed_dim * self.num_concepts, self.num_classes
         ).apply(initialize_weights)
 
     def forward(self, x):

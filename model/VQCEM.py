@@ -10,7 +10,7 @@ from utils import initialize_weights
 class VQCEM(CBM):
     def __init__(
         self,
-        embedding_dim: int = 16,
+        embed_dim: int = 16,
         codebook_size: int = 512,
         codebook_weight: float = 0.25,
         quantizer: str = "EMA",
@@ -18,19 +18,19 @@ class VQCEM(CBM):
     ):
         super().__init__(**kwargs)
         self.base.fc = nn.Linear(
-            self.base.fc.in_features, embedding_dim * self.num_concepts
+            self.base.fc.in_features, embed_dim * self.num_concepts
         ).apply(initialize_weights)
 
-        self.concept_prob = [nn.Linear(embedding_dim, 1).apply(initialize_weights) for _ in range(self.num_concepts)]
+        self.concept_prob = [nn.Linear(embed_dim, 1).apply(initialize_weights) for _ in range(self.num_concepts)]
 
-        self.quantizer = VectorQuantizeEMA(embedding_dim, codebook_size)
+        self.quantizer = VectorQuantizeEMA(embed_dim, codebook_size)
         self.classifier = nn.Linear(
-            self.num_concepts * embedding_dim, self.num_classes
+            self.num_concepts * embed_dim, self.num_classes
         ).apply(initialize_weights)
 
     def forward(self, x):
         x = self.base(x)
-        x = x.view(x.size(0), -1, self.hparams.embedding_dim)
+        x = x.view(x.size(0), -1, self.hparams.embed_dim)
         vq, codebook_loss, embed_ind = self.quantizer(x)
         concept_pred = torch.cat(
             [
@@ -71,11 +71,11 @@ class VQCEM(CBM):
         """
         device = vq.device
         num_concepts = self.hparams.num_concepts
-        embedding_dim = self.hparams.embedding_dim
+        embed_dim = self.hparams.embed_dim
 
         # 初始化均值向量
-        concept_positive_means = torch.zeros(num_concepts, embedding_dim, device=device)
-        concept_negative_means = torch.zeros(num_concepts, embedding_dim, device=device)
+        concept_positive_means = torch.zeros(num_concepts, embed_dim, device=device)
+        concept_negative_means = torch.zeros(num_concepts, embed_dim, device=device)
         concept_positive_counts = torch.zeros(num_concepts, device=device)
         concept_negative_counts = torch.zeros(num_concepts, device=device)
 
@@ -86,12 +86,12 @@ class VQCEM(CBM):
 
             if pos_indices.sum() > 0:
                 # 聚合具备该概念的样本的特征向量
-                pos_vq = vq[pos_indices].view(-1, embedding_dim)
+                pos_vq = vq[pos_indices].view(-1, embed_dim)
                 concept_positive_means[c] = pos_vq.mean(dim=0)
                 concept_positive_counts[c] = pos_vq.size(0)
             if neg_indices.sum() > 0:
                 # 聚合不具备该概念的样本的特征向量
-                neg_vq = vq[neg_indices].view(-1, embedding_dim)
+                neg_vq = vq[neg_indices].view(-1, embed_dim)
                 concept_negative_means[c] = neg_vq.mean(dim=0)
                 concept_negative_counts[c] = neg_vq.size(0)
 
@@ -120,8 +120,8 @@ class VQCEM(CBM):
 
         # 计算距离
         # 计算每个样本中每个嵌入向量到正均值和负均值的距离
-        # vq: (batch_size, embedding_num, embedding_dim)
-        # pos_means, neg_means: (batch_size, num_concepts, embedding_dim)
+        # vq: (batch_size, embedding_num, embed_dim)
+        # pos_means, neg_means: (batch_size, num_concepts, embed_dim)
         # 使用广播机制计算欧氏距离
         distance_pos = torch.norm(vq.unsqueeze(1) - pos_means.unsqueeze(2), dim=-1)  # (batch_size, num_concepts, embedding_num)
         distance_neg = torch.norm(vq.unsqueeze(1) - neg_means.unsqueeze(2), dim=-1)  # (batch_size, num_concepts, embedding_num)

@@ -4,13 +4,13 @@ from torch.nn import functional as F
 
 
 class VectorQuantizeEMA(nn.Module):
-    def __init__(self, embedding_dim, n_embed, decay=0.99, eps=1e-5):
+    def __init__(self, embed_dim, n_embed, decay=0.99, eps=1e-5):
         super().__init__()
 
-        self.embedding_dim = embedding_dim
+        self.embed_dim = embed_dim
         self.n_embed = n_embed
 
-        self.embed = nn.Embedding(n_embed, embedding_dim)
+        self.embed = nn.Embedding(n_embed, embed_dim)
         self.embed.weight.data.uniform_(-1.0 / n_embed, 1.0 / n_embed)
         self.register_buffer("cluster_size", torch.zeros(n_embed))
         self.register_buffer("embed_avg", self.embed.weight.data.clone())
@@ -19,8 +19,8 @@ class VectorQuantizeEMA(nn.Module):
         self.eps = eps
 
     def forward(self, z_e):
-        B, N, E = z_e.shape  # Batch, Num_concepts, Embedding_dim
-        flatten = z_e.reshape(-1, self.embedding_dim)  # (B*N, E)
+        B, N, E = z_e.shape  # Batch, Num_concepts, embed_dim
+        flatten = z_e.reshape(-1, self.embed_dim)  # (B*N, E)
 
         dist = (
             flatten.pow(2).sum(1, keepdim=True)  # (B*N, 1)

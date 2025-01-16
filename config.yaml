@@ -32,14 +32,15 @@ dataset: CUB
 data_path: ./data
 batch_size: 128
 
-# CEM
-embed_size: 16
+embed_dim: 32
+
 # VIB
 vib_lambda: 0.01
 # VQ
-embedding_dim: 32
-codebook_size: 5120
+codebook_size: 512
 codebook_weight: 0.1
 quantizer: EMA
 # gate
 use_gate: nogate
+# CL
+cl_weight: 0.25
