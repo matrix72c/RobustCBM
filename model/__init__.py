@@ -7,3 +7,4 @@ from .VQCEM import VQCEM
 from .backbone import backbone
 from .resCBM import resCBM
 from .RCBM import RCBM
+from .CLCBM import CLCBM
