@@ -37,7 +37,7 @@ class VQCBM(CBM):
     def forward(self, x):
         logits = self.base(x)
         logits = logits.view(
-            logits.size(0), self.hparams.num_concepts, -1
+            logits.size(0), self.num_concepts, -1
         )  # B, num_concepts, embed_dim
         quantized_concept, codebook_loss, _ = self.quantizer(logits)
         concept_pred = self.concept_prob_gen(
@@ -55,14 +55,5 @@ class VQCBM(CBM):
             + self.hparams.concept_weight * concept_loss
             + self.hparams.codebook_weight * codebook_loss
         )
-        if self.hparams.mtl_mode == "normal":
-            self.manual_backward(loss)
-        else:
-            g0 = get_grad(label_loss, self)
-            g1 = get_grad(concept_loss, self)
-            g2 = get_grad(codebook_loss, self)
-            g = gradient_ordered(g1, g2)
-            g = gradient_ordered(g0, g)
-            for name, param in self.named_parameters():
-                param.grad = g[name]
+        self.manual_backward(loss)
         return loss
