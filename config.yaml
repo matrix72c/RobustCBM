@@ -37,7 +37,7 @@ embed_dim: 32
 # VIB
 vib_lambda: 0.01
 # VQ
-codebook_size: 512
+codebook_size: 5120
 codebook_weight: 0.1
 quantizer: EMA
 # gate

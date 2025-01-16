@@ -11,7 +11,7 @@ class VQCEM(CBM):
     def __init__(
         self,
         embed_dim: int = 32,
-        codebook_size: int = 512,
+        codebook_size: int = 5120,
         codebook_weight: float = 0.1,
         quantizer: str = "EMA",
         **kwargs,
@@ -21,7 +21,12 @@ class VQCEM(CBM):
             self.base.fc.in_features, embed_dim * self.num_concepts
         ).apply(initialize_weights)
 
-        self.concept_prob = [nn.Linear(embed_dim, 1).apply(initialize_weights) for _ in range(self.num_concepts)]
+        self.concept_prob = nn.ModuleList(
+            [
+                nn.Linear(embed_dim, 1).apply(initialize_weights)
+                for _ in range(self.num_concepts)
+            ]
+        )
 
         self.quantizer = VectorQuantizeEMA(embed_dim, codebook_size)
         self.classifier = nn.Linear(
@@ -34,18 +39,18 @@ class VQCEM(CBM):
         vq, codebook_loss, embed_ind = self.quantizer(x)
         concept_pred = torch.cat(
             [
-                self.concept_prob[i].to(self.device)(vq[:, i])
+                self.concept_prob[i](vq[:, i])
                 for i in range(self.num_concepts)
             ],
             dim=1,
         )
         label_pred = self.classifier(vq.view(vq.size(0), -1))
-        return label_pred, concept_pred, codebook_loss
+        return label_pred, torch.sigmoid(concept_pred), codebook_loss
 
     def train_step(self, img, label, concepts):
         label_pred, concept_pred, codebook_loss = self(img)
         label_loss = F.cross_entropy(label_pred, label)
-        concept_loss = F.binary_cross_entropy_with_logits(
+        concept_loss = F.binary_cross_entropy(
             concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
         )
         loss = (
