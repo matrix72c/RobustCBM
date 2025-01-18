@@ -1,44 +1,60 @@
 import torch
 from torch import nn
+from model import CBM, VIB
+from utils import initialize_weights, modify_fc
 import torch.nn.functional as F
-from model import VCBM
-from utils import initialize_weights
 
 
-class VCEM(VCBM):
-    def __init__(
-        self,
-        embed_dim: int = 16,
-        **kwargs,
-    ):
+class VCEM(CBM):
+    def __init__(self, embed_dim: int = 32, cl_weight: float = 0.25, **kwargs):
         super().__init__(**kwargs)
-        self.base.fc = nn.Linear(
-            self.base.fc.in_features, 4 * embed_dim * self.num_concepts
-        ).apply(initialize_weights)
+        base = list(self.base.children())[:-1]
+        self.vib = VIB(self.base.fc.in_features, embed_dim * self.num_concepts)
+        self.base = nn.Sequential(*base)
 
-        self.concept_prob_gen = nn.Linear(
-            2 * embed_dim * self.num_concepts, self.num_concepts
+        self.concept_prob = nn.Linear(
+            embed_dim * self.num_concepts, self.num_concepts
         ).apply(initialize_weights)
-
-        self.classifier = nn.Linear(embed_dim * self.num_concepts, self.num_classes).apply(
-            initialize_weights
-        )
 
     def forward(self, x):
-        statistics = self.base(x)
-        std, mu = torch.chunk(statistics, 2, dim=1)
-        concept_context = mu + std * torch.randn_like(std)
+        z = self.base(x)
+        z, info_loss = self.vib(z.view(z.size(0), -1))
+        concept_pred = self.concept_prob(z.view(z.size(0), -1))
+        concept_features = z.view(z.size(0), self.num_concepts, -1)
+        label_pred = self.classifier(concept_pred)
+        return label_pred, torch.sigmoid(concept_pred), concept_features, info_loss
 
-        concept_pred = self.concept_prob_gen(concept_context)
+    def contrastive_loss(self, z, concepts, margin=1.0, lambda_neg=1.0):
+        B, N, E = z.size()
+        z_flat = z.view(B * N, E)
+        c_flat = concepts.view(-1)
+        dist_matrix = torch.cdist(z_flat, z_flat, p=2)
+        c_i = c_flat.unsqueeze(1)
+        c_j = c_flat.unsqueeze(0)
+        pos_mask = (c_i == 1) & (c_j == 1)
+        eye_mask = torch.eye(B * N, device=z.device).bool()
+        pos_mask = pos_mask & (~eye_mask)
+        neg_mask = ((c_i == 1) & (c_j == 0)) | ((c_i == 0) & (c_j == 1))
 
-        pos_embed, neg_embed = torch.chunk(concept_context, 2, dim=1)
-        pos_embed, neg_embed = pos_embed.view(
-            pos_embed.size(0), -1, self.hparams.embed_dim
-        ), neg_embed.view(neg_embed.size(0), -1, self.hparams.embed_dim)
-        concept_pred.unsqueeze_(-1)
-        combined_embed = pos_embed * concept_pred + neg_embed * (1 - concept_pred)
-        concept_embed = combined_embed.view(combined_embed.size(0), -1)
-        concept_pred = concept_pred.squeeze(-1)
+        pos_loss = dist_matrix[pos_mask].pow(2).mean()
+        neg_loss = F.relu(margin - dist_matrix[neg_mask]).pow(2).mean()
+        return pos_loss + lambda_neg * neg_loss
 
-        label_pred = self.classifier(concept_embed)
-        return label_pred, concept_pred, mu, std**2
+    def train_step(self, img, label, concepts):
+        label_pred, concept_pred, z, info_loss = self(img)
+        label_loss = F.cross_entropy(label_pred, label)
+        concept_loss = F.binary_cross_entropy(
+            concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
+        )
+        contrastive_loss = self.contrastive_loss(z, concepts)
+        loss = (
+            label_loss
+            + concept_loss * self.hparams.concept_weight
+            + contrastive_loss * self.hparams.cl_weight
+            + info_loss * self.hparams.vib_lambda
+        )
+        self.manual_backward(loss)
+        self.log(
+            "cl_loss", contrastive_loss, prog_bar=True, on_step=True, on_epoch=False
+        )
+        return loss
