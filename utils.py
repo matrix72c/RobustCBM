@@ -10,7 +10,7 @@ from lightning.pytorch.plugins.io import CheckpointIO
 import oss2
 from oss2.credentials import EnvironmentVariableCredentialsProvider
 import tempfile
-
+import torch.nn.functional as F
 
 def initialize_weights(module: nn.Module):
     """Initialize the weights of a module."""
@@ -132,3 +132,20 @@ def modify_fc(model, base, out_size):
         model.classifier[6] = nn.Linear(
             model.classifier[6].in_features, out_size
         ).apply(initialize_weights)
+
+def contrastive_loss(z, z_q, concepts, margin=1.0, lambda_neg=1.0):
+        B, N, E = z.size()
+        z_flat = z.view(B * N, E)
+        zq_flat = z_q.view(B * N, E)
+        c_flat = concepts.view(-1)
+        dist_matrix = torch.cdist(z_flat, zq_flat, p=2)
+        c_i = c_flat.unsqueeze(1)
+        c_j = c_flat.unsqueeze(0)
+        pos_mask = (c_i == 1) & (c_j == 1)
+        eye_mask = torch.eye(B * N, device=z.device).bool()
+        pos_mask = pos_mask & (~eye_mask)
+        neg_mask = ((c_i == 1) & (c_j == 0)) | ((c_i == 0) & (c_j == 1))
+
+        pos_loss = dist_matrix[pos_mask].pow(2).mean()
+        neg_loss = F.relu(margin - dist_matrix[neg_mask]).pow(2).mean()
+        return pos_loss + lambda_neg * neg_loss
