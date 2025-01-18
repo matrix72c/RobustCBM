@@ -13,17 +13,15 @@ class RCBM(CBM):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        base = list(self.base.children())[:-2]
-        self.base = nn.Sequential(*base)
+        modify_fc(self.base, kwargs["base"], embed_dim * self.num_concepts)
 
         self.embed = nn.Embedding(self.num_concepts, embed_dim).apply(
             initialize_weights
         )
 
         self.attn = nn.MultiheadAttention(
-            embed_dim, 4, dropout=0.1, batch_first=True
+            embed_dim, 2, dropout=0.1, batch_first=True
         )
-        self.proj_z = nn.Linear(2048, embed_dim).apply(initialize_weights)
         self.attn_layernorm = nn.LayerNorm(embed_dim)
 
         self.concept_prob = nn.ModuleList(
@@ -36,9 +34,8 @@ class RCBM(CBM):
 
     def forward(self, x):
         z = self.base(x)
-        B, C, H, W = z.size()
-        z = z.view(B, C, -1).permute(0, 2, 1)
-        z = self.proj_z(z)
+        z = z.view(z.size(0), self.num_concepts, -1)
+        B, C, E = z.shape
         z_q = self.embed.weight.unsqueeze(0).expand(B, -1, -1)
         attn_z, _ = self.attn(z_q, z, z)
         attn_z = attn_z + z_q
