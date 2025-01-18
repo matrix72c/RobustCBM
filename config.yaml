@@ -43,4 +43,4 @@ quantizer: EMA
 # gate
 use_gate: nogate
 # CL
-cl_weight: 0.25
+cl_weight: 0.1
