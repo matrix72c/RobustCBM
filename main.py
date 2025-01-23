@@ -1,25 +1,22 @@
-import json
 import os
 import tempfile
-from lightning.pytorch.plugins.io import AsyncCheckpointIO
 from lightning.pytorch.trainer import Trainer
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import (
     ModelCheckpoint,
     EarlyStopping,
-    LearningRateMonitor,
 )
 from lightning.pytorch import seed_everything
 import torch
 import wandb
 import argparse, yaml
 from attacks import PGD
-from utils import OssCheckpointIO, get_oss
+from utils import get_oss
 import model as pl_model
 import dataset
 
 
-def exp(config):
+def setup(config):
     with open("config.yaml", "r") as f:
         cfg = yaml.safe_load(f)
     cfg.update(config)
@@ -31,6 +28,10 @@ def exp(config):
         name = config["experiment_name"]
     else:
         d = sorted(config.items(), key=lambda x: x[0])
+        # pop dict
+        for k, v in d:
+            if isinstance(v, dict):
+                d.remove((k, v))
         name = "_".join(["{}".format(t[1]) for t in d])
         name = name.lower()
     wandb.run.name = name
@@ -41,9 +42,6 @@ def exp(config):
         cfg["base"],
     ]
     wandb.config.update(cfg)
-
-    bucket = get_oss()
-    # oss_checkpoint_io = OssCheckpointIO(bucket)
 
     logger = WandbLogger()
     checkpoint_callback = ModelCheckpoint(
@@ -56,29 +54,34 @@ def exp(config):
         save_weights_only=True,
         every_n_epochs=20,
     )
-    early_stopping = EarlyStopping(monitor="acc", patience=cfg["patience"], mode="max")
-    lr_monitor = LearningRateMonitor(logging_interval="epoch")
-    callbacks = [checkpoint_callback, early_stopping, lr_monitor]
+    early_stopping = EarlyStopping(
+        monitor="lr", mode="min", patience=1000, stopping_threshold=1e-4
+    )
+    callbacks = [checkpoint_callback, early_stopping]
     trainer = Trainer(
         log_every_n_steps=10,
         logger=logger,
         callbacks=callbacks,
         max_epochs=cfg["epochs"],
-        # plugins=[AsyncCheckpointIO(oss_checkpoint_io)],
     )
-
+    bucket = get_oss()
     ckpt_path = cfg.get("ckpt_path", None)
     if ckpt_path is not None and bucket.object_exists(ckpt_path):
-        mode = model.adv_mode
-        key = os.path.relpath(ckpt_path, os.getcwd())
         with tempfile.TemporaryDirectory() as tmpdir:
-            fp = os.path.join(tmpdir, os.path.basename(key))
-            print(f"Downloading {key} to {fp}")
-            bucket.get_object_to_file(key, fp)
+            fp = os.path.join(tmpdir, os.path.basename(ckpt_path))
+            print(f"Downloading {ckpt_path} to {fp}")
+            bucket.get_object_to_file(ckpt_path, fp)
             model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
-            model.adv_mode = mode
         print("Load from checkpoint: ", ckpt_path)
-    trainer.fit(model, dm)
+    return trainer, model, dm, cfg
+
+
+def exp(config):
+    trainer, model, dm, cfg = setup(config)
+    trained = False
+    if cfg.get("ckpt_path", None) is None:
+        trainer.fit(model, dm)
+        trained = True
 
     if model.adv_mode == "std":
         eps = [0, 0.001, 0.01, 0.1, 1.0]
@@ -90,8 +93,10 @@ def exp(config):
             model.eval_atk = PGD(model, eps=i / 255.0, alpha=i / 2550.0, steps=10)
             model.adv_mode = "adv"
         else:
-            model.adv_mode = "atd"
-        ret = trainer.test(model, datamodule=dm, ckpt_path="best")[0]
+            model.adv_mode = "std"
+        ret = trainer.test(model, datamodule=dm, ckpt_path="best" if trained else None)[
+            0
+        ]
         acc, acc5, acc10 = ret["acc"], ret["acc5"], ret["acc10"]
         accs.append(acc), acc5s.append(acc5), acc10s.append(acc10)
         if i == 0:
@@ -111,9 +116,11 @@ def exp(config):
     wandb.run.summary["ASR@5"] = asr5s
     wandb.run.summary["ASR@10"] = asr10s
 
-    ckpt_path = "checkpoints/" + wandb.run.name + ".ckpt"
-    bucket.put_object_from_file(ckpt_path, ckpt_path)
-    os.remove(ckpt_path)
+    if trained:
+        bucket = get_oss()
+        ckpt_path = "checkpoints/" + wandb.run.name + ".ckpt"
+        bucket.put_object_from_file(ckpt_path, ckpt_path)
+        os.remove(ckpt_path)
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ from utils import cal_class_imbalance_weights
 
 
 class AwADataset(Dataset):
-    def __init__(self, data_path, stage, num_concepts):
+    def __init__(self, data_path, stage, num_concepts, resol):
         self.path = data_path
         self.num_concepts = num_concepts
         class_to_index = dict()
@@ -53,7 +53,7 @@ class AwADataset(Dataset):
             self.transform = transforms.Compose(
                 [
                     transforms.ColorJitter(brightness=32 / 255, saturation=(0.5, 1.5)),
-                    transforms.RandomResizedCrop(224),
+                    transforms.RandomResizedCrop(resol),
                     transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -70,7 +70,7 @@ class AwADataset(Dataset):
                 self.img_index = test_img_index
             self.transform = transforms.Compose(
                 [
-                    transforms.CenterCrop(224),
+                    transforms.CenterCrop(resol),
                     transforms.ToTensor(),
                     transforms.Normalize(
                         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
@@ -112,16 +112,16 @@ class AwADataset(Dataset):
 
 
 class AwA(L.LightningDataModule):
-    def __init__(self, data_path, batch_size, num_concepts=85, **kwargs):
+    def __init__(self, data_path, batch_size, num_concepts=85, resol=224, **kwargs):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
         self.num_concepts = num_concepts
         self.real_concepts = 85
         self.num_classes = 50
-        self.train = AwADataset(self.data_path, "fit", num_concepts)
-        self.val = AwADataset(self.data_path, "val", num_concepts)
-        self.test = AwADataset(self.data_path, "test", num_concepts)
+        self.train = AwADataset(self.data_path, "fit", num_concepts, resol)
+        self.val = AwADataset(self.data_path, "val", num_concepts, resol)
+        self.test = AwADataset(self.data_path, "test", num_concepts, resol)
         sample = Subset(self.train, torch.arange(len(self.train) // 10))
         self.imbalance_weights = cal_class_imbalance_weights(sample)
 

@@ -1,7 +1,8 @@
+import random
+import numpy as np
 import lightning as L
-from utils import batchnorm_no_update_context, initialize_weights, modify_fc
+from utils import batchnorm_no_update_context, initialize_weights, modify_fc, build_base
 import torch
-import torchvision
 from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
@@ -27,6 +28,7 @@ class CBM(L.LightningModule):
         attacker: str = "PGD",
         attacker_args: dict = {},
         mtl_mode: str = "normal",
+        intervene_budget: int = 0,
         **kwargs,
     ):
         super().__init__()
@@ -36,32 +38,8 @@ class CBM(L.LightningModule):
         num_concepts = dm.num_concepts
         real_concepts = dm.real_concepts
         self.dm = dm
-        if base == "resnet50":
-            self.base = torchvision.models.resnet50(
-                weights=(
-                    torchvision.models.ResNet50_Weights.DEFAULT
-                    if use_pretrained
-                    else None
-                ),
-            )
-        elif base == "vit":
-            self.base = torchvision.models.vit_b_16(
-                weights=(
-                    torchvision.models.ViT_B_16_Weights.DEFAULT
-                    if use_pretrained
-                    else None
-                ),
-            )
-        elif base == "vgg16":
-            self.base = torchvision.models.vgg16(
-                weights=(
-                    torchvision.models.VGG16_Weights.DEFAULT
-                    if use_pretrained
-                    else None
-                ),
-            )
-        else:
-            raise ValueError("Unknown base model")
+        self.concept_group_map = dm.concept_group_map
+        self.base = build_base(base, use_pretrained)
         modify_fc(self.base, base, num_concepts)
 
         if hidden_dim > 0:
@@ -110,22 +88,57 @@ class CBM(L.LightningModule):
         else:
             return [optimizer], [scheduler]
 
-    def forward(self, x):
+    def group_intervene(
+        self, concepts, concept_pred, concept_group_map, intervene_budget
+    ):
+        group_concept_map = {}
+        for name, idxs in concept_group_map.items():
+            for idx in idxs:
+                group_concept_map[idx] = name
+        c = torch.sigmoid(concept_pred).ge(0.5).long()
+        for b in range(concepts.shape[0]):
+            s = set()
+            for idx in range(self.num_concepts):
+                if c[b, idx].item() != concepts[b, idx].item():
+                    s.add(group_concept_map[idx])
+            intervene_groups = list(s)
+            if len(intervene_groups) > intervene_budget:
+                intervene_groups = random.sample(intervene_groups, intervene_budget)
+            for group in intervene_groups:
+                for idx in concept_group_map[group]:
+                    if c[b, idx].item() != concepts[b, idx].item():
+                        concept_pred[b, idx] = (
+                            concepts[b, idx] * self.pos_logits[idx]
+                            + (1 - concepts[b, idx]) * self.neg_logits[idx]
+                        )
+        return concept_pred
+
+    def forward(self, x, concepts=None):
         concept_pred = self.base(x)
+        # human intervene
+        if concepts is not None:
+            concept_pred = self.group_intervene(
+                concepts,
+                concept_pred,
+                self.concept_group_map,
+                self.hparams.intervene_budget,
+            )
+
         if self.hparams.cbm_mode == "fuzzy":
             concept = torch.sigmoid(concept_pred)
         elif self.hparams.cbm_mode == "bool":
-            concept = torch.sigmoid(concept_pred)
-            concept = torch.where(concept > 0.5, 1, 0).float()
+            concept = torch.sigmoid(concept_pred).ge(0.5).float()
         elif self.hparams.cbm_mode == "hybrid":
             concept = concept_pred
         label_pred = self.classifier(concept)
-        return label_pred, torch.sigmoid(concept_pred)
+        return label_pred, concept_pred
 
     def get_loss(self, logits, labels, adv_loss):
         label, concept = labels
         label_pred, concept_pred = logits[0], logits[1]
         if adv_loss == "bce":
+            if concept_pred.min() < 0 or concept_pred.max() > 1:
+                concept_pred = torch.sigmoid(concept_pred)
             loss = F.binary_cross_entropy(concept_pred, concept)
         elif adv_loss == "ce":
             loss = F.cross_entropy(label_pred, label)
@@ -136,13 +149,6 @@ class CBM(L.LightningModule):
                 concept_pred, concept
             )
         return loss
-
-    def shared_params(self):
-        shared_params = {}
-        for name, param in self.named_parameters():
-            if "classifier" not in name:
-                shared_params[name] = param
-        return shared_params
 
     @torch.enable_grad()
     @torch.inference_mode(False)
@@ -158,6 +164,8 @@ class CBM(L.LightningModule):
 
     def train_step(self, img, label, concepts):
         label_pred, concept_pred = self(img)
+        if concept_pred.min() < 0 or concept_pred.max() > 1:
+            concept_pred = torch.sigmoid(concept_pred)
         concept_loss = F.binary_cross_entropy(
             concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
         )
@@ -202,7 +210,10 @@ class CBM(L.LightningModule):
         img, label, concepts = batch
         if self.adv_mode == "adv":
             img = self.generate_adv_img(img, (label, concepts), "eval")
-        outputs = self(img)
+        if self.hparams.intervene_budget > 0:
+            outputs = self(img, concepts)
+        else:
+            outputs = self(img)
         label_pred, concept_pred = outputs[0], outputs[1]
         if concept_pred.shape[1] > self.real_concepts:
             concept_pred = concept_pred[:, : self.real_concepts]
@@ -220,6 +231,24 @@ class CBM(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         self.eval_step(batch)
+        self.log(
+            "lr", self.optimizers().param_groups[0]["lr"], on_step=False, on_epoch=True
+        )
 
     def test_step(self, batch, batch_idx):
         self.eval_step(batch)
+
+    def on_test_start(self):
+        concept_logits = []
+        for batch in self.dm.test_dataloader():
+            outputs = self(batch[0].to(self.device))
+            concept_logits.append(outputs[1])
+        c = torch.cat(concept_logits, dim=0).detach().cpu().numpy()
+
+        pos_logits = torch.ones(self.num_concepts).to(self.device)
+        neg_logits = torch.zeros(self.num_concepts).to(self.device)
+        for idx in range(self.num_concepts):
+            pos_logits[idx] = torch.tensor(np.percentile(c[:, idx], 95))
+            neg_logits[idx] = torch.tensor(np.percentile(c[:, idx], 5))
+        self.pos_logits = pos_logits
+        self.neg_logits = neg_logits

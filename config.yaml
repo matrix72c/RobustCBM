@@ -16,7 +16,7 @@ scheduler_args:
   mode: max
   factor: 0.1
   patience: 30
-  min_lr: 0.0001
+  min_lr: 0.00001
 adv_mode: adv
 hidden_dim: 0
 cbm_mode: hybrid # "bool", "fuzzy", "hybrid"
@@ -31,6 +31,7 @@ mtl_mode: normal # "normal", "equal", "ordered"
 dataset: CUB
 data_path: ./data
 batch_size: 128
+resol: 224
 
 embed_dim: 32
 
@@ -44,3 +45,5 @@ quantizer: EMA
 use_gate: nogate
 # CL
 cl_weight: 0.1
+
+intervene_budget: 0

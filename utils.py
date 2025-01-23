@@ -11,6 +11,8 @@ import oss2
 from oss2.credentials import EnvironmentVariableCredentialsProvider
 import tempfile
 import torch.nn.functional as F
+import torchvision
+
 
 def initialize_weights(module: nn.Module):
     """Initialize the weights of a module."""
@@ -121,9 +123,7 @@ def get_oss():
 
 def modify_fc(model, base, out_size):
     if base == "resnet50":
-        model.fc = nn.Linear(model.fc.in_features, out_size).apply(
-            initialize_weights
-        )
+        model.fc = nn.Linear(model.fc.in_features, out_size).apply(initialize_weights)
     elif base == "vit":
         model.heads.head = nn.Linear(model.heads.head.in_features, out_size).apply(
             initialize_weights
@@ -132,20 +132,55 @@ def modify_fc(model, base, out_size):
         model.classifier[6] = nn.Linear(
             model.classifier[6].in_features, out_size
         ).apply(initialize_weights)
+    elif base == "inceptionv3":
+        model.fc = nn.Linear(model.fc.in_features, out_size).apply(initialize_weights)
+
 
 def contrastive_loss(z, z_q, concepts, margin=1.0, lambda_neg=1.0):
-        B, N, E = z.size()
-        z_flat = z.view(B * N, E)
-        zq_flat = z_q.view(B * N, E)
-        c_flat = concepts.view(-1)
-        dist_matrix = torch.cdist(z_flat, zq_flat, p=2)
-        c_i = c_flat.unsqueeze(1)
-        c_j = c_flat.unsqueeze(0)
-        pos_mask = (c_i == 1) & (c_j == 1)
-        eye_mask = torch.eye(B * N, device=z.device).bool()
-        pos_mask = pos_mask & (~eye_mask)
-        neg_mask = ((c_i == 1) & (c_j == 0)) | ((c_i == 0) & (c_j == 1))
+    B, N, E = z.size()
+    z_flat = z.view(B * N, E)
+    zq_flat = z_q.view(B * N, E)
+    c_flat = concepts.view(-1)
+    dist_matrix = torch.cdist(z_flat, zq_flat, p=2)
+    c_i = c_flat.unsqueeze(1)
+    c_j = c_flat.unsqueeze(0)
+    pos_mask = (c_i == 1) & (c_j == 1)
+    eye_mask = torch.eye(B * N, device=z.device).bool()
+    pos_mask = pos_mask & (~eye_mask)
+    neg_mask = ((c_i == 1) & (c_j == 0)) | ((c_i == 0) & (c_j == 1))
 
-        pos_loss = dist_matrix[pos_mask].pow(2).mean()
-        neg_loss = F.relu(margin - dist_matrix[neg_mask]).pow(2).mean()
-        return pos_loss + lambda_neg * neg_loss
+    pos_loss = dist_matrix[pos_mask].pow(2).mean()
+    neg_loss = F.relu(margin - dist_matrix[neg_mask]).pow(2).mean()
+    return pos_loss + lambda_neg * neg_loss
+
+
+def build_base(base, use_pretrained=True):
+    if base == "resnet50":
+        model = torchvision.models.resnet50(
+            weights=(
+                torchvision.models.ResNet50_Weights.DEFAULT if use_pretrained else None
+            ),
+        )
+    elif base == "vit":
+        model = torchvision.models.vit_b_16(
+            weights=(
+                torchvision.models.ViT_B_16_Weights.DEFAULT if use_pretrained else None
+            ),
+        )
+    elif base == "vgg16":
+        model = torchvision.models.vgg16(
+            weights=(
+                torchvision.models.VGG16_Weights.DEFAULT if use_pretrained else None
+            ),
+        )
+    elif base == "inceptionv3":
+        model = torchvision.models.inception_v3(
+            weights=(
+                torchvision.models.Inception_V3_Weights.DEFAULT
+                if use_pretrained
+                else None
+            ),
+        )
+    else:
+        raise ValueError("Unknown base model")
+    return model
