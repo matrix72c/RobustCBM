@@ -9,8 +9,7 @@ from lightning.pytorch.callbacks import (
 from lightning.pytorch import seed_everything
 import torch
 import wandb
-import argparse, yaml
-from attacks import PGD
+import yaml, argparse
 from utils import get_oss
 import model as pl_model
 import dataset
@@ -63,6 +62,7 @@ def setup(config):
         logger=logger,
         callbacks=callbacks,
         max_epochs=cfg["epochs"],
+        inference_mode=False,
     )
     bucket = get_oss()
     ckpt_path = cfg.get("ckpt_path", None)
@@ -90,7 +90,7 @@ def exp(config):
     accs, acc5s, acc10s, asrs, asr5s, asr10s = [], [], [], [], [], []
     for i in eps:
         if i > 0:
-            model.eval_atk = PGD(model, eps=i / 255.0, alpha=i / 2550.0, steps=10)
+            model.eval_atk.eps = i / 255
             model.adv_mode = "adv"
         else:
             model.adv_mode = "std"

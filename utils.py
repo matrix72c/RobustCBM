@@ -1,9 +1,5 @@
-from contextlib import contextmanager
-import hashlib
-import json
 import math
 import os
-from torch.nn.modules.batchnorm import _BatchNorm
 import torch
 import torch.nn as nn
 from lightning.pytorch.plugins.io import CheckpointIO
@@ -56,32 +52,10 @@ def cal_class_imbalance_weights(dataset: torch.utils.data.Dataset):
     return torch.tensor(imbalance_ratio)
 
 
-@contextmanager
-def batchnorm_no_update_context(net: torch.nn.Module):
-    """Temporarily disable batchnorm update."""
-    istrain = net.training
-    try:
-        if istrain:
-            for module in net.modules():
-                if isinstance(module, _BatchNorm):
-                    module.track_running_stats = False
-        yield net
-    finally:
-        if istrain:
-            for module in net.modules():
-                if isinstance(module, _BatchNorm):
-                    module.track_running_stats = True
-
-
 def calc_info_loss(mu, var):
     var = torch.clamp(var, min=1e-8)  # avoid var -> 0
     info_loss = -0.5 * torch.mean(1 + var.log() - mu.pow(2) - var) / math.log(2)
     return info_loss
-
-
-def get_md5(obj):
-    args_str = json.dumps(obj, sort_keys=True)
-    return hashlib.md5(args_str.encode()).hexdigest()
 
 
 class OssCheckpointIO(CheckpointIO):
@@ -184,3 +158,21 @@ def build_base(base, use_pretrained=True):
     else:
         raise ValueError("Unknown base model")
     return model
+
+
+def get_loss_fn(adv_loss):
+    def ce_loss(o, y):
+        return F.cross_entropy(o[0], y[0], reduction="none")
+
+    def bce_loss(o, y):
+        return F.binary_cross_entropy_with_logits(o[1], y[1], reduction="none")
+
+    def combo_loss(o, y):
+        return ce_loss(o, y) + bce_loss(o, y)
+
+    loss_fn_map = {"ce": ce_loss, "bce": bce_loss, "combo": combo_loss}
+
+    if adv_loss not in loss_fn_map:
+        raise ValueError(f"Invalid adv_loss type: {adv_loss}")
+
+    return loss_fn_map[adv_loss]

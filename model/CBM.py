@@ -1,7 +1,7 @@
 import random
 import numpy as np
 import lightning as L
-from utils import batchnorm_no_update_context, initialize_weights, modify_fc, build_base
+from utils import get_loss_fn, initialize_weights, modify_fc, build_base
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -25,8 +25,10 @@ class CBM(L.LightningModule):
         adv_mode: str = "std",
         hidden_dim: int = 0,
         cbm_mode: str = "hybrid",
-        attacker: str = "PGD",
-        attacker_args: dict = {},
+        attacker: str = "pgd",
+        train_atk_args: dict = {},
+        eval_atk_args: dict = {},
+        adv_loss: str = "ce",
         mtl_mode: str = "normal",
         intervene_budget: int = 0,
         **kwargs,
@@ -64,8 +66,10 @@ class CBM(L.LightningModule):
         self.acc10 = Accuracy(task="multiclass", num_classes=num_classes, top_k=10)
 
         self.adv_mode = adv_mode
-        self.train_atk = getattr(attacks, attacker)(self, **attacker_args)
-        self.eval_atk = getattr(attacks, attacker)(self, **attacker_args)
+        loss_fn = get_loss_fn(adv_loss)
+        get_cls_fn = lambda o, y: (o[0], y[0])
+        self.train_atk = getattr(attacks, attacker)(loss_fn=loss_fn, get_cls_fn=get_cls_fn, **train_atk_args)
+        self.eval_atk = getattr(attacks, attacker)(loss_fn=loss_fn, get_cls_fn=get_cls_fn, **eval_atk_args)
 
     def configure_optimizers(self):
         optimizer = getattr(torch.optim, self.hparams.optimizer)(
@@ -133,40 +137,9 @@ class CBM(L.LightningModule):
         label_pred = self.classifier(concept)
         return label_pred, concept_pred
 
-    def get_loss(self, logits, labels, adv_loss):
-        label, concept = labels
-        label_pred, concept_pred = logits[0], logits[1]
-        if adv_loss == "bce":
-            if concept_pred.min() < 0 or concept_pred.max() > 1:
-                concept_pred = torch.sigmoid(concept_pred)
-            loss = F.binary_cross_entropy(concept_pred, concept)
-        elif adv_loss == "ce":
-            loss = F.cross_entropy(label_pred, label)
-        elif adv_loss == "combo":
-            loss = F.cross_entropy(
-                label_pred, label
-            ) + self.hparams.concept_weight * F.binary_cross_entropy(
-                concept_pred, concept
-            )
-        return loss
-
-    @torch.enable_grad()
-    @torch.inference_mode(False)
-    def generate_adv_img(self, img, label, stage):
-        with batchnorm_no_update_context(self):
-            if stage == "train":
-                self.train_atk.set_device(self.device)
-                img = self.train_atk(img, label)
-            else:
-                self.eval_atk.set_device(self.device)
-                img = self.eval_atk(img, label)
-        return img.clone().detach()
-
     def train_step(self, img, label, concepts):
         label_pred, concept_pred = self(img)
-        if concept_pred.min() < 0 or concept_pred.max() > 1:
-            concept_pred = torch.sigmoid(concept_pred)
-        concept_loss = F.binary_cross_entropy(
+        concept_loss = F.binary_cross_entropy_with_logits(
             concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
         )
         label_loss = F.cross_entropy(label_pred, label)
@@ -188,9 +161,7 @@ class CBM(L.LightningModule):
         img, label, concepts = batch
         if self.adv_mode == "adv":
             bs = img.shape[0] // 2
-            adv_img = self.generate_adv_img(
-                img[:bs], (label[:bs], concepts[:bs]), "train"
-            )
+            adv_img = self.train_atk(self, img[:bs], (label[:bs], concepts[:bs]))
             img = torch.cat([img[:bs], adv_img], dim=0)
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
@@ -209,7 +180,7 @@ class CBM(L.LightningModule):
     def eval_step(self, batch):
         img, label, concepts = batch
         if self.adv_mode == "adv":
-            img = self.generate_adv_img(img, (label, concepts), "eval")
+            img = self.eval_atk(self, img, (label, concepts))
         if self.hparams.intervene_budget > 0:
             outputs = self(img, concepts)
         else:
