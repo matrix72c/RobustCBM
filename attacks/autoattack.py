@@ -3,12 +3,12 @@ from attacks import Attack, Apgd, Apgdt, Fab, Square
 
 
 class AutoAttack(Attack):
-    def __init__(self, **kwargs):
+    def __init__(self, eps: float = 0.3, **kwargs):
         self.attacks = [
-            Apgd(**kwargs),
-            Apgdt(**kwargs),
-            Fab(**kwargs),
-            Square(**kwargs),
+            Apgd(eps=eps, **kwargs),
+            Apgdt(eps=eps, **kwargs),
+            Fab(eps=eps, **kwargs),
+            Square(eps=eps, **kwargs),
         ]
 
     def get_logits(self, x):

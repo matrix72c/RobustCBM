@@ -13,6 +13,7 @@ import yaml, argparse
 from utils import get_oss
 import model as pl_model
 import dataset
+from attacks import AutoAttack
 
 
 def setup(config):
@@ -90,7 +91,7 @@ def exp(config):
     accs, acc5s, acc10s, asrs, asr5s, asr10s = [], [], [], [], [], []
     for i in eps:
         if i > 0:
-            model.eval_atk.eps = i / 255
+            model.eval_atk = AutoAttack(eps=i / 255)
             model.adv_mode = "adv"
         else:
             model.adv_mode = "std"
