@@ -1,14 +1,14 @@
 import torch
 import torch.nn.functional as F
-from attacks import attack
+from attacks import Attack
 
-class pgd(attack):
+class Pgd(Attack):
     def __init__(
         self,
         eps: float = 8.0 / 255,
         alpha: float = 2.0 / 255,
         steps: int = 10,
-        loss_fn: callable = F.cross_entropy,
+        loss_fn: callable = lambda x, y: F.cross_entropy(x, y, reduction="none"),
         clip_min: float = 0.0,
         clip_max: float = 1.0,
     ):

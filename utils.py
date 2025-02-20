@@ -160,19 +160,11 @@ def build_base(base, use_pretrained=True):
     return model
 
 
-def get_loss_fn(adv_loss):
-    def ce_loss(o, y):
-        return F.cross_entropy(o[0], y[0], reduction="none")
+class cls_wrapper(nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
 
-    def bce_loss(o, y):
-        return F.binary_cross_entropy_with_logits(o[1], y[1], reduction="none")
-
-    def combo_loss(o, y):
-        return ce_loss(o, y) + bce_loss(o, y)
-
-    loss_fn_map = {"ce": ce_loss, "bce": bce_loss, "combo": combo_loss}
-
-    if adv_loss not in loss_fn_map:
-        raise ValueError(f"Invalid adv_loss type: {adv_loss}")
-
-    return loss_fn_map[adv_loss]
+    def forward(self, *args, **kwargs):
+        o = self.model(*args, **kwargs)
+        return o[0]

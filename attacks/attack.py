@@ -1,7 +1,7 @@
 import torch
 
 
-class attack(object):
+class Attack(object):
     r"""
     Base class for all attack classes.
     """
@@ -21,6 +21,8 @@ class attack(object):
         if model.training:
             model.eval()
             training = True
+        x = x.clone().detach()
+        y = y.clone().detach()
         x_adv = self.attack(model, x, y)
         if training:
             model.train()

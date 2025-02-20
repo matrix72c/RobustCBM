@@ -1,7 +1,7 @@
 import random
 import numpy as np
 import lightning as L
-from utils import get_loss_fn, initialize_weights, modify_fc, build_base
+from utils import initialize_weights, modify_fc, build_base, cls_wrapper
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -28,7 +28,6 @@ class CBM(L.LightningModule):
         attacker: str = "pgd",
         train_atk_args: dict = {},
         eval_atk_args: dict = {},
-        adv_loss: str = "ce",
         mtl_mode: str = "normal",
         intervene_budget: int = 0,
         **kwargs,
@@ -40,7 +39,6 @@ class CBM(L.LightningModule):
         num_concepts = dm.num_concepts
         real_concepts = dm.real_concepts
         self.dm = dm
-        self.concept_group_map = dm.concept_group_map
         self.base = build_base(base, use_pretrained)
         modify_fc(self.base, base, num_concepts)
 
@@ -66,10 +64,14 @@ class CBM(L.LightningModule):
         self.acc10 = Accuracy(task="multiclass", num_classes=num_classes, top_k=10)
 
         self.adv_mode = adv_mode
-        loss_fn = get_loss_fn(adv_loss)
-        get_cls_fn = lambda o, y: (o[0], y[0])
-        self.train_atk = getattr(attacks, attacker)(loss_fn=loss_fn, get_cls_fn=get_cls_fn, **train_atk_args)
-        self.eval_atk = getattr(attacks, attacker)(loss_fn=loss_fn, get_cls_fn=get_cls_fn, **eval_atk_args)
+        self.train_atk = getattr(attacks, attacker)(
+            num_classes=num_classes,
+            **train_atk_args,
+        )
+        self.eval_atk = getattr(attacks, attacker)(
+            num_classes=num_classes,
+            **eval_atk_args,
+        )
 
     def configure_optimizers(self):
         optimizer = getattr(torch.optim, self.hparams.optimizer)(
@@ -92,8 +94,8 @@ class CBM(L.LightningModule):
         else:
             return [optimizer], [scheduler]
 
-    def group_intervene(
-        self, concepts, concept_pred, concept_group_map, intervene_budget
+    def intervene(
+        self, concepts, concept_pred, intervene_budget, concept_group_map=None
     ):
         group_concept_map = {}
         for name, idxs in concept_group_map.items():
@@ -120,13 +122,13 @@ class CBM(L.LightningModule):
     def forward(self, x, concepts=None):
         concept_pred = self.base(x)
         # human intervene
-        if concepts is not None:
-            concept_pred = self.group_intervene(
-                concepts,
-                concept_pred,
-                self.concept_group_map,
-                self.hparams.intervene_budget,
-            )
+        # if concepts is not None:
+        #     concept_pred = self.intervene(
+        #         concepts,
+        #         concept_pred,
+        #         self.hparams.intervene_budget,
+        #         self.concept_group_map,
+        #     )
 
         if self.hparams.cbm_mode == "fuzzy":
             concept = torch.sigmoid(concept_pred)
@@ -161,7 +163,7 @@ class CBM(L.LightningModule):
         img, label, concepts = batch
         if self.adv_mode == "adv":
             bs = img.shape[0] // 2
-            adv_img = self.train_atk(self, img[:bs], (label[:bs], concepts[:bs]))
+            adv_img = self.train_atk(cls_wrapper(self), img[:bs], label[:bs])
             img = torch.cat([img[:bs], adv_img], dim=0)
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
@@ -180,7 +182,7 @@ class CBM(L.LightningModule):
     def eval_step(self, batch):
         img, label, concepts = batch
         if self.adv_mode == "adv":
-            img = self.eval_atk(self, img, (label, concepts))
+            img = self.eval_atk(cls_wrapper(self), img, label)
         if self.hparams.intervene_budget > 0:
             outputs = self(img, concepts)
         else:
