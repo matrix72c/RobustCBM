@@ -16,7 +16,7 @@ import dataset
 from attacks import AutoAttack
 
 
-def setup(config):
+def train(config):
     with open("config.yaml", "r") as f:
         cfg = yaml.safe_load(f)
     cfg.update(config)
@@ -74,18 +74,18 @@ def setup(config):
             bucket.get_object_to_file(ckpt_path, fp)
             model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
         print("Load from checkpoint: ", ckpt_path)
-    return trainer, model, dm, cfg
+    else:
+        trainer.fit(model, dm)
+        ckpt_path = "checkpoints/" + wandb.run.name + ".ckpt"
+        bucket.put_object_from_file(ckpt_path, ckpt_path)
+        model = model.__class__.load_from_checkpoint(ckpt_path, dm=dm, **cfg)
+    return trainer, model, dm
 
 
 def exp(config):
-    trainer, model, dm, cfg = setup(config)
-    trained = False
-    if cfg.get("ckpt_path", None) is None:
-        trainer.fit(model, dm)
-        trained = True
-
+    trainer, model, dm = train(config)
     if model.adv_mode == "std":
-        eps = [0, 0.001, 0.01, 0.1, 1.0]
+        eps = [0, 0.0001, 0.001, 0.01, 0.1, 1.0]
     else:
         eps = list(range(5))
     accs, acc5s, acc10s, asrs, asr5s, asr10s = [], [], [], [], [], []
@@ -95,9 +95,7 @@ def exp(config):
             model.adv_mode = "adv"
         else:
             model.adv_mode = "std"
-        ret = trainer.test(model, datamodule=dm, ckpt_path="best" if trained else None)[
-            0
-        ]
+        ret = trainer.test(model, datamodule=dm)[0]
         acc, acc5, acc10 = ret["acc"], ret["acc5"], ret["acc10"]
         accs.append(acc), acc5s.append(acc5), acc10s.append(acc10)
         if i == 0:
@@ -116,12 +114,6 @@ def exp(config):
     wandb.run.summary["ASR@1"] = asrs
     wandb.run.summary["ASR@5"] = asr5s
     wandb.run.summary["ASR@10"] = asr10s
-
-    if trained:
-        bucket = get_oss()
-        ckpt_path = "checkpoints/" + wandb.run.name + ".ckpt"
-        bucket.put_object_from_file(ckpt_path, ckpt_path)
-        os.remove(ckpt_path)
 
 
 if __name__ == "__main__":

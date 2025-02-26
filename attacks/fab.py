@@ -1,5 +1,7 @@
+import math
 import time
 from attacks import Attack
+from collections import abc as container_abcs
 
 import torch
 import torch.nn.functional as F
@@ -16,7 +18,7 @@ class Fab(Attack):
         alpha_max=0.1,
         eta=1.05,
         beta=0.9,
-        multi_targeted=False,
+        multi_targeted=True,
         num_classes=10,
         **kwargs
     ):

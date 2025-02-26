@@ -64,7 +64,7 @@ class Apgdt(Attack):
         delta = (
             self.eps
             * delta
-            / delta.reshape(x.size(0), -1)
+            / delta.reshape([x.size(0), -1])
             .abs()
             .max(dim=1, keepdim=True)[0]
             .reshape([-1, 1, 1, 1])  # normalize
@@ -79,17 +79,19 @@ class Apgdt(Attack):
         self.y_target = label_pred.sort(dim=1)[1][:, -self.target_class]
 
         grad, loss_best, _ = self.forward(model, x_adv, y)
+        grad_best = grad.clone()
 
         step_size = self.eps * torch.ones_like(x).detach() * 2.0
         counter = 0
         indices = torch.arange(x.shape[0]).to(x.device)
         x_adv_prev = x_adv.clone()
         loss_best_last_check = loss_best.clone()
-        reduced_last_check = torch.zeros_like(loss_best, dtype=torch.bool)
+        reduced_last_check = torch.ones_like(loss_best, dtype=torch.bool)
 
         for i in range(self.steps):
             with torch.no_grad():
                 # iterate x_adv
+                x_adv = x_adv.detach()
                 d = x_adv - x_adv_prev
                 x_adv_prev = x_adv.clone()
                 alpha = 0.75 if i > 0 else 1.0
@@ -114,15 +116,16 @@ class Apgdt(Attack):
                 # update x_best_adv
                 grad, loss, label_pred = self.forward(model, x_adv, y)
                 label_pred = label_pred.max(1)[1] == y
-                x_best_adv[(label_pred == 0).nonzero().squeeze()] = (
-                    x_adv[(label_pred == 0).nonzero().squeeze()] + 0.0
-                )
+                x_best_adv[(label_pred == 0).nonzero().squeeze()] = x_adv[
+                    (label_pred == 0).nonzero().squeeze()
+                ]
 
                 # update x_best
                 loss_steps[i] = loss
                 mask = (loss > loss_best).nonzero().squeeze()
                 x_best[mask] = x_adv[mask].clone()
                 loss_best[mask] = loss[mask]
+                grad_best[mask] = grad[mask].clone()
 
                 # update step_size
                 counter += 1
@@ -144,6 +147,7 @@ class Apgdt(Attack):
                         fl_oscillation = fl_oscillation.nonzero().squeeze()
 
                         x_adv[fl_oscillation] = x_best[fl_oscillation].clone()
+                        grad[fl_oscillation] = grad_best[fl_oscillation].clone()
 
                     counter = 0
                     window = max(window - window_delta, window_min)

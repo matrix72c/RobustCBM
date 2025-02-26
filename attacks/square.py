@@ -27,6 +27,7 @@ class Square(Attack):
         self.loss = loss
         self.rescale_schedule = resc_schedule
         self.targeted = False
+        self.eta_cache = {}
 
     def attack(self, model, x, y):
         self.model = model
@@ -96,23 +97,24 @@ class Square(Attack):
             return t.view(-1, *([1] * self.ndims))
 
     def eta_rectangles(self, x, y):
-        delta = torch.zeros([x, y]).to(self.device)
-        x_c, y_c = x // 2 + 1, y // 2 + 1
+        if [x, y] not in self.eta_cache:
+            delta = torch.zeros([x, y]).to(self.device)
+            x_c, y_c = x // 2 + 1, y // 2 + 1
 
-        counter2 = [x_c - 1, y_c - 1]
-        for counter in range(0, max(x_c, y_c)):
-            delta[
-                max(counter2[0], 0) : min(counter2[0] + (2 * counter + 1), x),
-                max(0, counter2[1]) : min(counter2[1] + (2 * counter + 1), y),
-            ] += 1.0 / (
-                torch.Tensor([counter + 1]).view(1, 1).to(self.device) ** 2
-            )  # nopep8
-            counter2[0] -= 1
-            counter2[1] -= 1
+            counter2 = [x_c - 1, y_c - 1]
+            for counter in range(0, max(x_c, y_c)):
+                delta[
+                    max(counter2[0], 0) : min(counter2[0] + (2 * counter + 1), x),
+                    max(0, counter2[1]) : min(counter2[1] + (2 * counter + 1), y),
+                ] += 1.0 / (
+                    torch.Tensor([counter + 1]).view(1, 1).to(self.device) ** 2
+                )  # nopep8
+                counter2[0] -= 1
+                counter2[1] -= 1
 
-        delta /= (delta**2).sum(dim=(0, 1), keepdim=True).sqrt()
-
-        return delta
+            delta /= (delta**2).sum(dim=(0, 1), keepdim=True).sqrt()
+            self.eta_cache[[x, y]] = delta
+        return self.eta_cache[[x, y]]
 
     def eta(self, s):
         delta = torch.zeros([s, s]).to(self.device)

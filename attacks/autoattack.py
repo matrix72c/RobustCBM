@@ -18,31 +18,28 @@ class AutoAttack(Attack):
         self.device = images.device
         self.model = model
         batch_size = images.shape[0]
-        fails = torch.arange(batch_size).to(self.device)
-        final_images = images.clone().detach().to(self.device)
-        labels = labels.clone().detach().to(self.device)
-
-        multi_atk_records = [batch_size]
+        remains = torch.arange(batch_size).to(self.device)
+        final_images = images
+        labels = labels
         for attack in self.attacks:
-            adv_images = attack(model, images[fails], labels[fails])
+            adv_images = attack(model, images[remains], labels[remains])
 
             outputs = self.get_logits(adv_images)
             _, pre = torch.max(outputs.data, 1)
 
-            corrects = pre == labels[fails]
+            corrects = pre == labels[remains]
             wrongs = ~corrects
 
-            succeeds = torch.masked_select(fails, wrongs)
-            succeeds_of_fails = torch.masked_select(
-                torch.arange(fails.shape[0]).to(self.device), wrongs
+            succeeds = torch.masked_select(remains, wrongs)
+            succeeds_of_remains = torch.masked_select(
+                torch.arange(remains.shape[0]).to(self.device), wrongs
             )
 
-            final_images[succeeds] = adv_images[succeeds_of_fails]
+            final_images[succeeds] = adv_images[succeeds_of_remains]
 
-            fails = torch.masked_select(fails, corrects)
-            multi_atk_records.append(len(fails))
+            remains = torch.masked_select(remains, corrects)
 
-            if len(fails) == 0:
+            if len(remains) == 0:
                 break
 
         return final_images

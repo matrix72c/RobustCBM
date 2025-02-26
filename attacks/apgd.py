@@ -42,9 +42,9 @@ class Apgd(Attack):
             grad += torch.autograd.grad(loss, [x])[0].detach()
 
         grad /= float(self.eot_iter)
-        return grad, loss_indiv.detach(), o
+        return grad, loss_indiv.detach(), o.detach()
 
-    def attack(self, model, x, y):
+    def attack_single(self, model, x, y):
         window, window_min, window_delta = (
             max(int(0.22 * self.steps), 1),
             max(int(0.06 * self.steps), 1),
@@ -55,7 +55,7 @@ class Apgd(Attack):
         delta = (
             self.eps
             * delta
-            / delta.reshape(x.size(0), -1)
+            / delta.reshape([x.size(0), -1])
             .abs()
             .max(dim=1, keepdim=True)[0]
             .reshape([-1, 1, 1, 1])  # normalize
@@ -65,17 +65,19 @@ class Apgd(Attack):
         x_best_adv = x_adv.clone()
         loss_steps = torch.zeros([self.steps, x.shape[0]])
         grad, loss_best, _ = self.forward(model, x_adv, y)
+        grad_best = grad.clone()
 
         step_size = self.eps * torch.ones_like(x).detach() * 2.0
         counter = 0
         indices = torch.arange(x.shape[0]).to(x.device)
         x_adv_prev = x_adv.clone()
         loss_best_last_check = loss_best.clone()
-        reduced_last_check = torch.zeros_like(loss_best, dtype=torch.bool)
+        reduced_last_check = torch.ones_like(loss_best, dtype=torch.bool)
 
         for i in range(self.steps):
             with torch.no_grad():
                 # iterate x_adv
+                x_adv = x_adv.detach()
                 d = x_adv - x_adv_prev
                 x_adv_prev = x_adv.clone()
                 alpha = 0.75 if i > 0 else 1.0
@@ -100,21 +102,24 @@ class Apgd(Attack):
                 # update x_best_adv
                 grad, loss, label_pred = self.forward(model, x_adv, y)
                 label_pred = label_pred.max(1)[1] == y
-                x_best_adv[(label_pred == 0).nonzero().squeeze()] = (
-                    x_adv[(label_pred == 0).nonzero().squeeze()] + 0.0
-                )
+                x_best_adv[(label_pred == 0).nonzero().squeeze()] = x_adv[
+                    (label_pred == 0).nonzero().squeeze()
+                ]
 
                 # update x_best
                 loss_steps[i] = loss
                 mask = (loss > loss_best).nonzero().squeeze()
                 x_best[mask] = x_adv[mask].clone()
                 loss_best[mask] = loss[mask]
+                grad_best[mask] = grad[mask].clone()
 
                 # update step_size
                 counter += 1
 
                 if counter == window:
-                    fl_oscillation = self.check_oscillation(loss_steps, i, window).to(x.device)
+                    fl_oscillation = self.check_oscillation(loss_steps, i, window).to(
+                        x.device
+                    )
                     fl_reduce_no_impr = (~reduced_last_check) * (
                         loss_best_last_check >= loss_best
                     )
@@ -128,8 +133,28 @@ class Apgd(Attack):
                         fl_oscillation = fl_oscillation.nonzero().squeeze()
 
                         x_adv[fl_oscillation] = x_best[fl_oscillation].clone()
+                        grad[fl_oscillation] = grad_best[fl_oscillation].clone()
 
                     counter = 0
                     window = max(window - window_delta, window_min)
 
         return x_best_adv
+
+    def attack(self, model, x, y):
+        x_adv = x.clone()
+        label_pred = model(x_adv)
+        acc = label_pred.max(1)[1] == y
+        idx_to_fool = acc.nonzero().squeeze(1)
+        if len(idx_to_fool) == 0:
+            idx_to_fool = idx_to_fool.unsqueeze(0)
+
+        if idx_to_fool.numel() != 0:
+            x_to_fool = x[idx_to_fool].clone()
+            y_to_fool = y[idx_to_fool].clone()
+            adv_curr = self.attack_single(model, x_to_fool, y_to_fool)
+            label_pred = model(adv_curr)
+            acc_curr = label_pred.max(1)[1] == y_to_fool
+            ind_curr = (acc_curr == 0).nonzero().squeeze()
+            acc[idx_to_fool[ind_curr]] = 0
+            x_adv[idx_to_fool[ind_curr]] = adv_curr[ind_curr]
+        return x_adv

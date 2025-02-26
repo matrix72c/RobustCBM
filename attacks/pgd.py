@@ -11,6 +11,7 @@ class Pgd(Attack):
         loss_fn: callable = lambda x, y: F.cross_entropy(x, y, reduction="none"),
         clip_min: float = 0.0,
         clip_max: float = 1.0,
+        **kwargs
     ):
         self.eps = eps
         self.alpha = alpha
