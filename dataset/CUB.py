@@ -443,6 +443,7 @@ CONCEPT_SEMANTICS = [
     "has_wing_pattern::multi-colored",
 ]
 
+
 class CUBDataSet(Dataset):
     def __init__(self, data_path, stage, num_concepts, resol):
         self.data = []
@@ -535,10 +536,10 @@ class CUB(L.LightningDataModule):
         # Generate a mapping containing all concept groups in CUB generated
         # using a simple prefix tree
         CONCEPT_GROUP_MAP = defaultdict(list)
-        for i, concept_name in enumerate(list(
-            np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS]
-        )):
-            group = concept_name[:concept_name.find("::")]
+        for i, concept_name in enumerate(
+            list(np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS])
+        ):
+            group = concept_name[: concept_name.find("::")]
             CONCEPT_GROUP_MAP[group].append(i)
         self.concept_group_map = CONCEPT_GROUP_MAP
 
@@ -568,6 +569,7 @@ class CUB(L.LightningDataModule):
             num_workers=24,
             pin_memory=True,
         )
+
 
 if __name__ == "__main__":
     data_path = "./data/"

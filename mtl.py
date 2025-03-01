@@ -50,6 +50,18 @@ def gradient_ordered(g0, g1):
         g0[name] = g0[name] + gamma * g1[name]
     return g0
 
+def mtl(losses, model, mode):
+    grads = [ get_grad(loss, model) for loss in losses ]
+    if mode == "equal":
+        return gradient_normalize(grads[0], grads[1])
+    elif mode == "ordered":
+        return gradient_ordered(grads[0], grads[1])
+    elif mode == "mgda":
+        return mgda(grads)
+    elif mode == "mgda_ordered":
+        return mgda_ordered(grads)
+    else:
+        raise ValueError("Unknown mode: {}".format(mode))
 
 def mgda(losses, model):
     """

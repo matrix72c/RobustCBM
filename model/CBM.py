@@ -1,13 +1,13 @@
 import random
 import numpy as np
 import lightning as L
-from utils import initialize_weights, modify_fc, build_base, cls_wrapper
+from utils import initialize_weights, build_base, cls_wrapper
 import torch
 from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
 import attacks
-from mtl import get_grad, gradient_normalize, gradient_ordered
+from mtl import mtl
 
 
 class CBM(L.LightningModule):
@@ -39,8 +39,7 @@ class CBM(L.LightningModule):
         num_concepts = dm.num_concepts
         real_concepts = dm.real_concepts
         self.dm = dm
-        self.base = build_base(base, use_pretrained)
-        modify_fc(self.base, base, num_concepts)
+        self.base = build_base(base, num_concepts, use_pretrained)
 
         if hidden_dim > 0:
             self.classifier = nn.Sequential(
@@ -122,13 +121,13 @@ class CBM(L.LightningModule):
     def forward(self, x, concepts=None):
         concept_pred = self.base(x)
         # human intervene
-        # if concepts is not None:
-        #     concept_pred = self.intervene(
-        #         concepts,
-        #         concept_pred,
-        #         self.hparams.intervene_budget,
-        #         self.concept_group_map,
-        #     )
+        if concepts is not None:
+            concept_pred = self.intervene(
+                concepts,
+                concept_pred,
+                self.hparams.intervene_budget,
+                self.concept_group_map,
+            )
 
         if self.hparams.cbm_mode == "fuzzy":
             concept = torch.sigmoid(concept_pred)
@@ -149,12 +148,7 @@ class CBM(L.LightningModule):
         if self.hparams.mtl_mode == "normal":
             self.manual_backward(loss)
         else:
-            g0 = get_grad(label_loss, self)
-            g1 = get_grad(concept_loss, self)
-            if self.hparams.mtl_mode == "equal":
-                g = gradient_normalize(g0, g1)
-            else:
-                g = gradient_ordered(g0, g1)
+            g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
             for name, param in self.named_parameters():
                 param.grad = g[name]
         return loss
@@ -213,7 +207,7 @@ class CBM(L.LightningModule):
 
     def on_test_start(self):
         concept_logits = []
-        for batch in self.dm.test_dataloader():
+        for batch in self.dm.train_dataloader():
             outputs = self(batch[0].to(self.device))
             concept_logits.append(outputs[1])
         c = torch.cat(concept_logits, dim=0).detach().cpu().numpy()
@@ -225,3 +219,9 @@ class CBM(L.LightningModule):
             neg_logits[idx] = torch.tensor(np.percentile(c[:, idx], 5))
         self.pos_logits = pos_logits
         self.neg_logits = neg_logits
+        if hasattr(self.dm, "concept_group_map"):
+            self.concept_group_map = self.dm.concept_group_map
+        else:
+            self.concept_group_map = {}
+            for idx in range(self.num_concepts):
+                self.concept_group_map[idx] = idx

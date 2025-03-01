@@ -128,7 +128,7 @@ def contrastive_loss(z, z_q, concepts, margin=1.0, lambda_neg=1.0):
     return pos_loss + lambda_neg * neg_loss
 
 
-def build_base(base, use_pretrained=True):
+def build_base(base, out_size, use_pretrained=True):
     if base == "resnet50":
         model = torchvision.models.resnet50(
             weights=(
@@ -157,6 +157,7 @@ def build_base(base, use_pretrained=True):
         )
     else:
         raise ValueError("Unknown base model")
+    modify_fc(model, base, out_size)
     return model
 
 

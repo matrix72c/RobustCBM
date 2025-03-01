@@ -52,7 +52,7 @@ def train(config):
         mode="max",
         enable_version_counter=False,
         save_weights_only=True,
-        every_n_epochs=20,
+        every_n_epochs=1,
     )
     early_stopping = EarlyStopping(
         monitor="lr", mode="min", patience=1000, stopping_threshold=1e-4
@@ -67,12 +67,15 @@ def train(config):
     )
     bucket = get_oss()
     ckpt_path = cfg.get("ckpt_path", None)
-    if ckpt_path is not None and bucket.object_exists(ckpt_path):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            fp = os.path.join(tmpdir, os.path.basename(ckpt_path))
-            print(f"Downloading {ckpt_path} to {fp}")
-            bucket.get_object_to_file(ckpt_path, fp)
-            model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
+    if ckpt_path is not None:
+        if os.path.exists(ckpt_path):
+            fp = ckpt_path
+        elif bucket.object_exists(ckpt_path):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                fp = os.path.join(tmpdir, os.path.basename(ckpt_path))
+                print(f"Downloading {ckpt_path} to {fp}")
+                bucket.get_object_to_file(ckpt_path, fp)
+        model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
         print("Load from checkpoint: ", ckpt_path)
     else:
         trainer.fit(model, dm)

@@ -20,7 +20,7 @@ scheduler_args:
 adv_mode: adv
 hidden_dim: 0
 cbm_mode: hybrid # "bool", "fuzzy", "hybrid"
-attacker: Apgd
+attacker: Pgd
 train_atk_args:
   eps: 0.01569
 eval_atk_args:
