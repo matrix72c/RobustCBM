@@ -1,12 +1,12 @@
 import torch
-from attacks import Attack, Apgd, Apgdt, Fab, Square
+from attacks import Attack, APGD, APGDT, Fab, Square
 
 
 class AutoAttack(Attack):
-    def __init__(self, eps: float = 0.3, **kwargs):
+    def __init__(self, eps: float = 4 / 255, **kwargs):
         self.attacks = [
-            Apgd(eps=eps, **kwargs),
-            Apgdt(eps=eps, **kwargs),
+            APGD(eps=eps, **kwargs),
+            APGDT(eps=eps, **kwargs),
             Fab(eps=eps, **kwargs),
             Square(eps=eps, **kwargs),
         ]

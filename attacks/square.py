@@ -12,7 +12,7 @@ class Square(Attack):
         self,
         eps=8 / 255,
         norm="Linf",
-        n_queries=5000,
+        n_queries=50,
         n_restarts=1,
         p_init=0.8,
         loss="margin",

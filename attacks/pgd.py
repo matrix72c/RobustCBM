@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from attacks import Attack
 
-class Pgd(Attack):
+class PGD(Attack):
     def __init__(
         self,
         eps: float = 8.0 / 255,
