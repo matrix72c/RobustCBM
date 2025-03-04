@@ -156,11 +156,11 @@ class CBM(L.LightningModule):
     def training_step(self, batch, batch_idx):
         img, label, concepts = batch
         if self.adv_mode == "adv":
-            bs = img.shape[0] // 2
-            adv_img = self.train_atk(cls_wrapper(self), img[:bs], label[:bs])
-            img = torch.cat([img[:bs], adv_img], dim=0)
-            label = torch.cat([label[:bs], label[:bs]], dim=0)
-            concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
+            # bs = img.shape[0] // 2
+            img = self.train_atk(cls_wrapper(self), img, label)
+            # img = torch.cat([img[:bs], adv_img], dim=0)
+            # label = torch.cat([label[:bs], label[:bs]], dim=0)
+            # concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
         loss = self.train_step(img, label, concepts)
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
         self.optimizers().step()
@@ -205,7 +205,7 @@ class CBM(L.LightningModule):
     def test_step(self, batch, batch_idx):
         self.eval_step(batch)
 
-    def on_test_start(self):
+    def prepare_intervene(self):
         concept_logits = []
         for batch in self.dm.train_dataloader():
             outputs = self(batch[0].to(self.device))
