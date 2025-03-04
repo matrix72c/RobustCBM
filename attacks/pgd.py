@@ -22,18 +22,20 @@ class PGD(Attack):
 
     @torch.enable_grad()
     def attack(self, model, x, y):
-        x_adv = x.clone().detach() + torch.zeros_like(x).uniform_(
-            -self.eps, self.eps
-        )
-        x_adv = torch.clamp(x_adv, self.clip_min, self.clip_max)
+        delta = torch.zeros_like(x).uniform_(-self.eps, self.eps)
+        delta = torch.clamp(delta, -self.eps, self.eps)
+        x_adv = torch.clamp(x + delta, self.clip_min, self.clip_max).detach()
 
         for _ in range(self.steps):
             x_adv.requires_grad = True
             o = model(x_adv)
             loss = self.loss_fn(o, y)
             loss.backward()
-            x_adv = x_adv.detach() + self.alpha * x_adv.grad.sign()
-            delta = torch.clamp(x_adv - x, min=-self.eps, max=self.eps)
-            x_adv = torch.clamp(x + delta, self.clip_min, self.clip_max).detach()
+
+            with torch.no_grad():
+                grad = x_adv.grad.detach()
+                x_adv = x_adv.detach() + self.alpha * grad.sign()
+                delta = torch.clamp(x_adv - x, min=-self.eps, max=self.eps)
+                x_adv = torch.clamp(x + delta, self.clip_min, self.clip_max)
 
         return x_adv
