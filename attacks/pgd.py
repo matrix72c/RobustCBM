@@ -8,7 +8,7 @@ class PGD(Attack):
         eps: float = 8.0 / 255,
         alpha: float = 2.0 / 255,
         steps: int = 10,
-        loss_fn: callable = lambda x, y: F.cross_entropy(x, y, reduction="none"),
+        loss_fn: callable = F.cross_entropy,
         clip_min: float = 0.0,
         clip_max: float = 1.0,
         **kwargs
@@ -31,10 +31,9 @@ class PGD(Attack):
             x_adv.requires_grad = True
             o = model(x_adv)
             loss = self.loss_fn(o, y)
-            grad = torch.autograd.grad(loss.sum(), [x_adv])[0]
-            x_adv = x_adv.detach() + self.alpha * grad.sign()
-            x_adv = torch.min(
-                torch.max(x_adv, x - self.eps), x + self.eps
-            ).clamp(self.clip_min, self.clip_max)
+            loss.backward()
+            x_adv = x_adv.detach() + self.alpha * x_adv.grad.sign()
+            delta = torch.clamp(x_adv - x, min=-self.eps, max=self.eps)
+            x_adv = torch.clamp(x + delta, self.clip_min, self.clip_max).detach()
 
         return x_adv
