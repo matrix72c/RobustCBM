@@ -5,8 +5,8 @@ from attacks import Attack
 class PGD(Attack):
     def __init__(
         self,
-        eps: float = 8.0 / 255,
-        alpha: float = 2.0 / 255,
+        eps: float = 4.0 / 255,
+        alpha: float = 4.0 / 2550,
         steps: int = 10,
         loss_fn: callable = F.cross_entropy,
         clip_min: float = 0.0,

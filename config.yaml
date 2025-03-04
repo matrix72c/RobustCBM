@@ -1,5 +1,5 @@
 seed: 42
-gpus: 0
+gpus: auto
 patience: 50
 epochs: -1
 
@@ -23,9 +23,9 @@ hidden_dim: 0
 cbm_mode: hybrid # "bool", "fuzzy", "hybrid"
 attacker: PGD
 train_atk_args:
-  eps: 0.01569
+  steps: 7
 eval_atk_args:
-  eps: 0.01569
+  steps: 10
 adv_loss: ce # "ce", "bce", "combo"
 mtl_mode: normal # "normal", "equal", "ordered"
 
