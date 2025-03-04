@@ -32,7 +32,7 @@ def train(config):
         for k, v in d:
             if isinstance(v, dict):
                 d.remove((k, v))
-        name = "_".join(["{}".format(t[1]) for t in d])
+        name = "_".join([f"{k}_{v}" for k, v in d])
         name = name.lower()
     wandb.run.name = name
     wandb.run.tags = [
@@ -61,7 +61,7 @@ def train(config):
     trainer = Trainer(
         accelerator="gpu",
         devices=cfg["gpus"],
-        log_every_n_steps=10,
+        log_every_n_steps=1,
         logger=logger,
         callbacks=callbacks,
         max_epochs=cfg["epochs"],
@@ -77,6 +77,8 @@ def train(config):
                 fp = os.path.join(tmpdir, os.path.basename(ckpt_path))
                 print(f"Downloading {ckpt_path} to {fp}")
                 bucket.get_object_to_file(ckpt_path, fp)
+        else:
+            raise ValueError(f"Checkpoint {ckpt_path} not found")
         model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
         print("Load from checkpoint: ", ckpt_path)
     else:
