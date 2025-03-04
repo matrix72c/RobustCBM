@@ -59,6 +59,8 @@ def train(config):
     )
     callbacks = [checkpoint_callback, early_stopping]
     trainer = Trainer(
+        accelerator="gpu",
+        devices=cfg["gpus"],
         log_every_n_steps=10,
         logger=logger,
         callbacks=callbacks,

@@ -1,4 +1,5 @@
 seed: 42
+gpus: 0
 patience: 50
 epochs: -1
 
