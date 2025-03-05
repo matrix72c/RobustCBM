@@ -33,7 +33,8 @@ class CBM(L.LightningModule):
         **kwargs,
     ):
         super().__init__()
-        self.automatic_optimization = False
+        if mtl_mode != "normal":
+            self.automatic_optimization = False
         self.save_hyperparameters(ignore="dm")
         num_classes = dm.num_classes
         num_concepts = dm.num_concepts
@@ -145,9 +146,7 @@ class CBM(L.LightningModule):
         )
         label_loss = F.cross_entropy(label_pred, label)
         loss = label_loss + self.hparams.concept_weight * concept_loss
-        if self.hparams.mtl_mode == "normal":
-            self.manual_backward(loss)
-        else:
+        if self.hparams.mtl_mode != "normal":
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
             for name, param in self.named_parameters():
                 param.grad = g[name]
@@ -163,9 +162,12 @@ class CBM(L.LightningModule):
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
         loss = self.train_step(img, label, concepts)
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
-        self.optimizers().step()
-        self.optimizers().zero_grad()
-        self.log("loss", loss, prog_bar=True, on_step=True, on_epoch=False)
+        if self.hparams.mtl_mode != "normal":
+            self.optimizers().step()
+            self.optimizers().zero_grad()
+        self.log(
+            "loss", loss, prog_bar=True, on_step=True, on_epoch=False, sync_dist=True
+        )
         return loss
 
     def on_train_epoch_end(self):
@@ -190,16 +192,27 @@ class CBM(L.LightningModule):
         self.acc5(label_pred, label)
         self.acc10(label_pred, label)
         self.log(
-            "concept_acc", self.concept_acc, on_epoch=True, on_step=False, prog_bar=True
+            "concept_acc",
+            self.concept_acc,
+            on_epoch=True,
+            on_step=False,
+            prog_bar=True,
+            sync_dist=True,
         )
-        self.log("acc", self.acc, on_epoch=True, on_step=False, prog_bar=True)
-        self.log("acc5", self.acc5, on_epoch=True, on_step=False)
-        self.log("acc10", self.acc10, on_epoch=True, on_step=False)
+        self.log(
+            "acc", self.acc, on_epoch=True, on_step=False, prog_bar=True, sync_dist=True
+        )
+        self.log("acc5", self.acc5, on_epoch=True, on_step=False, sync_dist=True)
+        self.log("acc10", self.acc10, on_epoch=True, on_step=False, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
         self.eval_step(batch)
         self.log(
-            "lr", self.optimizers().param_groups[0]["lr"], on_step=False, on_epoch=True
+            "lr",
+            self.optimizers().param_groups[0]["lr"],
+            on_step=False,
+            on_epoch=True,
+            sync_dist=True,
         )
 
     def test_step(self, batch, batch_idx):
