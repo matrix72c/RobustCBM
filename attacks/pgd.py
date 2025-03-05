@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 from attacks import Attack
 
+
 class PGD(Attack):
     def __init__(
         self,
@@ -21,21 +22,28 @@ class PGD(Attack):
         self.clip_max = clip_max
 
     @torch.enable_grad()
+    @torch.inference_mode(False)
     def attack(self, model, x, y):
+        for param in model.parameters():
+            param.requires_grad = False
+
         delta = torch.zeros_like(x).uniform_(-self.eps, self.eps)
-        delta = torch.clamp(delta, -self.eps, self.eps)
-        x_adv = torch.clamp(x + delta, self.clip_min, self.clip_max).detach()
+        delta.requires_grad_(True)
 
         for _ in range(self.steps):
-            x_adv.requires_grad = True
+            x_adv = x + delta
             o = model(x_adv)
             loss = self.loss_fn(o, y)
             loss.backward()
 
-            with torch.no_grad():
-                grad = x_adv.grad.detach()
-                x_adv = x_adv.detach() + self.alpha * grad.sign()
-                delta = torch.clamp(x_adv - x, min=-self.eps, max=self.eps)
-                x_adv = torch.clamp(x + delta, self.clip_min, self.clip_max)
+            grad_sign = delta.grad.data.sign()
+            delta.data += self.alpha * grad_sign
+            delta.data = torch.clamp(delta.data, min=-self.eps, max=self.eps)
+            delta.data = (
+                torch.clamp(x + delta.data, self.clip_min, self.clip_max) - x
+            )
 
-        return x_adv
+            delta.grad.data.zero_()
+
+        model.zero_grad()
+        return (x + delta).data

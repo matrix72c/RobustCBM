@@ -84,8 +84,9 @@ def train(config):
     else:
         trainer.fit(model, dm)
         ckpt_path = "checkpoints/" + wandb.run.name + ".ckpt"
-        bucket.put_object_from_file(ckpt_path, ckpt_path)
-        model = model.__class__.load_from_checkpoint(ckpt_path, dm=dm, **cfg)
+        best = trainer.checkpoint_callback.best_model_path
+        bucket.put_object_from_file(ckpt_path, best)
+        model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
     return trainer, model, dm
 
 

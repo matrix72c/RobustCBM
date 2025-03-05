@@ -1,5 +1,5 @@
 import torch
-
+from torch.nn.modules.batchnorm import _BatchNorm
 
 class Attack(object):
     r"""
@@ -19,13 +19,17 @@ class Attack(object):
             p.requires_grad = False
         training = False
         if model.training:
-            model.eval()
             training = True
+            for module in model.modules():
+                if isinstance(module, _BatchNorm):
+                    module.track_running_stats = False
         x = x.clone().detach()
         y = y.clone().detach()
         x_adv = self.attack(model, x, y)
         if training:
-            model.train()
+            for module in model.modules():
+                if isinstance(module, _BatchNorm):
+                    module.track_running_stats = True
         for name, p in model.named_parameters():
             p.requires_grad = params_requires_grad[name]
         return x_adv
