@@ -32,7 +32,8 @@ def train(config):
         for k, v in d:
             if isinstance(v, dict):
                 d.remove((k, v))
-        name = "_".join([f"{k}_{v}" for k, v in d])
+                (d.append(k1, v1) for k1, v1 in v.items())
+        name = "_".join([f"{v}" if isinstance(v, str) else f"{k}-{v}" for k, v in d])
         name = name.lower()
     wandb.run.name = name
     wandb.run.tags = [
@@ -61,6 +62,7 @@ def train(config):
     trainer = Trainer(
         accelerator="gpu",
         devices=cfg["gpus"],
+        strategy="ddp",
         log_every_n_steps=1,
         logger=logger,
         callbacks=callbacks,
