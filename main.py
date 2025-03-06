@@ -32,23 +32,25 @@ def train(config):
         for k, v in d:
             if isinstance(v, dict):
                 d.remove((k, v))
-                (d.append(k1, v1) for k1, v1 in v.items())
+                d.extend(v.items())
         name = "_".join([f"{v}" if isinstance(v, str) else f"{k}-{v}" for k, v in d])
         name = name.lower()
-    wandb.run.name = name
-    wandb.run.tags = [
-        cfg["model"],
-        cfg["dataset"],
-        cfg["adv_mode"],
-        cfg["base"],
-    ]
-    wandb.config.update(cfg)
 
-    logger = WandbLogger()
+    logger = WandbLogger(
+        name=name,
+        project="CBM",
+        config=cfg,
+        tags=[
+            cfg["model"],
+            cfg["dataset"],
+            cfg["adv_mode"],
+            cfg["base"],
+        ],
+    )
     checkpoint_callback = ModelCheckpoint(
         monitor="acc",
         dirpath="checkpoints/",
-        filename=wandb.run.name,
+        filename=name,
         save_top_k=1,
         mode="max",
         enable_version_counter=False,
@@ -132,5 +134,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     with open(args.config, "r") as f:
         c = yaml.safe_load(f)
-    wandb.init(project="RobustCBM")
     exp(c)
