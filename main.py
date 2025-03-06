@@ -10,6 +10,7 @@ from lightning.pytorch import seed_everything
 import torch
 import wandb
 import yaml, argparse
+import math
 from utils import get_oss
 import model as pl_model
 import dataset
@@ -20,6 +21,7 @@ def train(config):
     with open("config.yaml", "r") as f:
         cfg = yaml.safe_load(f)
     cfg.update(config)
+    config = cfg
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg["seed"])
     dm = getattr(dataset, cfg["dataset"])(**cfg)
@@ -134,7 +136,7 @@ def exp(config):
                 "ASR@10": asr10,
                 "Concept ASR@1": concept_asr,
             },
-            step=i,
+            step=i if (i >= 1 or i == 0) else int(-math.log10(i)),
         )
 
     wandb.run.summary["eps"] = eps
@@ -146,6 +148,41 @@ def exp(config):
     wandb.run.summary["ASR@10"] = asr10s
     wandb.run.summary["Concept Acc@1"] = concept_accs
     wandb.run.summary["Concept ASR@1"] = concept_asrs
+
+    for eps in [0, 4]:
+        for i in range(config["max_intervene_budget"] + 1):
+            model.intervene_budget = i
+            if eps > 0:
+                model.eval_atk = PGD(eps=eps / 255)
+                model.adv_mode = "adv"
+            else:
+                model.adv_mode = "std"
+            ret = trainer.test(model, datamodule=dm)[0]
+            acc = ret["acc"]
+            concept_acc = ret["concept_acc"]
+            if eps == 0 and i == 0:
+                ca = acc
+                clean_concept_acc = concept_acc
+
+            if eps == 0:
+                wandb.log(
+                    {
+                        "Clean Acc under Intervene": acc,
+                        "Clean Concept Acc under Intervene": concept_acc,
+                    },
+                    step=i,
+                )
+            else:
+                wandb.log(
+                    {
+                        "Robust Acc under Intervene": acc,
+                        "Robust Concept Acc under Intervene": concept_acc,
+                        "ASR under Intervene": (ca - acc) / ca,
+                        "Concept ASR under Intervene": (clean_concept_acc - concept_acc) / clean_concept_acc,
+                    },
+                    step=i,
+                )
+
 
 
 if __name__ == "__main__":
