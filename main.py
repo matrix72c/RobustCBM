@@ -21,7 +21,6 @@ def train(config):
     with open("config.yaml", "r") as f:
         cfg = yaml.safe_load(f)
     cfg.update(config)
-    config = cfg
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg["seed"])
     dm = getattr(dataset, cfg["dataset"])(**cfg)
@@ -38,6 +37,7 @@ def train(config):
         name = "_".join([f"{v}" if isinstance(v, str) else f"{k}-{v}" for k, v in d])
         name = name.lower()
 
+    config = cfg
     logger = WandbLogger(
         name=name,
         project="CBM",
@@ -92,14 +92,17 @@ def train(config):
         ckpt_path = "checkpoints/" + wandb.run.name + ".ckpt"
         best = trainer.checkpoint_callback.best_model_path
         bucket.put_object_from_file(ckpt_path, best)
+        print(f"Upload {best} to {ckpt_path}")
         model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
     return trainer, model, dm
 
 
 def exp(config):
+    with open("config.yaml", "r") as f:
+        cfg = yaml.safe_load(f)
     trainer, model, dm = train(config)
     if model.adv_mode == "std":
-        eps = [0, 0.0001, 0.001, 0.01, 0.1, 1.0]
+        eps = [0, 0.0001, 0.001, 0.01, 0.1, 1]
     else:
         eps = list(range(5))
     accs, acc5s, acc10s, asrs, asr5s, asr10s = [], [], [], [], [], []
@@ -118,6 +121,7 @@ def exp(config):
             ca, ca5, ca10 = acc, acc5, acc10
             clean_concept_acc = concept_acc
             asr, asr5, asr10 = 0, 0, 0
+            concept_asr = 0
         else:
             asr = (ca - acc) / ca
             asr5 = (ca5 - acc5) / ca5
@@ -135,8 +139,8 @@ def exp(config):
                 "ASR@5": asr5,
                 "ASR@10": asr10,
                 "Concept ASR@1": concept_asr,
+                "eps": i if (i >= 1 or i == 0) else int(math.log10(i) - math.log10(min(x for x in eps if x > 0)) + 1),
             },
-            step=i if (i >= 1 or i == 0) else int(-math.log10(i)),
         )
 
     wandb.run.summary["eps"] = eps
@@ -150,7 +154,7 @@ def exp(config):
     wandb.run.summary["Concept ASR@1"] = concept_asrs
 
     for eps in [0, 4]:
-        for i in range(config["max_intervene_budget"] + 1):
+        for i in range(cfg["max_intervene_budget"] + 1):
             model.intervene_budget = i
             if eps > 0:
                 model.eval_atk = PGD(eps=eps / 255)
@@ -169,8 +173,8 @@ def exp(config):
                     {
                         "Clean Acc under Intervene": acc,
                         "Clean Concept Acc under Intervene": concept_acc,
+                        "Intervene Budget": i,
                     },
-                    step=i,
                 )
             else:
                 wandb.log(
@@ -178,11 +182,11 @@ def exp(config):
                         "Robust Acc under Intervene": acc,
                         "Robust Concept Acc under Intervene": concept_acc,
                         "ASR under Intervene": (ca - acc) / ca,
-                        "Concept ASR under Intervene": (clean_concept_acc - concept_acc) / clean_concept_acc,
+                        "Concept ASR under Intervene": (clean_concept_acc - concept_acc)
+                        / clean_concept_acc,
+                        "Intervene Budget": i,
                     },
-                    step=i,
                 )
-
 
 
 if __name__ == "__main__":
@@ -191,4 +195,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     with open(args.config, "r") as f:
         c = yaml.safe_load(f)
-    exp(c)
+    
+    if isinstance(c, list):
+        for config in c:
+            exp(config)
+    elif isinstance(c, dict):
+        exp(c)

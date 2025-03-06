@@ -55,6 +55,7 @@ class CBM(L.LightningModule):
         self.real_concepts = real_concepts
         self.num_classes = num_classes
         self.num_concepts = num_concepts
+        self.intervene_budget = intervene_budget
 
         self.concept_acc = Accuracy(
             task="multilabel", num_labels=min(num_concepts, real_concepts)
@@ -126,7 +127,7 @@ class CBM(L.LightningModule):
             concept_pred = self.intervene(
                 concepts,
                 concept_pred,
-                self.hparams.intervene_budget,
+                self.intervene_budget,
                 self.concept_group_map,
             )
 
@@ -179,7 +180,7 @@ class CBM(L.LightningModule):
         img, label, concepts = batch
         if self.adv_mode == "adv":
             img = self.eval_atk(cls_wrapper(self), img, label)
-        if self.hparams.intervene_budget > 0:
+        if self.intervene_budget > 0:
             outputs = self(img, concepts)
         else:
             outputs = self(img)
