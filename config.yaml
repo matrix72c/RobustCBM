@@ -6,7 +6,7 @@ epochs: -1
 model: CBM
 base: resnet50
 use_pretrained: True
-concept_weight: 0.01
+concept_weight: 1
 optimizer: SGD
 optimizer_args:
   momentum: 0.9
