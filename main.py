@@ -74,17 +74,17 @@ def train(config):
     bucket = get_oss()
     ckpt_path = cfg.get("ckpt_path", None)
     if ckpt_path is not None:
-        if os.path.exists(ckpt_path):
-            fp = ckpt_path
-        elif bucket.object_exists(ckpt_path):
-            with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            if os.path.exists(ckpt_path):
+                fp = ckpt_path
+            elif bucket.object_exists(ckpt_path):
                 fp = os.path.join(tmpdir, os.path.basename(ckpt_path))
-                print(f"Downloading {ckpt_path} to {fp}")
                 bucket.get_object_to_file(ckpt_path, fp)
-        else:
-            raise ValueError(f"Checkpoint {ckpt_path} not found")
-        model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
-        print("Load from checkpoint: ", ckpt_path)
+                print(f"Download {ckpt_path} to {fp}")
+            else:
+                raise ValueError(f"Checkpoint {ckpt_path} not found")
+            model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
+            print("Load from checkpoint: ", ckpt_path)
     else:
         trainer.fit(model, dm)
         ckpt_path = "checkpoints/" + wandb.run.name + ".ckpt"
@@ -101,6 +101,7 @@ def exp(config):
     else:
         eps = list(range(5))
     accs, acc5s, acc10s, asrs, asr5s, asr10s = [], [], [], [], [], []
+    concept_accs, concept_asrs = [], []
     for i in eps:
         if i > 0:
             model.eval_atk = PGD(eps=i / 255)
@@ -110,14 +111,31 @@ def exp(config):
         ret = trainer.test(model, datamodule=dm)[0]
         acc, acc5, acc10 = ret["acc"], ret["acc5"], ret["acc10"]
         accs.append(acc), acc5s.append(acc5), acc10s.append(acc10)
+        concept_acc = ret["concept_acc"]
         if i == 0:
             ca, ca5, ca10 = acc, acc5, acc10
+            clean_concept_acc = concept_acc
             asr, asr5, asr10 = 0, 0, 0
         else:
             asr = (ca - acc) / ca
             asr5 = (ca5 - acc5) / ca5
             asr10 = (ca10 - acc10) / ca10
+            concept_asr = (clean_concept_acc - concept_acc) / clean_concept_acc
         asrs.append(asr), asr5s.append(asr5), asr10s.append(asr10)
+        concept_accs.append(concept_acc), concept_asrs.append(concept_asr)
+        wandb.log(
+            {
+                "Acc@1": acc,
+                "Acc@5": acc5,
+                "Acc@10": acc10,
+                "Concept Acc@1": concept_acc,
+                "ASR@1": asr,
+                "ASR@5": asr5,
+                "ASR@10": asr10,
+                "Concept ASR@1": concept_asr,
+            },
+            step=i,
+        )
 
     wandb.run.summary["eps"] = eps
     wandb.run.summary["Acc@1"] = accs
@@ -126,6 +144,8 @@ def exp(config):
     wandb.run.summary["ASR@1"] = asrs
     wandb.run.summary["ASR@5"] = asr5s
     wandb.run.summary["ASR@10"] = asr10s
+    wandb.run.summary["Concept Acc@1"] = concept_accs
+    wandb.run.summary["Concept ASR@1"] = concept_asrs
 
 
 if __name__ == "__main__":
