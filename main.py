@@ -153,40 +153,41 @@ def exp(config):
     wandb.run.summary["Concept Acc@1"] = concept_accs
     wandb.run.summary["Concept ASR@1"] = concept_asrs
 
-    for eps in [0, 4]:
-        for i in range(cfg["max_intervene_budget"] + 1):
-            model.intervene_budget = i
-            if eps > 0:
-                model.eval_atk = PGD(eps=eps / 255)
-                model.adv_mode = "adv"
-            else:
-                model.adv_mode = "std"
-            ret = trainer.test(model, datamodule=dm)[0]
-            acc = ret["acc"]
-            concept_acc = ret["concept_acc"]
-            if eps == 0 and i == 0:
-                ca = acc
-                clean_concept_acc = concept_acc
+    if cfg["model"] != "backbone":
+        for eps in [0, 4]:
+            for i in range(cfg["max_intervene_budget"] + 1):
+                model.intervene_budget = i
+                if eps > 0:
+                    model.eval_atk = PGD(eps=eps / 255)
+                    model.adv_mode = "adv"
+                else:
+                    model.adv_mode = "std"
+                ret = trainer.test(model, datamodule=dm)[0]
+                acc = ret["acc"]
+                concept_acc = ret["concept_acc"]
+                if eps == 0 and i == 0:
+                    ca = acc
+                    clean_concept_acc = concept_acc
 
-            if eps == 0:
-                wandb.log(
-                    {
-                        "Clean Acc under Intervene": acc,
-                        "Clean Concept Acc under Intervene": concept_acc,
-                        "Intervene Budget": i,
-                    },
-                )
-            else:
-                wandb.log(
-                    {
-                        "Robust Acc under Intervene": acc,
-                        "Robust Concept Acc under Intervene": concept_acc,
-                        "ASR under Intervene": (ca - acc) / ca,
-                        "Concept ASR under Intervene": (clean_concept_acc - concept_acc)
-                        / clean_concept_acc,
-                        "Intervene Budget": i,
-                    },
-                )
+                if eps == 0:
+                    wandb.log(
+                        {
+                            "Clean Acc under Intervene": acc,
+                            "Clean Concept Acc under Intervene": concept_acc,
+                            "Intervene Budget": i,
+                        },
+                    )
+                else:
+                    wandb.log(
+                        {
+                            "Robust Acc under Intervene": acc,
+                            "Robust Concept Acc under Intervene": concept_acc,
+                            "ASR under Intervene": (ca - acc) / ca,
+                            "Concept ASR under Intervene": (clean_concept_acc - concept_acc)
+                            / clean_concept_acc,
+                            "Intervene Budget": i,
+                        },
+                    )
 
 
 if __name__ == "__main__":
