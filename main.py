@@ -188,6 +188,7 @@ def exp(config):
                             "Intervene Budget": i,
                         },
                     )
+    wandb.finish()
 
 
 if __name__ == "__main__":
