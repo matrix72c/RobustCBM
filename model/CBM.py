@@ -1,3 +1,4 @@
+import math
 import random
 import numpy as np
 import lightning as L
@@ -65,6 +66,7 @@ class CBM(L.LightningModule):
         self.acc10 = Accuracy(task="multiclass", num_classes=num_classes, top_k=10)
 
         self.adv_mode = adv_mode
+        self.current_eps = train_atk_args.get("eps", 0)
         self.train_atk = getattr(attacks, attacker)(
             num_classes=num_classes,
             **train_atk_args,
@@ -73,6 +75,7 @@ class CBM(L.LightningModule):
             num_classes=num_classes,
             **eval_atk_args,
         )
+        self.eval_stage = "robust"
 
     def configure_optimizers(self):
         optimizer = getattr(torch.optim, self.hparams.optimizer)(
@@ -192,29 +195,24 @@ class CBM(L.LightningModule):
         self.acc(label_pred, label)
         self.acc5(label_pred, label)
         self.acc10(label_pred, label)
-        self.log(
-            "concept_acc",
-            self.concept_acc,
-            on_epoch=True,
-            on_step=False,
-            prog_bar=True,
-            sync_dist=True,
-        )
-        self.log(
-            "acc", self.acc, on_epoch=True, on_step=False, prog_bar=True, sync_dist=True
-        )
-        self.log("acc5", self.acc5, on_epoch=True, on_step=False, sync_dist=True)
-        self.log("acc10", self.acc10, on_epoch=True, on_step=False, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
         self.eval_step(batch)
+
+    def on_validation_epoch_end(self):
         self.log(
             "lr",
             self.optimizers().param_groups[0]["lr"],
-            on_step=False,
-            on_epoch=True,
             sync_dist=True,
         )
+        self.log("acc", self.acc.compute(), sync_dist=True)
+        self.log("acc5", self.acc5.compute(), sync_dist=True)
+        self.log("acc10", self.acc10.compute(), sync_dist=True)
+        self.log("concept_acc", self.concept_acc.compute(), sync_dist=True)
+        self.acc.reset()
+        self.acc5.reset()
+        self.acc10.reset()
+        self.concept_acc.reset()
 
     def test_step(self, batch, batch_idx):
         self.eval_step(batch)
@@ -239,3 +237,61 @@ class CBM(L.LightningModule):
             self.concept_group_map = {}
             for idx in range(self.num_concepts):
                 self.concept_group_map[idx] = idx
+
+    def on_test_epoch_end(self):
+        acc = self.acc.compute()
+        acc5 = self.acc5.compute()
+        acc10 = self.acc10.compute()
+        concept_acc = self.concept_acc.compute()
+
+        if self.current_eps == 0:
+            self.clean_acc = acc
+            self.clean_acc5 = acc5
+            self.clean_acc10 = acc10
+            self.clean_concept_acc = concept_acc
+            asr, asr5, asr10, concept_asr = 0, 0, 0, 0
+        else:
+            asr = (self.clean_acc - acc) / self.clean_acc
+            asr5 = (self.clean_acc5 - acc5) / self.clean_acc5
+            asr10 = (self.clean_acc10 - acc10) / self.clean_acc10
+
+        if self.eval_stage == "robust":
+            self.log_dict(
+                {
+                    "Acc@1": acc,
+                    "Acc@5": acc5,
+                    "Acc@10": acc10,
+                    "Concept Acc@1": concept_acc,
+                    "ASR@1": asr,
+                    "ASR@5": asr5,
+                    "ASR@10": asr10,
+                    "Concept ASR@1": concept_asr,
+                    "eps": (
+                        self.current_eps
+                        if isinstance(self.current_eps, int)
+                        else int(math.log10(self.current_eps) + 5)
+                    ),
+                },
+                sync_dist=True,
+            )
+        elif self.eval_stage == "intervene":
+            if self.current_eps == 0:
+                self.log_dict(
+                    {
+                        "Clean Acc under Intervene": acc,
+                        "Clean Concept Acc under Intervene": concept_acc,
+                        "Intervene Budget": self.intervene_budget,
+                    },
+                    sync_dist=True,
+                )
+            else:
+                self.log_dict(
+                    {
+                        "Robust Acc under Intervene": acc,
+                        "Robust Concept Acc under Intervene": concept_acc,
+                        "ASR under Intervene": asr,
+                        "Concept ASR under Intervene": concept_asr,
+                        "Intervene Budget": self.intervene_budget,
+                    },
+                    sync_dist=True,
+                )

@@ -10,7 +10,6 @@ from lightning.pytorch import seed_everything
 import torch
 import wandb
 import yaml, argparse
-import math
 from utils import get_oss
 import model as pl_model
 import dataset
@@ -94,65 +93,20 @@ def exp(config):
         print(f"Upload {best} to {ckpt_path}")
         model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
 
-    wandb.init(
-        name="Eval_" + name,
-        project="CBM",
-        config=cfg,
-        tags=[
-            cfg["model"],
-            cfg["dataset"],
-            cfg["adv_mode"],
-            cfg["base"],
-        ],
-    )
+    model.eval_stage = "robust"
     if model.adv_mode == "std":
-        eps = [0, 0.0001, 0.001, 0.01, 0.1, 1]
+        eps = [0, 0.0001, 0.001, 0.01, 0.1, 1.0]
     else:
         eps = list(range(5))
-    accs, acc5s, acc10s, asrs, asr5s, asr10s = [], [], [], [], [], []
-    concept_accs, concept_asrs = [], []
     for i in eps:
         if i > 0:
             model.eval_atk = PGD(eps=i / 255)
             model.adv_mode = "adv"
         else:
             model.adv_mode = "std"
-        ret = trainer.test(model, datamodule=dm)[0]
-        acc, acc5, acc10 = ret["acc"], ret["acc5"], ret["acc10"]
-        accs.append(acc), acc5s.append(acc5), acc10s.append(acc10)
-        concept_acc = ret["concept_acc"]
-        if i == 0:
-            ca, ca5, ca10 = acc, acc5, acc10
-            clean_concept_acc = concept_acc
-            asr, asr5, asr10 = 0, 0, 0
-            concept_asr = 0
-        else:
-            asr = (ca - acc) / ca
-            asr5 = (ca5 - acc5) / ca5
-            asr10 = (ca10 - acc10) / ca10
-            concept_asr = (clean_concept_acc - concept_acc) / clean_concept_acc
-        asrs.append(asr), asr5s.append(asr5), asr10s.append(asr10)
-        concept_accs.append(concept_acc), concept_asrs.append(concept_asr)
-        wandb.log(
-            {
-                "Acc@1": acc,
-                "Acc@5": acc5,
-                "Acc@10": acc10,
-                "Concept Acc@1": concept_acc,
-                "ASR@1": asr,
-                "ASR@5": asr5,
-                "ASR@10": asr10,
-                "Concept ASR@1": concept_asr,
-                "eps": (
-                    i
-                    if (i >= 1 or i == 0)
-                    else int(
-                        math.log10(i) - math.log10(min(x for x in eps if x > 0)) + 1
-                    )
-                ),
-            },
-        )
+        trainer.test(model, datamodule=dm)
 
+    model.eval_stage = "intervene"
     if cfg["model"] != "backbone":
         for eps in [0, 4]:
             for i in range(cfg["max_intervene_budget"] + 1):
@@ -162,34 +116,8 @@ def exp(config):
                     model.adv_mode = "adv"
                 else:
                     model.adv_mode = "std"
-                ret = trainer.test(model, datamodule=dm)[0]
-                acc = ret["acc"]
-                concept_acc = ret["concept_acc"]
-                if eps == 0 and i == 0:
-                    ca = acc
-                    clean_concept_acc = concept_acc
+                trainer.test(model, datamodule=dm)
 
-                if eps == 0:
-                    wandb.log(
-                        {
-                            "Clean Acc under Intervene": acc,
-                            "Clean Concept Acc under Intervene": concept_acc,
-                            "Intervene Budget": i,
-                        },
-                    )
-                else:
-                    wandb.log(
-                        {
-                            "Robust Acc under Intervene": acc,
-                            "Robust Concept Acc under Intervene": concept_acc,
-                            "ASR under Intervene": (ca - acc) / ca,
-                            "Concept ASR under Intervene": (
-                                clean_concept_acc - concept_acc
-                            )
-                            / clean_concept_acc,
-                            "Intervene Budget": i,
-                        },
-                    )
     wandb.finish()
 
 
