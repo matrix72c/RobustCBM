@@ -256,42 +256,31 @@ class CBM(L.LightningModule):
             asr10 = (self.clean_acc10 - acc10) / self.clean_acc10
 
         if self.eval_stage == "robust":
-            self.log_dict(
-                {
-                    "Acc@1": acc,
-                    "Acc@5": acc5,
-                    "Acc@10": acc10,
-                    "Concept Acc@1": concept_acc,
-                    "ASR@1": asr,
-                    "ASR@5": asr5,
-                    "ASR@10": asr10,
-                    "Concept ASR@1": concept_asr,
-                    "eps": (
-                        self.current_eps
-                        if isinstance(self.current_eps, int)
-                        else int(math.log10(self.current_eps) + 5)
-                    ),
-                },
+            self.log("Acc@1", acc, sync_dist=True)
+            self.log("Acc@5", acc5, sync_dist=True)
+            self.log("Acc@10", acc10, sync_dist=True)
+            self.log("Concept Acc@1", concept_acc, sync_dist=True)
+            self.log("ASR@1", asr, sync_dist=True)
+            self.log("ASR@5", asr5, sync_dist=True)
+            self.log("ASR@10", asr10, sync_dist=True)
+            self.log("Concept ASR@1", concept_asr, sync_dist=True)
+            self.log(
+                "eps",
+                (
+                    self.current_eps
+                    if isinstance(self.current_eps, int)
+                    else int(math.log10(self.current_eps) + 5)
+                ),
                 sync_dist=True,
             )
         elif self.eval_stage == "intervene":
             if self.current_eps == 0:
-                self.log_dict(
-                    {
-                        "Clean Acc under Intervene": acc,
-                        "Clean Concept Acc under Intervene": concept_acc,
-                        "Intervene Budget": self.intervene_budget,
-                    },
-                    sync_dist=True,
-                )
+                self.log("Clean Acc under Intervene", acc, sync_dist=True)
+                self.log("Clean Concept Acc under Intervene", concept_acc, sync_dist=True)
+                self.log("Intervene Budget", self.intervene_budget, sync_dist=True)
             else:
-                self.log_dict(
-                    {
-                        "Robust Acc under Intervene": acc,
-                        "Robust Concept Acc under Intervene": concept_acc,
-                        "ASR under Intervene": asr,
-                        "Concept ASR under Intervene": concept_asr,
-                        "Intervene Budget": self.intervene_budget,
-                    },
-                    sync_dist=True,
-                )
+                self.log("Robust Acc under Intervene", acc, sync_dist=True)
+                self.log("Robust Concept Acc under Intervene", concept_acc, sync_dist=True)
+                self.log("ASR under Intervene", asr, sync_dist=True)
+                self.log("Concept ASR under Intervene", concept_asr, sync_dist=True)
+                self.log("Adv Intervene Budget", self.intervene_budget, sync_dist=True)
