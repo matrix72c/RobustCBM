@@ -17,7 +17,7 @@ import dataset
 from attacks import *
 
 
-def train(config):
+def exp(config):
     with open("config.yaml", "r") as f:
         cfg = yaml.safe_load(f)
     cfg.update(config)
@@ -37,7 +37,6 @@ def train(config):
         name = "_".join([f"{v}" if isinstance(v, str) else f"{k}-{v}" for k, v in d])
         name = name.lower()
 
-    config = cfg
     logger = WandbLogger(
         name=name,
         project="CBM",
@@ -94,13 +93,18 @@ def train(config):
         bucket.put_object_from_file(ckpt_path, best)
         print(f"Upload {best} to {ckpt_path}")
         model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
-    return trainer, model, dm
 
-
-def exp(config):
-    with open("config.yaml", "r") as f:
-        cfg = yaml.safe_load(f)
-    trainer, model, dm = train(config)
+    wandb.init(
+        name="Eval_" + name,
+        project="CBM",
+        config=cfg,
+        tags=[
+            cfg["model"],
+            cfg["dataset"],
+            cfg["adv_mode"],
+            cfg["base"],
+        ],
+    )
     if model.adv_mode == "std":
         eps = [0, 0.0001, 0.001, 0.01, 0.1, 1]
     else:
@@ -139,19 +143,15 @@ def exp(config):
                 "ASR@5": asr5,
                 "ASR@10": asr10,
                 "Concept ASR@1": concept_asr,
-                "eps": i if (i >= 1 or i == 0) else int(math.log10(i) - math.log10(min(x for x in eps if x > 0)) + 1),
+                "eps": (
+                    i
+                    if (i >= 1 or i == 0)
+                    else int(
+                        math.log10(i) - math.log10(min(x for x in eps if x > 0)) + 1
+                    )
+                ),
             },
         )
-
-    wandb.run.summary["eps"] = eps
-    wandb.run.summary["Acc@1"] = accs
-    wandb.run.summary["Acc@5"] = acc5s
-    wandb.run.summary["Acc@10"] = acc10s
-    wandb.run.summary["ASR@1"] = asrs
-    wandb.run.summary["ASR@5"] = asr5s
-    wandb.run.summary["ASR@10"] = asr10s
-    wandb.run.summary["Concept Acc@1"] = concept_accs
-    wandb.run.summary["Concept ASR@1"] = concept_asrs
 
     if cfg["model"] != "backbone":
         for eps in [0, 4]:
@@ -183,7 +183,9 @@ def exp(config):
                             "Robust Acc under Intervene": acc,
                             "Robust Concept Acc under Intervene": concept_acc,
                             "ASR under Intervene": (ca - acc) / ca,
-                            "Concept ASR under Intervene": (clean_concept_acc - concept_acc)
+                            "Concept ASR under Intervene": (
+                                clean_concept_acc - concept_acc
+                            )
                             / clean_concept_acc,
                             "Intervene Budget": i,
                         },
@@ -197,7 +199,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     with open(args.config, "r") as f:
         c = yaml.safe_load(f)
-    
+
     if isinstance(c, list):
         for config in c:
             exp(config)
