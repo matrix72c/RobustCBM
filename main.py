@@ -66,7 +66,7 @@ def train(config):
     trainer = Trainer(
         accelerator="gpu",
         devices=cfg["gpus"],
-        strategy="ddp",
+        strategy="ddp_find_unused_parameters_true",
         log_every_n_steps=1,
         logger=logger,
         callbacks=callbacks,
@@ -89,7 +89,7 @@ def train(config):
             print("Load from checkpoint: ", ckpt_path)
     else:
         trainer.fit(model, dm)
-        ckpt_path = "checkpoints/" + wandb.run.name + ".ckpt"
+        ckpt_path = "checkpoints/" + name + ".ckpt"
         best = trainer.checkpoint_callback.best_model_path
         bucket.put_object_from_file(ckpt_path, best)
         print(f"Upload {best} to {ckpt_path}")
