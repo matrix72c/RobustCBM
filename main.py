@@ -14,7 +14,7 @@ from utils import get_oss
 import model as pl_model
 import dataset
 from attacks import *
-
+import sys
 
 def exp(config):
     with open("config.yaml", "r") as f:
@@ -87,16 +87,20 @@ def exp(config):
             print("Load from checkpoint: ", ckpt_path)
     else:
         trainer.fit(model, dm)
-        ckpt_path = "checkpoints/" + name + ".ckpt"
-        best = trainer.checkpoint_callback.best_model_path
-        bucket.put_object_from_file(ckpt_path, best)
-        print(f"Upload {best} to {ckpt_path}")
-        model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
+        if trainer.is_global_zero:
+            ckpt_path = "checkpoints/" + name + ".ckpt"
+            best = trainer.checkpoint_callback.best_model_path
+            bucket.put_object_from_file(ckpt_path, best)
+            print(f"Upload {best} to {ckpt_path}")
+            model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
 
-    trainer = Trainer(
+    if not trainer.is_global_zero:
+        sys.exit(0)
+
+    tester = Trainer(
+        accelerator="gpu",
         devices=1,
         num_nodes=1,
-        accelerator="gpu",
         logger=logger,
         inference_mode=False,
     )
@@ -111,7 +115,7 @@ def exp(config):
             model.adv_mode = "adv"
         else:
             model.adv_mode = "std"
-        trainer.test(model, datamodule=dm)
+        tester.test(model, datamodule=dm)
 
     model.eval_stage = "intervene"
     if cfg["model"] != "backbone":
@@ -123,7 +127,7 @@ def exp(config):
                     model.adv_mode = "adv"
                 else:
                     model.adv_mode = "std"
-                trainer.test(model, datamodule=dm)
+                tester.test(model, datamodule=dm)
 
     wandb.finish()
 

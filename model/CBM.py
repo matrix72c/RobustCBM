@@ -243,6 +243,10 @@ class CBM(L.LightningModule):
         acc5 = self.acc5.compute()
         acc10 = self.acc10.compute()
         concept_acc = self.concept_acc.compute()
+        self.acc.reset()
+        self.acc5.reset()
+        self.acc10.reset()
+        self.concept_acc.reset()
 
         if self.current_eps == 0:
             self.clean_acc = acc
