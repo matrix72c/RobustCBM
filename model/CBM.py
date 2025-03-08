@@ -260,6 +260,7 @@ class CBM(L.LightningModule):
             asr = (self.clean_acc - acc) / self.clean_acc
             asr5 = (self.clean_acc5 - acc5) / self.clean_acc5
             asr10 = (self.clean_acc10 - acc10) / self.clean_acc10
+            concept_asr = (self.clean_concept_acc - concept_acc) / self.clean_concept_acc
 
         if self.eval_stage == "robust":
             self.log("Acc@1", acc, sync_dist=True)
