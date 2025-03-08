@@ -98,10 +98,10 @@ def exp(config):
 
     model.eval_stage = "robust"
     if model.adv_mode == "std":
-        eps = [0, 0.0001, 0.001, 0.01, 0.1, 1.0]
+        epses = [0, 0.0001, 0.001, 0.01, 0.1, 1.0]
     else:
-        eps = list(range(5))
-    for i in eps:
+        epses = list(range(5))
+    for i in epses:
         model.current_eps = i if isinstance(i, int) else int(math.log10(i) + 5)
         if i > 0:
             model.eval_atk = PGD(eps=i / 255)
@@ -115,7 +115,7 @@ def exp(config):
         for eps in [0, 4]:
             for i in range(cfg["max_intervene_budget"] + 1):
                 model.intervene_budget = i
-                model.current_eps = i if isinstance(i, int) else int(math.log10(i) + 5)
+                model.current_eps = eps if isinstance(eps, int) else int(math.log10(eps) + 5)
                 if eps > 0:
                     model.eval_atk = PGD(eps=eps / 255)
                     model.adv_mode = "adv"
