@@ -66,7 +66,7 @@ def exp(config):
     trainer = Trainer(
         accelerator="gpu",
         devices=cfg["gpus"],
-        strategy="ddp_find_unused_parameters_true",
+        strategy="ddp_find_unused_parameters_true" if cfg["model"] == "backbone" else "ddp",
         log_every_n_steps=1,
         logger=logger,
         callbacks=callbacks,
