@@ -32,6 +32,7 @@ class CBM(L.LightningModule):
         mtl_mode: str = "normal",
         intervene_budget: int = 0,
         spectral_weight: float = 0,
+        max_intervene_budget: int = 29,
         **kwargs,
     ):
         super().__init__()
@@ -63,11 +64,8 @@ class CBM(L.LightningModule):
             task="multilabel", num_labels=min(num_concepts, real_concepts)
         )
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
-        self.acc5 = Accuracy(task="multiclass", num_classes=num_classes, top_k=5)
-        self.acc10 = Accuracy(task="multiclass", num_classes=num_classes, top_k=10)
 
         self.adv_mode = adv_mode
-        self.current_eps = train_atk_args.get("eps", 0)
         self.train_atk = getattr(attacks, attacker)(
             num_classes=num_classes,
             **train_atk_args,
@@ -76,7 +74,36 @@ class CBM(L.LightningModule):
             num_classes=num_classes,
             **eval_atk_args,
         )
-        self.eval_stage = "robust"
+
+        if adv_mode == "std":
+            self.epses = [0, 0.001, 0.01, 0.1, 1.0]
+        else:
+            self.epses = list(range(5))
+
+        self.robust_accs = [
+            Accuracy(task="multiclass", num_classes=num_classes)
+            for _ in range(len(self.epses))
+        ]
+        self.robust_concept_accs = [
+            Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
+            for _ in range(len(self.epses))
+        ]
+        self.intervene_clean_accs = [
+            Accuracy(task="multiclass", num_classes=num_classes)
+            for _ in range(max_intervene_budget + 1)
+        ]
+        self.intervene_clean_concept_accs = [
+            Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
+            for _ in range(max_intervene_budget + 1)
+        ]
+        self.intervene_robust_accs = [
+            Accuracy(task="multiclass", num_classes=num_classes)
+            for _ in range(max_intervene_budget + 1)
+        ]
+        self.intervene_robust_concept_accs = [
+            Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
+            for _ in range(max_intervene_budget + 1)
+        ]
 
     def configure_optimizers(self):
         if self.hparams.spectral_weight == 0:
@@ -200,7 +227,7 @@ class CBM(L.LightningModule):
         if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
             sch.step(self.trainer.callback_metrics["acc"])
 
-    def eval_step(self, batch):
+    def validation_step(self, batch, batch_idx):
         img, label, concepts = batch
         if self.adv_mode == "adv":
             img = self.eval_atk(cls_wrapper(self), img, label)
@@ -214,11 +241,6 @@ class CBM(L.LightningModule):
             concepts = concepts[:, : self.real_concepts]
         self.concept_acc(concept_pred, concepts)
         self.acc(label_pred, label)
-        self.acc5(label_pred, label)
-        self.acc10(label_pred, label)
-
-    def validation_step(self, batch, batch_idx):
-        self.eval_step(batch)
 
     def on_validation_epoch_end(self):
         self.log(
@@ -227,33 +249,23 @@ class CBM(L.LightningModule):
             sync_dist=True,
         )
         self.log("acc", self.acc.compute(), sync_dist=True, prog_bar=True)
-        self.log("acc5", self.acc5.compute(), sync_dist=True)
-        self.log("acc10", self.acc10.compute(), sync_dist=True)
         self.log(
             "concept_acc", self.concept_acc.compute(), sync_dist=True, prog_bar=True
         )
         self.acc.reset()
-        self.acc5.reset()
-        self.acc10.reset()
         self.concept_acc.reset()
-
-    def test_step(self, batch, batch_idx):
-        self.eval_step(batch)
 
     def on_test_start(self):
         concept_logits = []
         for batch in self.dm.train_dataloader():
             outputs = self(batch[0].to(self.device))
-            concept_logits.append(outputs[1])
-        c = torch.cat(concept_logits, dim=0).detach().cpu().numpy()
+            concept_logits.append(outputs[1].detach().cpu())
+        c = torch.cat(concept_logits, dim=0).numpy()
 
-        pos_logits = torch.ones(self.num_concepts).to(self.device)
-        neg_logits = torch.zeros(self.num_concepts).to(self.device)
-        for idx in range(self.num_concepts):
-            pos_logits[idx] = torch.tensor(np.percentile(c[:, idx], 95))
-            neg_logits[idx] = torch.tensor(np.percentile(c[:, idx], 5))
-        self.pos_logits = pos_logits
-        self.neg_logits = neg_logits
+        percentiles = np.percentile(c, [5, 95], axis=0)
+        self.pos_logits = torch.from_numpy(percentiles[1]).to(self.device)
+        self.neg_logits = torch.from_numpy(percentiles[0]).to(self.device)
+
         if hasattr(self.dm, "concept_group_map"):
             self.concept_group_map = self.dm.concept_group_map
         else:
@@ -261,56 +273,71 @@ class CBM(L.LightningModule):
             for idx in range(self.num_concepts):
                 self.concept_group_map[idx] = idx
 
-    def on_test_epoch_end(self):
-        acc = self.acc.compute()
-        acc5 = self.acc5.compute()
-        acc10 = self.acc10.compute()
-        concept_acc = self.concept_acc.compute()
-        self.acc.reset()
-        self.acc5.reset()
-        self.acc10.reset()
-        self.concept_acc.reset()
+    def test_step(self, batch, batch_idx):
+        img, label, concepts = batch
 
-        if self.current_eps == 0:
-            self.clean_acc = acc
-            self.clean_acc5 = acc5
-            self.clean_acc10 = acc10
-            self.clean_concept_acc = concept_acc
-            asr, asr5, asr10, concept_asr = 0, 0, 0, 0
-        else:
-            asr = (self.clean_acc - acc) / self.clean_acc
-            asr5 = (self.clean_acc5 - acc5) / self.clean_acc5
-            asr10 = (self.clean_acc10 - acc10) / self.clean_acc10
-            concept_asr = (
-                self.clean_concept_acc - concept_acc
-            ) / self.clean_concept_acc
-
-        if self.eval_stage == "robust":
-            self.log("Acc@1", acc, sync_dist=True)
-            self.log("Acc@5", acc5, sync_dist=True)
-            self.log("Acc@10", acc10, sync_dist=True)
-            self.log("Concept Acc@1", concept_acc, sync_dist=True)
-            self.log("ASR@1", asr, sync_dist=True)
-            self.log("ASR@5", asr5, sync_dist=True)
-            self.log("ASR@10", asr10, sync_dist=True)
-            self.log("Concept ASR@1", concept_asr, sync_dist=True)
-            self.log(
-                "eps",
-                self.current_eps,
-                sync_dist=True,
-            )
-        elif self.eval_stage == "intervene":
-            if self.current_eps == 0:
-                self.log("Clean Acc under Intervene", acc, sync_dist=True)
-                self.log(
-                    "Clean Concept Acc under Intervene", concept_acc, sync_dist=True
-                )
-                self.log("Intervene Budget", self.intervene_budget, sync_dist=True)
+        for i, eps in enumerate(self.epses):
+            if eps == 0:
+                x = img
             else:
-                self.log("Robust Acc under Intervene", acc, sync_dist=True)
-                self.log(
-                    "Robust Concept Acc under Intervene", concept_acc, sync_dist=True
-                )
-                self.log("ASR under Intervene", asr, sync_dist=True)
-                self.log("Concept ASR under Intervene", concept_asr, sync_dist=True)
-                self.log("Adv Intervene Budget", self.intervene_budget, sync_dist=True)
+                atk_args = self.hparams.eval_atk_args
+                atk_args["eps"] = eps / 255
+                atk = getattr(attacks, self.hparams.attacker)(**atk_args)
+                x = atk(cls_wrapper(self), img, label)
+            self.robust_accs[i].to(self.device)(self(x)[0], label)
+            self.robust_concept_accs[i].to(self.device)(self(x)[1], concepts)
+
+        for i, intervene_budget in enumerate(
+            range(self.hparams.max_intervene_budget + 1)
+        ):
+            self.intervene_budget = intervene_budget
+            self.intervene_clean_accs[i].to(self.device)(self(img, concepts)[0], label)
+            self.intervene_clean_concept_accs[i].to(self.device)(self(img, concepts)[1], concepts)
+
+        for i, intervene_budget in enumerate(
+            range(self.hparams.max_intervene_budget + 1)
+        ):
+            self.intervene_budget = intervene_budget
+            x = self.eval_atk(cls_wrapper(self), img, label)
+            self.intervene_robust_accs[i].to(self.device)(self(x, concepts)[0], label)
+            self.intervene_robust_concept_accs[i].to(self.device)(self(x, concepts)[1], concepts)
+
+    def on_test_epoch_end(self):
+        for i, eps in enumerate(self.epses):
+            acc = self.robust_accs[i].compute()
+            concept_acc = self.robust_concept_accs[i].compute()
+            self.robust_accs[i].reset()
+            self.robust_concept_accs[i].reset()
+            if eps == 0:
+                clean_acc = acc
+                clean_concept_acc = concept_acc
+            self.log(f"Test Acc", acc)
+            self.log(f"Test Concept Acc", concept_acc)
+            self.log(f"Test ASR", (clean_acc - acc) / clean_acc)
+            self.log(
+                f"Test Concept ASR",
+                (clean_concept_acc - concept_acc) / clean_concept_acc,
+            )
+            self.log("eps", i)
+
+        for i, intervene_budget in enumerate(
+            range(self.hparams.max_intervene_budget + 1)
+        ):
+            acc = self.intervene_clean_accs[i].compute()
+            concept_acc = self.intervene_clean_concept_accs[i].compute()
+            self.intervene_clean_accs[i].reset()
+            self.intervene_clean_concept_accs[i].reset()
+            self.log(f"Clean Acc under Intervene", acc)
+            self.log(f"Clean Concept Acc under Intervene", concept_acc)
+            self.log(f"Clean Intervene Budget", intervene_budget)
+
+        for i, intervene_budget in enumerate(
+            range(self.hparams.max_intervene_budget + 1)
+        ):
+            acc = self.intervene_robust_accs[i].compute()
+            concept_acc = self.intervene_robust_concept_accs[i].compute()
+            self.intervene_robust_accs[i].reset()
+            self.intervene_robust_concept_accs[i].reset()
+            self.log(f"Robust Acc under Intervene", acc)
+            self.log(f"Robust Concept Acc under Intervene", concept_acc)
+            self.log(f"Robust Intervene Budget", intervene_budget)

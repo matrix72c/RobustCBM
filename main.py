@@ -14,7 +14,6 @@ import yaml, argparse
 from utils import get_oss
 import model as pl_model
 import dataset
-import attacks
 
 
 def exp(config):
@@ -95,36 +94,14 @@ def exp(config):
             print(f"Upload {best} to {ckpt_path}")
             model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
 
-
-    model.eval_stage = "robust"
-    if model.adv_mode == "std":
-        epses = [0, 0.0001, 0.001, 0.01, 0.1, 1.0]
-    else:
-        epses = list(range(5))
-    for i in epses:
-        model.current_eps = i if isinstance(i, int) else int(math.log10(i) + 5)
-        if i > 0:
-            cfg["eval_atk_args"]["eps"] = i / 255
-            model.eval_atk = getattr(attacks, cfg["attacker"])(**cfg["eval_atk_args"])
-            model.adv_mode = "adv"
-        else:
-            model.adv_mode = "std"
-        trainer.test(model, datamodule=dm)
-
-    model.eval_stage = "intervene"
-    if cfg["model"] != "backbone":
-        for eps in [0, 4]:
-            for i in range(cfg["max_intervene_budget"] + 1):
-                model.intervene_budget = i
-                model.current_eps = eps if isinstance(eps, int) else int(math.log10(eps) + 5)
-                if eps > 0:
-                    cfg["eval_atk_args"]["eps"] = eps / 255
-                    model.eval_atk = getattr(attacks, cfg["attacker"])(**cfg["eval_atk_args"])
-                    model.adv_mode = "adv"
-                else:
-                    model.adv_mode = "std"
-                trainer.test(model, datamodule=dm)
-
+    torch.distributed.destroy_process_group()
+    if trainer.global_rank == 0:
+        trainer = Trainer(
+            devices=1,
+            logger=logger,
+            inference_mode=False,
+        )
+        trainer.test(model, dm)
     wandb.finish()
 
 
