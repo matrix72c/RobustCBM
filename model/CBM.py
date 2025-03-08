@@ -208,7 +208,9 @@ class CBM(L.LightningModule):
         self.log("acc", self.acc.compute(), sync_dist=True, prog_bar=True)
         self.log("acc5", self.acc5.compute(), sync_dist=True)
         self.log("acc10", self.acc10.compute(), sync_dist=True)
-        self.log("concept_acc", self.concept_acc.compute(), sync_dist=True, prog_bar=True)
+        self.log(
+            "concept_acc", self.concept_acc.compute(), sync_dist=True, prog_bar=True
+        )
         self.acc.reset()
         self.acc5.reset()
         self.acc10.reset()
@@ -270,21 +272,21 @@ class CBM(L.LightningModule):
             self.log("Concept ASR@1", concept_asr, sync_dist=True)
             self.log(
                 "eps",
-                (
-                    self.current_eps
-                    if isinstance(self.current_eps, int)
-                    else int(math.log10(self.current_eps) + 5)
-                ),
+                self.current_eps,
                 sync_dist=True,
             )
         elif self.eval_stage == "intervene":
             if self.current_eps == 0:
                 self.log("Clean Acc under Intervene", acc, sync_dist=True)
-                self.log("Clean Concept Acc under Intervene", concept_acc, sync_dist=True)
+                self.log(
+                    "Clean Concept Acc under Intervene", concept_acc, sync_dist=True
+                )
                 self.log("Intervene Budget", self.intervene_budget, sync_dist=True)
             else:
                 self.log("Robust Acc under Intervene", acc, sync_dist=True)
-                self.log("Robust Concept Acc under Intervene", concept_acc, sync_dist=True)
+                self.log(
+                    "Robust Concept Acc under Intervene", concept_acc, sync_dist=True
+                )
                 self.log("ASR under Intervene", asr, sync_dist=True)
                 self.log("Concept ASR under Intervene", concept_asr, sync_dist=True)
                 self.log("Adv Intervene Budget", self.intervene_budget, sync_dist=True)

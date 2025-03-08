@@ -1,3 +1,4 @@
+import math
 import os
 import tempfile
 from lightning.pytorch.trainer import Trainer
@@ -102,6 +103,7 @@ def exp(config):
     else:
         eps = list(range(5))
     for i in eps:
+        model.current_eps = i if isinstance(i, int) else int(math.log10(i) + 5)
         if i > 0:
             model.eval_atk = PGD(eps=i / 255)
             model.adv_mode = "adv"
