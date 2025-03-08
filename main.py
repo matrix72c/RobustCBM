@@ -15,7 +15,6 @@ from utils import get_oss
 import model as pl_model
 import dataset
 from attacks import *
-import sys
 
 
 def exp(config):
@@ -116,6 +115,7 @@ def exp(config):
         for eps in [0, 4]:
             for i in range(cfg["max_intervene_budget"] + 1):
                 model.intervene_budget = i
+                model.current_eps = i if isinstance(i, int) else int(math.log10(i) + 5)
                 if eps > 0:
                     model.eval_atk = PGD(eps=eps / 255)
                     model.adv_mode = "adv"
