@@ -17,9 +17,17 @@ class CEM(CBM):
             embed_dim * self.num_concepts, self.num_classes
         ).apply(initialize_weights)
 
-    def forward(self, x):
+    def forward(self, x, concepts=None):
         concept_context = self.base(x)
         concept_pred = self.concept_prob_gen(concept_context)
+
+        if concepts is not None:
+            concept_pred = self.intervene(
+                concepts,
+                concept_pred,
+                self.intervene_budget,
+                self.concept_group_map,
+            )
 
         pos_embed, neg_embed = torch.chunk(concept_context, 2, dim=1)
         pos_embed, neg_embed = pos_embed.view(
