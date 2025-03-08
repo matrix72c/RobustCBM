@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from model import CBM
-from mtl import get_grad, gradient_ordered
+from mtl import get_grad, gradient_ordered, mtl
 from utils import calc_info_loss, initialize_weights
 
 
@@ -64,14 +64,8 @@ class VCBM(CBM):
             + self.hparams.concept_weight * concept_loss
             + self.hparams.vib_lambda * info_loss
         )
-        if self.hparams.mtl_mode == "normal":
-            self.manual_backward(loss)
-        else:
-            g0 = get_grad(label_loss, self)
-            g1 = get_grad(concept_loss, self)
-            g2 = get_grad(info_loss, self)
-            g = gradient_ordered(g1, g2)
-            g = gradient_ordered(g0, g)
+        if self.hparams.mtl_mode != "normal":
+            g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
             for name, param in self.named_parameters():
                 param.grad = g[name]
         return loss
