@@ -35,10 +35,19 @@ class VCBM(CBM):
             self.base.fc.in_features, 2 * self.num_concepts
         )  # encoder
 
-    def forward(self, x):
+    def forward(self, x, concepts=None):
         statistics = self.base(x)
         std, mu = torch.chunk(statistics, 2, dim=1)
         concept_pred = mu + std * torch.randn_like(std)
+
+        if concepts is not None:
+            concept_pred = self.intervene(
+                concepts,
+                concept_pred,
+                self.intervene_budget,
+                self.concept_group_map,
+            )
+
         c = torch.sigmoid(std) * 2.0 if self.hparams.use_gate == "gate" else 1.0
         label_pred = self.classifier(concept_pred * c)
         return label_pred, concept_pred, mu, std**2
