@@ -205,10 +205,10 @@ class CBM(L.LightningModule):
             self.optimizers().param_groups[0]["lr"],
             sync_dist=True,
         )
-        self.log("acc", self.acc.compute(), sync_dist=True)
+        self.log("acc", self.acc.compute(), sync_dist=True, prog_bar=True)
         self.log("acc5", self.acc5.compute(), sync_dist=True)
         self.log("acc10", self.acc10.compute(), sync_dist=True)
-        self.log("concept_acc", self.concept_acc.compute(), sync_dist=True)
+        self.log("concept_acc", self.concept_acc.compute(), sync_dist=True, prog_bar=True)
         self.acc.reset()
         self.acc5.reset()
         self.acc10.reset()

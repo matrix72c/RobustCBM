@@ -16,6 +16,7 @@ import dataset
 from attacks import *
 import sys
 
+
 def exp(config):
     with open("config.yaml", "r") as f:
         cfg = yaml.safe_load(f)
@@ -94,16 +95,7 @@ def exp(config):
             print(f"Upload {best} to {ckpt_path}")
             model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
 
-    if not trainer.is_global_zero:
-        sys.exit(0)
 
-    tester = Trainer(
-        accelerator="gpu",
-        devices=1,
-        num_nodes=1,
-        logger=logger,
-        inference_mode=False,
-    )
     model.eval_stage = "robust"
     if model.adv_mode == "std":
         eps = [0, 0.0001, 0.001, 0.01, 0.1, 1.0]
@@ -115,7 +107,7 @@ def exp(config):
             model.adv_mode = "adv"
         else:
             model.adv_mode = "std"
-        tester.test(model, datamodule=dm)
+        trainer.test(model, datamodule=dm)
 
     model.eval_stage = "intervene"
     if cfg["model"] != "backbone":
@@ -127,7 +119,7 @@ def exp(config):
                     model.adv_mode = "adv"
                 else:
                     model.adv_mode = "std"
-                tester.test(model, datamodule=dm)
+                trainer.test(model, datamodule=dm)
 
     wandb.finish()
 
