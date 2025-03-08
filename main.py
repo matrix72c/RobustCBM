@@ -14,7 +14,7 @@ import yaml, argparse
 from utils import get_oss
 import model as pl_model
 import dataset
-from attacks import *
+import attacks
 
 
 def exp(config):
@@ -104,7 +104,8 @@ def exp(config):
     for i in epses:
         model.current_eps = i if isinstance(i, int) else int(math.log10(i) + 5)
         if i > 0:
-            model.eval_atk = PGD(eps=i / 255)
+            cfg["eval_atk_args"]["eps"] = i / 255
+            model.eval_atk = getattr(attacks, cfg["attacker"])(**cfg["eval_atk_args"])
             model.adv_mode = "adv"
         else:
             model.adv_mode = "std"
@@ -117,7 +118,8 @@ def exp(config):
                 model.intervene_budget = i
                 model.current_eps = eps if isinstance(eps, int) else int(math.log10(eps) + 5)
                 if eps > 0:
-                    model.eval_atk = PGD(eps=eps / 255)
+                    cfg["eval_atk_args"]["eps"] = eps / 255
+                    model.eval_atk = getattr(attacks, cfg["attacker"])(**cfg["eval_atk_args"])
                     model.adv_mode = "adv"
                 else:
                     model.adv_mode = "std"

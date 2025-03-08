@@ -26,7 +26,7 @@ class CBM(L.LightningModule):
         adv_mode: str = "std",
         hidden_dim: int = 0,
         cbm_mode: str = "hybrid",
-        attacker: str = "pgd",
+        attacker: str = "PGD",
         train_atk_args: dict = {},
         eval_atk_args: dict = {},
         mtl_mode: str = "normal",
