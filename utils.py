@@ -169,3 +169,8 @@ class cls_wrapper(nn.Module):
     def forward(self, *args, **kwargs):
         o = self.model(*args, **kwargs)
         return o[0]
+
+def calc_spectral_norm(model: nn.Linear):
+    mat = model.weight.data
+    u, s, v = torch.svd(mat)
+    return s.max().item()

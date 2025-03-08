@@ -2,7 +2,7 @@ import math
 import random
 import numpy as np
 import lightning as L
-from utils import initialize_weights, build_base, cls_wrapper
+from utils import initialize_weights, build_base, cls_wrapper, calc_spectral_norm
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -31,6 +31,7 @@ class CBM(L.LightningModule):
         eval_atk_args: dict = {},
         mtl_mode: str = "normal",
         intervene_budget: int = 0,
+        spectral_weight: float = 0,
         **kwargs,
     ):
         super().__init__()
@@ -78,9 +79,25 @@ class CBM(L.LightningModule):
         self.eval_stage = "robust"
 
     def configure_optimizers(self):
-        optimizer = getattr(torch.optim, self.hparams.optimizer)(
-            self.parameters(), lr=self.hparams.lr, **self.hparams.optimizer_args
-        )
+        if self.hparams.spectral_weight == 0:
+            optimizer = getattr(torch.optim, self.hparams.optimizer)(
+                self.parameters(), lr=self.hparams.lr, **self.hparams.optimizer_args
+            )
+        else:
+            optimizer = getattr(torch.optim, self.hparams.optimizer)(
+                [
+                    {
+                        "params": self.base.parameters(),
+                        **self.hparams.optimizer_args,
+                    },
+                    {
+                        "params": self.classifier.parameters(),
+                        "momentum": self.hparams.optimizer_args.get("momentum", 0.9),
+                        "weight_decay": 0,
+                    },
+                ],
+                lr=self.hparams.lr,
+            )
         scheduler = getattr(torch.optim.lr_scheduler, self.hparams.scheduler)(
             optimizer, **self.hparams.scheduler_args
         )
@@ -150,6 +167,10 @@ class CBM(L.LightningModule):
         )
         label_loss = F.cross_entropy(label_pred, label)
         loss = label_loss + self.hparams.concept_weight * concept_loss
+
+        if self.hparams.spectral_weight > 0:
+            loss += calc_spectral_norm(self.classifier) * self.hparams.spectral_weight
+
         if self.hparams.mtl_mode != "normal":
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
             for name, param in self.named_parameters():
@@ -260,7 +281,9 @@ class CBM(L.LightningModule):
             asr = (self.clean_acc - acc) / self.clean_acc
             asr5 = (self.clean_acc5 - acc5) / self.clean_acc5
             asr10 = (self.clean_acc10 - acc10) / self.clean_acc10
-            concept_asr = (self.clean_concept_acc - concept_acc) / self.clean_concept_acc
+            concept_asr = (
+                self.clean_concept_acc - concept_acc
+            ) / self.clean_concept_acc
 
         if self.eval_stage == "robust":
             self.log("Acc@1", acc, sync_dist=True)
