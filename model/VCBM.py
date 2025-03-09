@@ -23,6 +23,16 @@ class VIB(nn.Module):
         return x, loss
 
 
+def calc_js_divergence(p, q):
+    p = torch.clamp(p, min=1e-10, max=1 - 1e-10)
+    q = torch.clamp(q, min=1e-10, max=1 - 1e-10)
+    m = (p + q) / 2
+    kl_p = p * torch.log(p / m) + (1 - p) * torch.log((1 - p) / (1 - m))
+    kl_q = q * torch.log(q / m) + (1 - q) * torch.log((1 - q) / (1 - m))
+
+    return 0.5 * (kl_p + kl_q).mean(dim=1).mean()
+
+
 class VCBM(CBM):
     def __init__(
         self,
@@ -35,18 +45,11 @@ class VCBM(CBM):
             self.base.fc.in_features, 2 * self.num_concepts
         )  # encoder
 
-    def forward(self, x, concepts=None):
+    def forward(self, x, concept_pred=None):
         statistics = self.base(x)
         std, mu = torch.chunk(statistics, 2, dim=1)
-        concept_pred = mu + std * torch.randn_like(std)
-
-        if concepts is not None:
-            concept_pred = self.intervene(
-                concepts,
-                concept_pred,
-                self.intervene_budget,
-                self.concept_group_map,
-            )
+        if concept_pred is None:
+            concept_pred = mu + std * torch.randn_like(std)
 
         c = torch.sigmoid(std) * 2.0 if self.hparams.use_gate == "gate" else 1.0
         label_pred = self.classifier(concept_pred * c)
@@ -64,6 +67,13 @@ class VCBM(CBM):
             + self.hparams.concept_weight * concept_loss
             + self.hparams.vib_lambda * info_loss
         )
+        if self.adv_mode == "adv" and self.hparams.invariant_lambda > 0:
+            clean_mu, adv_mu = torch.chunk(mu, 2, dim=1)
+            loss += (
+                calc_js_divergence(torch.sigmoid(clean_mu), torch.sigmoid(adv_mu))
+                * self.hparams.invariant_lambda
+            )
+
         if self.hparams.mtl_mode != "normal":
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
             for name, param in self.named_parameters():
