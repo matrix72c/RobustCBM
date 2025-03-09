@@ -2,6 +2,7 @@ import math
 import random
 import numpy as np
 import lightning as L
+import wandb
 from utils import initialize_weights, build_base, cls_wrapper, calc_spectral_norm
 import torch
 from torch import nn
@@ -311,14 +312,15 @@ class CBM(L.LightningModule):
             if eps == 0:
                 clean_acc = acc
                 clean_concept_acc = concept_acc
-            self.log(f"Test Acc", acc)
-            self.log(f"Test Concept Acc", concept_acc)
-            self.log(f"Test ASR", (clean_acc - acc) / clean_acc)
-            self.log(
-                f"Test Concept ASR",
-                (clean_concept_acc - concept_acc) / clean_concept_acc,
+            wandb.log(
+                {
+                    "Test Acc": acc,
+                    "Test Concept Acc": concept_acc,
+                    "Test ASR": (clean_acc - acc) / clean_acc,
+                    "Test Concept ASR": (clean_concept_acc - concept_acc) / clean_concept_acc,
+                    "eps": i,
+                }
             )
-            self.log("eps", i)
 
         for i, intervene_budget in enumerate(
             range(self.hparams.max_intervene_budget + 1)
@@ -327,9 +329,13 @@ class CBM(L.LightningModule):
             concept_acc = self.intervene_clean_concept_accs[i].compute()
             self.intervene_clean_accs[i].reset()
             self.intervene_clean_concept_accs[i].reset()
-            self.log(f"Clean Acc under Intervene", acc)
-            self.log(f"Clean Concept Acc under Intervene", concept_acc)
-            self.log(f"Clean Intervene Budget", intervene_budget)
+            wandb.log(
+                {
+                    "Clean Acc under Intervene": acc,
+                    "Clean Concept Acc under Intervene": concept_acc,
+                    "Intervene Budget": intervene_budget,
+                }
+            )
 
         for i, intervene_budget in enumerate(
             range(self.hparams.max_intervene_budget + 1)
@@ -338,6 +344,10 @@ class CBM(L.LightningModule):
             concept_acc = self.intervene_robust_concept_accs[i].compute()
             self.intervene_robust_accs[i].reset()
             self.intervene_robust_concept_accs[i].reset()
-            self.log(f"Robust Acc under Intervene", acc)
-            self.log(f"Robust Concept Acc under Intervene", concept_acc)
-            self.log(f"Robust Intervene Budget", intervene_budget)
+            wandb.log(
+                {
+                    "Robust Acc under Intervene": acc,
+                    "Robust Concept Acc under Intervene": concept_acc,
+                    "Adv Intervene Budget": intervene_budget,
+                }
+            )

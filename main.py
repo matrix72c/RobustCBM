@@ -14,7 +14,7 @@ import yaml, argparse
 from utils import get_oss
 import model as pl_model
 import dataset
-
+import sys
 
 def exp(config):
     with open("config.yaml", "r") as f:
@@ -95,13 +95,22 @@ def exp(config):
             model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
 
     torch.distributed.destroy_process_group()
-    if trainer.global_rank == 0:
-        trainer = Trainer(
-            devices=1,
-            logger=logger,
-            inference_mode=False,
-        )
-        trainer.test(model, dm)
+    if not trainer.is_global_zero:
+        sys.exit(0)
+
+    os.environ.pop("LOCAL_RANK", None)
+    os.environ.pop("NODE_RANK", None)
+    os.environ.pop("WORLD_SIZE", None)
+    os.environ.pop("MASTER_ADDR", None)
+    os.environ.pop("MASTER_PORT", None)
+    trainer = Trainer(
+        devices=1,
+        num_nodes=1,
+        logger=logger,
+        inference_mode=False,
+    )
+    dm = getattr(dataset, cfg["dataset"])(**cfg)
+    trainer.test(model, dm)
     wandb.finish()
 
 
