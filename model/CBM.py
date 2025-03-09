@@ -143,24 +143,18 @@ class CBM(L.LightningModule):
         else:
             return [optimizer], [scheduler]
 
-    def intervene(
-        self, concepts, concept_pred, intervene_budget, concept_group_map=None
-    ):
-        group_concept_map = {}
-        for name, idxs in concept_group_map.items():
-            for idx in idxs:
-                group_concept_map[idx] = name
+    def intervene(self, concepts, concept_pred, intervene_budget):
         c = torch.sigmoid(concept_pred).ge(0.5).long()
         for b in range(concepts.shape[0]):
             s = set()
             for idx in range(self.num_concepts):
                 if c[b, idx].item() != concepts[b, idx].item():
-                    s.add(group_concept_map[idx])
+                    s.add(self.group_concept_map[idx])
             intervene_groups = list(s)
             if len(intervene_groups) > intervene_budget:
                 intervene_groups = random.sample(intervene_groups, intervene_budget)
             for group in intervene_groups:
-                for idx in concept_group_map[group]:
+                for idx in self.concept_group_map[group]:
                     if c[b, idx].item() != concepts[b, idx].item():
                         concept_pred[b, idx] = (
                             concepts[b, idx] * self.pos_logits[idx]
@@ -168,16 +162,9 @@ class CBM(L.LightningModule):
                         )
         return concept_pred
 
-    def forward(self, x, concepts=None):
-        concept_pred = self.base(x)
-        # human intervene
-        if concepts is not None:
-            concept_pred = self.intervene(
-                concepts,
-                concept_pred,
-                self.intervene_budget,
-                self.concept_group_map,
-            )
+    def forward(self, x, concept_pred=None):
+        if concept_pred is None:
+            concept_pred = self.base(x)
 
         if self.hparams.cbm_mode == "fuzzy":
             concept = torch.sigmoid(concept_pred)
@@ -224,9 +211,10 @@ class CBM(L.LightningModule):
         return loss
 
     def on_train_epoch_end(self):
-        sch = self.lr_schedulers()
-        if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
-            sch.step(self.trainer.callback_metrics["acc"])
+        if self.hparams.mtl_mode != "normal" and self.global_rank == 0:
+            sch = self.lr_schedulers()
+            if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                sch.step(self.trainer.callback_metrics["acc"])
 
     def validation_step(self, batch, batch_idx):
         img, label, concepts = batch
@@ -274,6 +262,21 @@ class CBM(L.LightningModule):
             for idx in range(self.num_concepts):
                 self.concept_group_map[idx] = idx
 
+        self.group_concept_map = {}
+        for name, idxs in self.concept_group_map.items():
+            for idx in idxs:
+                self.group_concept_map[idx] = name
+
+        for i in range(len(self.epses)):
+            self.robust_accs[i].to(self.device)
+            self.robust_concept_accs[i].to(self.device)
+
+        for i in range(self.hparams.max_intervene_budget + 1):
+            self.intervene_clean_accs[i].to(self.device)
+            self.intervene_clean_concept_accs[i].to(self.device)
+            self.intervene_robust_accs[i].to(self.device)
+            self.intervene_robust_concept_accs[i].to(self.device)
+
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
 
@@ -285,23 +288,34 @@ class CBM(L.LightningModule):
                 atk_args["eps"] = eps / 255
                 atk = getattr(attacks, self.hparams.attacker)(**atk_args)
                 x = atk(cls_wrapper(self), img, label)
-            self.robust_accs[i].to(self.device)(self(x)[0], label)
-            self.robust_concept_accs[i].to(self.device)(self(x)[1], concepts)
+            outputs = self(x)
+            label_pred, concept_pred = outputs[0], outputs[1]
+            self.robust_accs[i](label_pred, label)
+            self.robust_concept_accs[i](concept_pred, concepts)
 
+        if self.hparams.model == "backbone":
+            return
+
+        outputs = self(img)
+        label_pred, concept_pred = outputs[0], outputs[1]
         for i, intervene_budget in enumerate(
             range(self.hparams.max_intervene_budget + 1)
         ):
-            self.intervene_budget = intervene_budget
-            self.intervene_clean_accs[i].to(self.device)(self(img, concepts)[0], label)
-            self.intervene_clean_concept_accs[i].to(self.device)(self(img, concepts)[1], concepts)
+            cur_concept_pred = self.intervene(concepts, concept_pred.clone(), intervene_budget)
+            cur_label_pred = self(img, cur_concept_pred)[0]
+            self.intervene_clean_accs[i](cur_label_pred, label)
+            self.intervene_clean_concept_accs[i](cur_concept_pred, concepts)
 
+        x = self.eval_atk(cls_wrapper(self), img, label)
+        outputs = self(x)
+        label_pred, concept_pred = outputs[0], outputs[1]
         for i, intervene_budget in enumerate(
             range(self.hparams.max_intervene_budget + 1)
         ):
-            self.intervene_budget = intervene_budget
-            x = self.eval_atk(cls_wrapper(self), img, label)
-            self.intervene_robust_accs[i].to(self.device)(self(x, concepts)[0], label)
-            self.intervene_robust_concept_accs[i].to(self.device)(self(x, concepts)[1], concepts)
+            cur_concept_pred = self.intervene(concepts, concept_pred.clone(), intervene_budget)
+            cur_label_pred = self(x, cur_concept_pred)[0]
+            self.intervene_robust_accs[i](cur_label_pred, label)
+            self.intervene_robust_concept_accs[i](cur_concept_pred, concepts)
 
     def on_test_epoch_end(self):
         for i, eps in enumerate(self.epses):
@@ -317,10 +331,14 @@ class CBM(L.LightningModule):
                     "Test Acc": acc,
                     "Test Concept Acc": concept_acc,
                     "Test ASR": (clean_acc - acc) / clean_acc,
-                    "Test Concept ASR": (clean_concept_acc - concept_acc) / clean_concept_acc,
+                    "Test Concept ASR": (clean_concept_acc - concept_acc)
+                    / clean_concept_acc,
                     "eps": i,
                 }
             )
+
+        if self.hparams.model == "backbone":
+            return
 
         for i, intervene_budget in enumerate(
             range(self.hparams.max_intervene_budget + 1)
