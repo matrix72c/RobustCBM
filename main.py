@@ -99,8 +99,11 @@ def exp(config):
             except Exception as e:
                 print(f"Upload {best} to {ckpt_path} failed: {e}")
                 wandb.run.alert(
-                    f"Upload {best} to {ckpt_path} failed: {e}",
-                    alert_level="error",
+                    title="Upload failed",
+                    text=(
+                        f"Upload {best} to {ckpt_path} failed: {e}"
+                    ),
+                    level="ERROR",
                 )
 
         torch.distributed.destroy_process_group()
