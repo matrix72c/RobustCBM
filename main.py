@@ -33,6 +33,8 @@ def exp(config):
             if isinstance(v, dict):
                 d.remove((k, v))
                 d.extend(v.items())
+            if k == "gpus":
+                d.remove((k, v))
         name = "_".join([f"{v}" if isinstance(v, str) else f"{k}-{v}" for k, v in d])
         name = name.lower()
 
