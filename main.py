@@ -92,9 +92,16 @@ def exp(config):
         if trainer.is_global_zero:
             ckpt_path = "checkpoints/" + name + ".ckpt"
             best = trainer.checkpoint_callback.best_model_path
-            bucket.put_object_from_file(ckpt_path, best)
-            print(f"Upload {best} to {ckpt_path}")
             model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
+            try:
+                bucket.put_object_from_file(ckpt_path, best)
+                print(f"Upload {best} to {ckpt_path}")
+            except Exception as e:
+                print(f"Upload {best} to {ckpt_path} failed: {e}")
+                wandb.run.alert(
+                    f"Upload {best} to {ckpt_path} failed: {e}",
+                    alert_level="error",
+                )
 
         torch.distributed.destroy_process_group()
         if not trainer.is_global_zero:
