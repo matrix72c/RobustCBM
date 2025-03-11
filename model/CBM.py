@@ -81,30 +81,42 @@ class CBM(L.LightningModule):
         else:
             self.epses = list(range(5))
 
-        self.robust_accs = [
-            Accuracy(task="multiclass", num_classes=num_classes)
-            for _ in range(len(self.epses))
-        ]
-        self.robust_concept_accs = [
-            Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
-            for _ in range(len(self.epses))
-        ]
-        self.intervene_clean_accs = [
-            Accuracy(task="multiclass", num_classes=num_classes)
-            for _ in range(max_intervene_budget + 1)
-        ]
-        self.intervene_clean_concept_accs = [
-            Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
-            for _ in range(max_intervene_budget + 1)
-        ]
-        self.intervene_robust_accs = [
-            Accuracy(task="multiclass", num_classes=num_classes)
-            for _ in range(max_intervene_budget + 1)
-        ]
-        self.intervene_robust_concept_accs = [
-            Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
-            for _ in range(max_intervene_budget + 1)
-        ]
+        self.robust_accs = nn.ModuleList(
+            [
+                Accuracy(task="multiclass", num_classes=num_classes)
+                for _ in range(len(self.epses))
+            ]
+        )
+        self.robust_concept_accs = nn.ModuleList(
+            [
+                Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
+                for _ in range(len(self.epses))
+            ]
+        )
+        self.intervene_clean_accs = nn.ModuleList(
+            [
+                Accuracy(task="multiclass", num_classes=num_classes)
+                for _ in range(max_intervene_budget + 1)
+            ]
+        )
+        self.intervene_clean_concept_accs = nn.ModuleList(
+            [
+                Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
+                for _ in range(max_intervene_budget + 1)
+            ]
+        )
+        self.intervene_robust_accs = nn.ModuleList(
+            [
+                Accuracy(task="multiclass", num_classes=num_classes)
+                for _ in range(max_intervene_budget + 1)
+            ]
+        )
+        self.intervene_robust_concept_accs = nn.ModuleList(
+            [
+                Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
+                for _ in range(max_intervene_budget + 1)
+            ]
+        )
 
     def configure_optimizers(self):
         if self.hparams.spectral_weight == 0:
@@ -201,12 +213,11 @@ class CBM(L.LightningModule):
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
         loss = self.train_step(img, label, concepts)
-        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
         if self.hparams.mtl_mode != "normal":
             self.optimizers().step()
             self.optimizers().zero_grad()
         self.log(
-            "loss", loss, prog_bar=True, on_step=True, on_epoch=False, sync_dist=True
+            "loss", loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True
         )
         return loss
 
@@ -220,10 +231,8 @@ class CBM(L.LightningModule):
         img, label, concepts = batch
         if self.adv_mode == "adv":
             img = self.eval_atk(cls_wrapper(self), img, label)
-        if self.intervene_budget > 0:
-            outputs = self(img, concepts)
-        else:
-            outputs = self(img)
+
+        outputs = self(img)
         label_pred, concept_pred = outputs[0], outputs[1]
         if concept_pred.shape[1] > self.real_concepts:
             concept_pred = concept_pred[:, : self.real_concepts]
@@ -237,10 +246,8 @@ class CBM(L.LightningModule):
             self.optimizers().param_groups[0]["lr"],
             sync_dist=True,
         )
-        self.log("acc", self.acc.compute(), sync_dist=True, prog_bar=True)
-        self.log(
-            "concept_acc", self.concept_acc.compute(), sync_dist=True, prog_bar=True
-        )
+        self.log("acc", self.acc.compute(), prog_bar=True)
+        self.log("concept_acc", self.concept_acc.compute(), prog_bar=True)
         self.acc.reset()
         self.concept_acc.reset()
 
@@ -267,16 +274,6 @@ class CBM(L.LightningModule):
             for idx in idxs:
                 self.group_concept_map[idx] = name
 
-        for i in range(len(self.epses)):
-            self.robust_accs[i].to(self.device)
-            self.robust_concept_accs[i].to(self.device)
-
-        for i in range(self.hparams.max_intervene_budget + 1):
-            self.intervene_clean_accs[i].to(self.device)
-            self.intervene_clean_concept_accs[i].to(self.device)
-            self.intervene_robust_accs[i].to(self.device)
-            self.intervene_robust_concept_accs[i].to(self.device)
-
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
 
@@ -301,7 +298,9 @@ class CBM(L.LightningModule):
         for i, intervene_budget in enumerate(
             range(self.hparams.max_intervene_budget + 1)
         ):
-            cur_concept_pred = self.intervene(concepts, concept_pred.clone(), intervene_budget)
+            cur_concept_pred = self.intervene(
+                concepts, concept_pred.clone(), intervene_budget
+            )
             cur_label_pred = self(img, cur_concept_pred)[0]
             self.intervene_clean_accs[i](cur_label_pred, label)
             self.intervene_clean_concept_accs[i](cur_concept_pred, concepts)
@@ -312,7 +311,9 @@ class CBM(L.LightningModule):
         for i, intervene_budget in enumerate(
             range(self.hparams.max_intervene_budget + 1)
         ):
-            cur_concept_pred = self.intervene(concepts, concept_pred.clone(), intervene_budget)
+            cur_concept_pred = self.intervene(
+                concepts, concept_pred.clone(), intervene_budget
+            )
             cur_label_pred = self(x, cur_concept_pred)[0]
             self.intervene_robust_accs[i](cur_label_pred, label)
             self.intervene_robust_concept_accs[i](cur_concept_pred, concepts)
