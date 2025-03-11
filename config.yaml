@@ -37,7 +37,7 @@ resol: 224
 embed_dim: 32
 
 # VIB
-vib_lambda: 0.01
+vib: 0.01
 # VQ
 codebook_size: 5120
 codebook_weight: 0.1
@@ -49,7 +49,7 @@ cl_weight: 0.1
 # spectral
 spectral_weight: 0
 # adversarial invariant
-invariant_lambda: 0
+trades: 0
 
 intervene_budget: 0
 max_intervene_budget: 29

@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from model import CBM
-from mtl import get_grad, gradient_ordered, mtl
+from mtl import mtl
 from utils import calc_info_loss, initialize_weights
 
 
@@ -21,16 +21,6 @@ class VIB(nn.Module):
         x = mu + std * torch.randn_like(std)
         loss = calc_info_loss(mu, std**2)
         return x, loss
-
-
-def calc_js_divergence(p, q):
-    p = torch.clamp(p, min=1e-10, max=1 - 1e-10)
-    q = torch.clamp(q, min=1e-10, max=1 - 1e-10)
-    m = (p + q) / 2
-    kl_p = p * torch.log(p / m) + (1 - p) * torch.log((1 - p) / (1 - m))
-    kl_q = q * torch.log(q / m) + (1 - q) * torch.log((1 - q) / (1 - m))
-
-    return 0.5 * (kl_p + kl_q).mean(dim=1).mean()
 
 
 class VCBM(CBM):
@@ -65,14 +55,19 @@ class VCBM(CBM):
         loss = (
             label_loss
             + self.hparams.concept_weight * concept_loss
-            + self.hparams.vib_lambda * info_loss
+            + self.hparams.vib * info_loss
         )
-        if self.adv_mode == "adv" and self.hparams.invariant_lambda > 0:
+        if self.adv_mode == "adv" and self.hparams.trades > 0:
             clean_mu, adv_mu = torch.chunk(mu, 2, dim=1)
-            loss += (
-                calc_js_divergence(torch.sigmoid(clean_mu), torch.sigmoid(adv_mu))
-                * self.hparams.invariant_lambda
+            trades_loss = (
+                F.kl_div(
+                    F.log_softmax(clean_mu, dim=1),
+                    F.softmax(adv_mu, dim=1),
+                    reduction="batchmean",
+                )
+                * self.hparams.trades
             )
+            loss += trades_loss
 
         if self.hparams.mtl_mode != "normal":
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
