@@ -31,7 +31,7 @@ mtl_mode: normal # "normal", "equal", "ordered"
 
 dataset: CUB
 data_path: ./data
-batch_size: 128
+single_batch_size: 128
 resol: 224
 
 embed_dim: 32

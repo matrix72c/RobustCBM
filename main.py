@@ -22,6 +22,8 @@ def exp(config):
     cfg.update(config)
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg["seed"])
+    batch_size = cfg["single_batch_size"] / torch.cuda.device_count()
+    cfg["batch_size"] = int(batch_size)
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
     if config.get("experiment_name", None) is not None:
@@ -124,6 +126,7 @@ def exp(config):
         logger=logger,
         inference_mode=False,
     )
+    cfg["batch_size"] = cfg["single_batch_size"]
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     trainer.test(model, dm)
     wandb.finish()
