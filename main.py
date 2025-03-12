@@ -22,7 +22,12 @@ def exp(config):
     cfg.update(config)
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg["seed"])
-    batch_size = cfg["single_batch_size"] / torch.cuda.device_count()
+    if isinstance(cfg["gpus"], str):
+        if cfg["gpus"] == "auto":
+            cfg["gpus"] = torch.cuda.device_count()
+        else:
+            cfg["gpus"] = [int(i) for i in cfg["gpus"].split(",")]
+    batch_size = cfg["single_batch_size"] / len(cfg["gpus"])
     cfg["batch_size"] = int(batch_size)
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
@@ -68,9 +73,6 @@ def exp(config):
     trainer = Trainer(
         accelerator="gpu",
         devices=cfg["gpus"],
-        strategy=(
-            "ddp_find_unused_parameters_true" if cfg["model"] == "backbone" else "ddp"
-        ),
         log_every_n_steps=1,
         logger=logger,
         callbacks=callbacks,
