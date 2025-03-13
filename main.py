@@ -13,7 +13,6 @@ import yaml, argparse
 from utils import get_oss
 import model as pl_model
 import dataset
-import sys
 
 
 def exp(config):
@@ -22,13 +21,6 @@ def exp(config):
     cfg.update(config)
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg["seed"])
-    if isinstance(cfg["gpus"], str):
-        if cfg["gpus"] == "auto":
-            cfg["gpus"] = torch.cuda.device_count()
-        else:
-            cfg["gpus"] = [int(i) for i in cfg["gpus"].split(",")]
-    batch_size = cfg["single_batch_size"] / len(cfg["gpus"])
-    cfg["batch_size"] = int(batch_size)
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
     if config.get("experiment_name", None) is not None:
@@ -95,41 +87,20 @@ def exp(config):
             print("Load from checkpoint: ", ckpt_path)
     else:
         trainer.fit(model, dm)
-        if trainer.is_global_zero:
-            ckpt_path = "checkpoints/" + name + ".ckpt"
-            best = trainer.checkpoint_callback.best_model_path
-            model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
-            try:
-                bucket.put_object_from_file(ckpt_path, best)
-                print(f"Upload {best} to {ckpt_path}")
-            except Exception as e:
-                print(f"Upload {best} to {ckpt_path} failed: {e}")
-                wandb.run.alert(
-                    title="Upload failed",
-                    text=(
-                        f"Upload {best} to {ckpt_path} failed: {e}"
-                    ),
-                    level="ERROR",
-                )
+        ckpt_path = "checkpoints/" + name + ".ckpt"
+        best = trainer.checkpoint_callback.best_model_path
+        model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
+        try:
+            bucket.put_object_from_file(ckpt_path, best)
+            print(f"Upload {best} to {ckpt_path}")
+        except Exception as e:
+            print(f"Upload {best} to {ckpt_path} failed: {e}")
+            wandb.run.alert(
+                title="Upload failed",
+                text=(f"Upload {best} to {ckpt_path} failed: {e}"),
+                level="ERROR",
+            )
 
-        torch.distributed.destroy_process_group()
-        if not trainer.is_global_zero:
-            sys.exit(0)
-
-        os.environ.pop("LOCAL_RANK", None)
-        os.environ.pop("NODE_RANK", None)
-        os.environ.pop("WORLD_SIZE", None)
-        os.environ.pop("MASTER_ADDR", None)
-        os.environ.pop("MASTER_PORT", None)
-
-    trainer = Trainer(
-        devices=1,
-        num_nodes=1,
-        logger=logger,
-        inference_mode=False,
-    )
-    cfg["batch_size"] = cfg["single_batch_size"]
-    dm = getattr(dataset, cfg["dataset"])(**cfg)
     trainer.test(model, dm)
     wandb.finish()
 

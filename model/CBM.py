@@ -256,7 +256,6 @@ class CBM(L.LightningModule):
         self.log(
             "lr",
             self.optimizers().param_groups[0]["lr"],
-            sync_dist=True,
         )
         self.log("acc", self.acc.compute(), prog_bar=True)
         self.log("concept_acc", self.concept_acc.compute(), prog_bar=True)
