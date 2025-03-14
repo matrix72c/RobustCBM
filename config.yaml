@@ -14,7 +14,7 @@ optimizer_args:
 lr: 0.1
 scheduler: ReduceLROnPlateau
 scheduler_args:
-  mode: max
+  mode: min
   factor: 0.1
   patience: 30
   min_lr: 0.00001

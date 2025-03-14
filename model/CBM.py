@@ -339,6 +339,8 @@ class CBM(L.LightningModule):
         img, label, concepts = batch
         
         for atk_name in ["label", "concept", "combined"]:
+            if self.hparams.model == "backbone" and atk_name != "label":
+                continue
             atk = getattr(self, f"{atk_name}_atk")
             original_eps = getattr(atk, "eps", 0)
             self.atk_target = atk_name
