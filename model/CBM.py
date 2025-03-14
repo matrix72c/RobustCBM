@@ -223,7 +223,7 @@ class CBM(L.LightningModule):
         label_pred = self.classifier(concept)
         return label_pred, concept_pred
 
-    def train_step(self, img, label, concepts):
+    def calc_loss(self, img, label, concepts):
         label_pred, concept_pred = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(
             concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
@@ -250,7 +250,7 @@ class CBM(L.LightningModule):
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
             for name, param in self.named_parameters():
                 param.grad = g[name]
-        return loss
+        return loss, (label_pred, concept_pred)
 
     def generate_adv(self, img, label, concepts):
         if self.atk_target == "combined":
@@ -269,7 +269,7 @@ class CBM(L.LightningModule):
             img = torch.cat([img[:bs], adv_img], dim=0)
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
-        loss = self.train_step(img, label, concepts)
+        loss, _ = self.calc_loss(img, label, concepts)
         if self.hparams.mtl_mode != "normal":
             self.optimizers().step()
             self.optimizers().zero_grad()
@@ -286,14 +286,9 @@ class CBM(L.LightningModule):
         if self.adv_mode == "adv":
             img = self.generate_adv(img, label, concepts)
 
-        outputs = self(img)
-        label_pred, concept_pred = outputs[0], outputs[1]
-        concept_loss = F.binary_cross_entropy_with_logits(
-            concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
-        )
-        label_loss = F.cross_entropy(label_pred, label)
-        loss = label_loss + self.hparams.concept_weight * concept_loss
+        loss, o = self.calc_loss(img, label, concepts)
         self.losses(loss)
+        label_pred, concept_pred = o[0], o[1]
         if concept_pred.shape[1] > self.real_concepts:
             concept_pred = concept_pred[:, : self.real_concepts]
             concepts = concepts[:, : self.real_concepts]

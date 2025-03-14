@@ -45,7 +45,7 @@ class VCBM(CBM):
         label_pred = self.classifier(concept_pred * c)
         return label_pred, concept_pred, mu, std**2
 
-    def train_step(self, img, label, concepts):
+    def calc_loss(self, img, label, concepts):
         label_pred, concept_pred, mu, var = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(
             concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
@@ -73,4 +73,4 @@ class VCBM(CBM):
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
             for name, param in self.named_parameters():
                 param.grad = g[name]
-        return loss
+        return loss, (label_pred, concept_pred, mu, var)
