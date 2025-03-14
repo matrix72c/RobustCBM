@@ -24,7 +24,10 @@ class Attack(object):
                 if isinstance(module, _BatchNorm):
                     module.track_running_stats = False
         x = x.clone().detach()
-        y = y.clone().detach()
+        if isinstance(y, torch.Tensor):
+            y = y.clone().detach()
+        elif isinstance(y, tuple):
+            y = tuple([yy.clone().detach() for yy in y])
         x_adv = self.attack(model, x, y)
         if training:
             for module in model.modules():

@@ -24,8 +24,7 @@ cbm_mode: hybrid # "bool", "fuzzy", "hybrid"
 attacker: PGD
 train_atk_args:
   steps: 7
-eval_atk_args:
-  steps: 10
+atk_target: label
 adv_loss: ce # "ce", "bce", "combo"
 mtl_mode: normal # "normal", "equal", "ordered"
 

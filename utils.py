@@ -162,13 +162,14 @@ def build_base(base, out_size, use_pretrained=True):
 
 
 class cls_wrapper(nn.Module):
-    def __init__(self, model):
+    def __init__(self, model, index=0):
         super().__init__()
         self.model = model
+        self.index = index
 
     def forward(self, *args, **kwargs):
         o = self.model(*args, **kwargs)
-        return o[0]
+        return o[self.index]
 
 def calc_spectral_norm(model: nn.Linear):
     mat = model.weight.data

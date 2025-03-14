@@ -7,7 +7,7 @@ from utils import initialize_weights, build_base, cls_wrapper, calc_spectral_nor
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torchmetrics import Accuracy
+from torchmetrics import Accuracy, MeanMetric
 import attacks
 from mtl import mtl
 
@@ -28,8 +28,10 @@ class CBM(L.LightningModule):
         hidden_dim: int = 0,
         cbm_mode: str = "hybrid",
         attacker: str = "PGD",
-        train_atk_args: dict = {},
-        eval_atk_args: dict = {},
+        atk_target: str = "label",
+        label_atk_args: dict = {},
+        concept_atk_args: dict = {},
+        combined_atk_args: dict = {},
         mtl_mode: str = "normal",
         intervene_budget: int = 0,
         spectral_weight: float = 0,
@@ -65,15 +67,25 @@ class CBM(L.LightningModule):
             task="multilabel", num_labels=min(num_concepts, real_concepts)
         )
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
+        self.losses = MeanMetric()
 
         self.adv_mode = adv_mode
-        self.train_atk = getattr(attacks, attacker)(
+        self.atk_target = atk_target
+        self.label_atk = getattr(attacks, attacker)(
             num_classes=num_classes,
-            **train_atk_args,
+            loss_fn=F.cross_entropy,
+            **label_atk_args,
         )
-        self.eval_atk = getattr(attacks, attacker)(
+        self.concept_atk = getattr(attacks, attacker)(
+            num_classes=num_concepts,
+            loss_fn=F.binary_cross_entropy_with_logits,
+            **concept_atk_args,
+        )
+        self.combined_atk = getattr(attacks, attacker)(
             num_classes=num_classes,
-            **eval_atk_args,
+            loss_fn=lambda o, y: F.cross_entropy(o[0], y[0])
+            + F.binary_cross_entropy_with_logits(o[1], y[1]),
+            **combined_atk_args,
         )
 
         if adv_mode == "std":
@@ -81,18 +93,54 @@ class CBM(L.LightningModule):
         else:
             self.epses = list(range(5))
 
-        self.robust_accs = nn.ModuleList(
-            [
-                Accuracy(task="multiclass", num_classes=num_classes)
-                for _ in range(len(self.epses))
-            ]
-        )
-        self.robust_concept_accs = nn.ModuleList(
-            [
-                Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
-                for _ in range(len(self.epses))
-            ]
-        )
+        for s in ["label", "concept", "combined"]:
+            setattr(
+                self,
+                f"{s}_atk_accs",
+                nn.ModuleList(
+                    [
+                        Accuracy(task="multiclass", num_classes=num_classes)
+                        for _ in range(len(self.epses))
+                    ]
+                ),
+            )
+            setattr(
+                self,
+                f"{s}_atk_concept_accs",
+                nn.ModuleList(
+                    [
+                        Accuracy(
+                            task="multilabel",
+                            num_labels=min(num_concepts, real_concepts),
+                        )
+                        for _ in range(len(self.epses))
+                    ]
+                ),
+            )
+            setattr(
+                self,
+                f"{s}_atk_intervene_accs",
+                nn.ModuleList(
+                    [
+                        Accuracy(task="multiclass", num_classes=num_classes)
+                        for _ in range(max_intervene_budget + 1)
+                    ]
+                ),
+            )
+            setattr(
+                self,
+                f"{s}_atk_intervene_concept_accs",
+                nn.ModuleList(
+                    [
+                        Accuracy(
+                            task="multilabel",
+                            num_labels=min(num_concepts, real_concepts),
+                        )
+                        for _ in range(max_intervene_budget + 1)
+                    ]
+                ),
+            )
+
         self.intervene_clean_accs = nn.ModuleList(
             [
                 Accuracy(task="multiclass", num_classes=num_classes)
@@ -100,18 +148,6 @@ class CBM(L.LightningModule):
             ]
         )
         self.intervene_clean_concept_accs = nn.ModuleList(
-            [
-                Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
-                for _ in range(max_intervene_budget + 1)
-            ]
-        )
-        self.intervene_robust_accs = nn.ModuleList(
-            [
-                Accuracy(task="multiclass", num_classes=num_classes)
-                for _ in range(max_intervene_budget + 1)
-            ]
-        )
-        self.intervene_robust_concept_accs = nn.ModuleList(
             [
                 Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
                 for _ in range(max_intervene_budget + 1)
@@ -146,7 +182,7 @@ class CBM(L.LightningModule):
                 "optimizer": optimizer,
                 "lr_scheduler": {
                     "scheduler": scheduler,
-                    "monitor": "acc",
+                    "monitor": "val_loss",
                     "interval": "epoch",
                     "frequency": 1,
                     "strict": True,
@@ -216,11 +252,20 @@ class CBM(L.LightningModule):
                 param.grad = g[name]
         return loss
 
+    def generate_adv(self, img, label, concepts):
+        if self.atk_target == "combined":
+            adv_img = self.combined_atk(self, img, (label, concepts))
+        elif self.atk_target == "label":
+            adv_img = self.label_atk(cls_wrapper(self, 0), img, label)
+        elif self.atk_target == "concept":
+            adv_img = self.concept_atk(cls_wrapper(self, 1), img, concepts)
+        return adv_img
+
     def training_step(self, batch, batch_idx):
         img, label, concepts = batch
         if self.adv_mode == "adv":
             bs = img.shape[0] // 2
-            adv_img = self.train_atk(cls_wrapper(self), img[:bs], label[:bs])
+            adv_img = self.generate_adv(img[:bs], label[:bs], concepts[:bs])
             img = torch.cat([img[:bs], adv_img], dim=0)
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
@@ -228,9 +273,6 @@ class CBM(L.LightningModule):
         if self.hparams.mtl_mode != "normal":
             self.optimizers().step()
             self.optimizers().zero_grad()
-        self.log(
-            "loss", loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True
-        )
         return loss
 
     def on_train_epoch_end(self):
@@ -242,10 +284,16 @@ class CBM(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         img, label, concepts = batch
         if self.adv_mode == "adv":
-            img = self.eval_atk(cls_wrapper(self), img, label)
+            img = self.generate_adv(img, label, concepts)
 
         outputs = self(img)
         label_pred, concept_pred = outputs[0], outputs[1]
+        concept_loss = F.binary_cross_entropy_with_logits(
+            concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
+        )
+        label_loss = F.cross_entropy(label_pred, label)
+        loss = label_loss + self.hparams.concept_weight * concept_loss
+        self.losses(loss)
         if concept_pred.shape[1] > self.real_concepts:
             concept_pred = concept_pred[:, : self.real_concepts]
             concepts = concepts[:, : self.real_concepts]
@@ -259,8 +307,10 @@ class CBM(L.LightningModule):
         )
         self.log("acc", self.acc.compute(), prog_bar=True)
         self.log("concept_acc", self.concept_acc.compute(), prog_bar=True)
+        self.log("val_loss", self.losses.compute(), prog_bar=True)
         self.acc.reset()
         self.concept_acc.reset()
+        self.losses.reset()
 
     def on_test_start(self):
         concept_logits = []
@@ -287,19 +337,22 @@ class CBM(L.LightningModule):
 
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
-
-        for i, eps in enumerate(self.epses):
-            if eps == 0:
-                x = img
-            else:
-                atk_args = self.hparams.eval_atk_args
-                atk_args["eps"] = eps / 255
-                atk = getattr(attacks, self.hparams.attacker)(**atk_args)
-                x = atk(cls_wrapper(self), img, label)
-            outputs = self(x)
-            label_pred, concept_pred = outputs[0], outputs[1]
-            self.robust_accs[i](label_pred, label)
-            self.robust_concept_accs[i](concept_pred, concepts)
+        
+        for atk_name in ["label", "concept", "combined"]:
+            atk = getattr(self, f"{atk_name}_atk")
+            original_eps = getattr(atk, "eps", 0)
+            self.atk_target = atk_name
+            for i, eps in enumerate(self.epses):
+                if eps == 0:
+                    x = img
+                else:
+                    atk.eps = eps / 255
+                    x = self.generate_adv(img, label, concepts)
+                outputs = self(x)
+                label_pred, concept_pred = outputs[0], outputs[1]
+                getattr(self, f"{atk_name}_atk_accs")[i](label_pred, label)
+                getattr(self, f"{atk_name}_atk_concept_accs")[i](concept_pred, concepts)
+            atk.eps = original_eps
 
         if self.hparams.model == "backbone":
             return
@@ -316,38 +369,47 @@ class CBM(L.LightningModule):
             self.intervene_clean_accs[i](cur_label_pred, label)
             self.intervene_clean_concept_accs[i](cur_concept_pred, concepts)
 
-        x = self.eval_atk(cls_wrapper(self), img, label)
-        outputs = self(x)
-        label_pred, concept_pred = outputs[0], outputs[1]
-        for i, intervene_budget in enumerate(
-            range(self.hparams.max_intervene_budget + 1)
-        ):
-            cur_concept_pred = self.intervene(
-                concepts, concept_pred.clone(), intervene_budget
-            )
-            cur_label_pred = self(x, cur_concept_pred)[0]
-            self.intervene_robust_accs[i](cur_label_pred, label)
-            self.intervene_robust_concept_accs[i](cur_concept_pred, concepts)
+        for atk_name in ["label", "concept", "combined"]:
+            atk = getattr(self, f"{atk_name}_atk")
+            original_eps = getattr(atk, "eps", 0)
+            self.atk_target = atk_name
+            x = self.generate_adv(img, label, concepts)
+            outputs = self(x)
+            label_pred, concept_pred = outputs[0], outputs[1]
+            for i, intervene_budget in enumerate(
+                range(self.hparams.max_intervene_budget + 1)
+            ):
+                cur_concept_pred = self.intervene(
+                    concepts, concept_pred.clone(), intervene_budget
+                )
+                cur_label_pred = self(x, cur_concept_pred)[0]
+                getattr(self, f"{atk_name}_atk_intervene_accs")[i](
+                    cur_label_pred, label
+                )
+                getattr(self, f"{atk_name}_atk_intervene_concept_accs")[i](
+                    cur_concept_pred, concepts
+                )
 
     def on_test_epoch_end(self):
-        for i, eps in enumerate(self.epses):
-            acc = self.robust_accs[i].compute()
-            concept_acc = self.robust_concept_accs[i].compute()
-            self.robust_accs[i].reset()
-            self.robust_concept_accs[i].reset()
-            if eps == 0:
-                clean_acc = acc
-                clean_concept_acc = concept_acc
-            wandb.log(
-                {
-                    "Test Acc": acc,
-                    "Test Concept Acc": concept_acc,
-                    "Test ASR": (clean_acc - acc) / clean_acc,
-                    "Test Concept ASR": (clean_concept_acc - concept_acc)
-                    / clean_concept_acc,
-                    "eps": i,
-                }
-            )
+        for atk_name in ["label", "concept", "combined"]:
+            for i, eps in enumerate(self.epses):
+                acc = getattr(self, f"{atk_name}_atk_accs")[i].compute()
+                concept_acc = getattr(self, f"{atk_name}_atk_concept_accs")[i].compute()
+                getattr(self, f"{atk_name}_atk_accs")[i].reset()
+                getattr(self, f"{atk_name}_atk_concept_accs")[i].reset()
+                if eps == 0:
+                    clean_acc = acc
+                    clean_concept_acc = concept_acc
+                wandb.log(
+                    {
+                        f"{atk_name} Attack Acc": acc,
+                        f"{atk_name} Attack Concept Acc": concept_acc,
+                        f"{atk_name} Attack ASR": (clean_acc - acc) / clean_acc,
+                        f"{atk_name} Attack Concept ASR": (clean_concept_acc - concept_acc)
+                        / clean_concept_acc,
+                        "eps": i,
+                    }
+                )
 
         if self.hparams.model == "backbone":
             return
@@ -367,17 +429,18 @@ class CBM(L.LightningModule):
                 }
             )
 
-        for i, intervene_budget in enumerate(
-            range(self.hparams.max_intervene_budget + 1)
-        ):
-            acc = self.intervene_robust_accs[i].compute()
-            concept_acc = self.intervene_robust_concept_accs[i].compute()
-            self.intervene_robust_accs[i].reset()
-            self.intervene_robust_concept_accs[i].reset()
-            wandb.log(
-                {
-                    "Robust Acc under Intervene": acc,
-                    "Robust Concept Acc under Intervene": concept_acc,
-                    "Adv Intervene Budget": intervene_budget,
-                }
-            )
+        for atk_name in ["label", "concept", "combined"]:
+            for i, intervene_budget in enumerate(
+                range(self.hparams.max_intervene_budget + 1)
+            ):
+                acc = getattr(self, f"{atk_name}_atk_intervene_accs")[i].compute()
+                concept_acc = getattr(self, f"{atk_name}_atk_intervene_concept_accs")[i].compute()
+                getattr(self, f"{atk_name}_atk_intervene_accs")[i].reset()
+                getattr(self, f"{atk_name}_atk_intervene_concept_accs")[i].reset()
+                wandb.log(
+                    {
+                        f"{atk_name} Attack Acc under Intervene": acc,
+                        f"{atk_name} Attack Concept Acc under Intervene": concept_acc,
+                        f"Adv Intervene Budget": intervene_budget,
+                    }
+                )
