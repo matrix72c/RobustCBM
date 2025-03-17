@@ -47,7 +47,7 @@ def exp(config):
             cfg["adv_mode"],
             cfg["base"],
         ],
-        version=cfg.get("version", None),
+        group=cfg.get("group", None),
     )
     checkpoint_callback = ModelCheckpoint(
         monitor="acc",
