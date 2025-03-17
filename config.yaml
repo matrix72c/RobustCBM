@@ -1,3 +1,4 @@
+version: track_acc
 seed: 42
 gpus: auto
 patience: 50
