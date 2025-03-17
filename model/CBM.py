@@ -182,7 +182,7 @@ class CBM(L.LightningModule):
                 "optimizer": optimizer,
                 "lr_scheduler": {
                     "scheduler": scheduler,
-                    "monitor": "val_loss",
+                    "monitor": "acc",
                     "interval": "epoch",
                     "frequency": 1,
                     "strict": True,
