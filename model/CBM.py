@@ -332,7 +332,7 @@ class CBM(L.LightningModule):
 
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
-        
+
         for atk_name in ["label", "concept", "combined"]:
             if self.hparams.model == "backbone" and atk_name != "label":
                 continue
@@ -402,7 +402,9 @@ class CBM(L.LightningModule):
                         f"{atk_name} Attack Acc": acc,
                         f"{atk_name} Attack Concept Acc": concept_acc,
                         f"{atk_name} Attack ASR": (clean_acc - acc) / clean_acc,
-                        f"{atk_name} Attack Concept ASR": (clean_concept_acc - concept_acc)
+                        f"{atk_name} Attack Concept ASR": (
+                            clean_concept_acc - concept_acc
+                        )
                         / clean_concept_acc,
                         "eps": i,
                     }
@@ -431,7 +433,9 @@ class CBM(L.LightningModule):
                 range(self.hparams.max_intervene_budget + 1)
             ):
                 acc = getattr(self, f"{atk_name}_atk_intervene_accs")[i].compute()
-                concept_acc = getattr(self, f"{atk_name}_atk_intervene_concept_accs")[i].compute()
+                concept_acc = getattr(self, f"{atk_name}_atk_intervene_concept_accs")[
+                    i
+                ].compute()
                 getattr(self, f"{atk_name}_atk_intervene_accs")[i].reset()
                 getattr(self, f"{atk_name}_atk_intervene_concept_accs")[i].reset()
                 wandb.log(

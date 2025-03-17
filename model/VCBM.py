@@ -3,7 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 from model import CBM
 from mtl import mtl
-from utils import calc_info_loss, initialize_weights
+from utils import calc_info_loss, calc_spectral_norm, initialize_weights
 
 
 class VIB(nn.Module):
@@ -68,6 +68,9 @@ class VCBM(CBM):
                 * self.hparams.trades
             )
             loss += trades_loss
+
+        if self.hparams.spectral_weight > 0:
+            loss += calc_spectral_norm(self.classifier) * self.hparams.spectral_weight
 
         if self.hparams.mtl_mode != "normal":
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
