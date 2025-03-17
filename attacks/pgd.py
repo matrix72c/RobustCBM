@@ -7,7 +7,7 @@ class PGD(Attack):
     def __init__(
         self,
         eps: float = 4.0 / 255,
-        alpha: float = 4.0 / 2550,
+        alpha: float = 1.0 / 255,
         steps: int = 10,
         loss_fn: callable = F.cross_entropy,
         clip_min: float = 0.0,
