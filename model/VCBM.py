@@ -60,14 +60,17 @@ class VCBM(CBM):
         if self.adv_mode == "adv" and self.hparams.trades > 0:
             clean_mu, adv_mu = torch.chunk(mu, 2, dim=1)
             trades_loss = (
-                F.kl_div(
-                    F.log_softmax(clean_mu, dim=1),
-                    F.softmax(adv_mu, dim=1),
-                    reduction="batchmean",
+                F.binary_cross_entropy(
+                    torch.sigmoid(adv_mu),
+                    torch.sigmoid(clean_mu).detach(),
+                    reduction="none",
                 )
+                .mean(dim=1)
+                .sum()
                 * self.hparams.trades
             )
             loss += trades_loss
+            self.log("trades_loss", trades_loss)
 
         if self.hparams.spectral_weight > 0:
             loss += calc_spectral_norm(self.classifier) * self.hparams.spectral_weight
