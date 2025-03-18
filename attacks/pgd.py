@@ -6,16 +6,16 @@ from attacks import Attack
 class PGD(Attack):
     def __init__(
         self,
-        eps: float = 4.0 / 255,
-        alpha: float = 1.0 / 255,
+        eps: float = 4.0,
+        alpha_ratio: float = 4.0,
         steps: int = 10,
         loss_fn: callable = F.cross_entropy,
         clip_min: float = 0.0,
         clip_max: float = 1.0,
         **kwargs
     ):
-        self.eps = eps
-        self.alpha = alpha
+        self.eps = eps / 255.0
+        self.alpha = self.eps / alpha_ratio
         self.steps = steps
         self.loss_fn = loss_fn
         self.clip_min = clip_min

@@ -329,7 +329,7 @@ class CBM(L.LightningModule):
                 if eps == 0:
                     x = img
                 else:
-                    atk.eps = eps / 255
+                    atk.eps = eps
                     x = self.generate_adv(img, label, concepts)
                 outputs = self(x)
                 label_pred, concept_pred = outputs[0], outputs[1]
