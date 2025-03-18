@@ -155,25 +155,9 @@ class CBM(L.LightningModule):
         )
 
     def configure_optimizers(self):
-        if self.hparams.spectral_weight == 0:
-            optimizer = getattr(torch.optim, self.hparams.optimizer)(
-                self.parameters(), lr=self.hparams.lr, **self.hparams.optimizer_args
-            )
-        else:
-            optimizer = getattr(torch.optim, self.hparams.optimizer)(
-                [
-                    {
-                        "params": self.base.parameters(),
-                        **self.hparams.optimizer_args,
-                    },
-                    {
-                        "params": self.classifier.parameters(),
-                        "momentum": self.hparams.optimizer_args.get("momentum", 0.9),
-                        "weight_decay": 0,
-                    },
-                ],
-                lr=self.hparams.lr,
-            )
+        optimizer = getattr(torch.optim, self.hparams.optimizer)(
+            self.parameters(), lr=self.hparams.lr, **self.hparams.optimizer_args
+        )
         scheduler = getattr(torch.optim.lr_scheduler, self.hparams.scheduler)(
             optimizer, **self.hparams.scheduler_args
         )
@@ -244,7 +228,9 @@ class CBM(L.LightningModule):
             loss += trades_loss
 
         if self.hparams.spectral_weight > 0:
-            loss += calc_spectral_norm(self.classifier) * self.hparams.spectral_weight
+            spectral_loss = calc_spectral_norm(self.classifier) * self.hparams.spectral_weight
+            loss += spectral_loss
+            self.log("spectral_loss", spectral_loss)
 
         if self.hparams.mtl_mode != "normal":
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
