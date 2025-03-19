@@ -8,7 +8,7 @@ class backbone(CBM):
     def __init__(self, **kwargs):
         kwargs["concept_weight"] = 0
         super().__init__(**kwargs)
-        modify_fc(self.base, kwargs["base"], self.num_classes)
+        self.base.fc = nn.Linear(self.base.fc.in_features, self.num_classes)
 
     def forward(self, x):
         return self.base(x), torch.zeros(x.shape[0], self.num_concepts).to(x.device)
