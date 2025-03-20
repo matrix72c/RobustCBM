@@ -1,14 +1,18 @@
 import torch
 from torch import nn
 from model import CBM
-from utils import modify_fc
+from utils import initialize_weights
 
 
 class backbone(CBM):
     def __init__(self, **kwargs):
         kwargs["concept_weight"] = 0
         super().__init__(**kwargs)
-        self.base.fc = nn.Linear(self.base.fc.in_features, self.num_classes)
+        in_features = self.base.fc.in_features
+        self.base = nn.Sequential(*list(self.base.children())[:-1])
+        self.classifier = nn.Linear(in_features, self.num_classes).apply(
+            initialize_weights
+        )
 
     def forward(self, x):
         return self.base(x), torch.zeros(x.shape[0], self.num_concepts).to(x.device)
