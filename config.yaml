@@ -2,6 +2,7 @@ group: track_acc
 seed: 42
 gpus: auto
 epochs: -1
+patience: &patience 30
 
 model: CBM
 base: resnet50
@@ -16,7 +17,7 @@ scheduler: ReduceLROnPlateau
 scheduler_args:
   mode: max
   factor: 0.1
-  patience: 30
+  patience: *patience
   min_lr: 0.00001
   threshold: 0.0001
 adv_mode: adv
