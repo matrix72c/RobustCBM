@@ -15,4 +15,7 @@ class backbone(CBM):
         )
 
     def forward(self, x):
-        return self.base(x), torch.zeros(x.shape[0], self.num_concepts).to(x.device)
+        x = self.base(x)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
+        return x
