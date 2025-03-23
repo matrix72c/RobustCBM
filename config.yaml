@@ -1,4 +1,4 @@
-group: track_acc
+group: v2
 seed: 42
 gpus: auto
 epochs: -1
