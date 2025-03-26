@@ -3,24 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 from model import CBM
 from mtl import mtl
-from utils import calc_info_loss, calc_spectral_norm, initialize_weights
-
-
-class VIB(nn.Module):
-    def __init__(
-        self,
-        input_dim: int,
-        output_dim: int,
-    ):
-        super().__init__()
-        self.fc = nn.Linear(input_dim, 2 * output_dim).apply(initialize_weights)
-
-    def forward(self, x):
-        statistics = self.fc(x)
-        std, mu = torch.chunk(statistics, 2, dim=1)
-        x = mu + std * torch.randn_like(std)
-        loss = calc_info_loss(mu, std**2)
-        return x, loss
+from utils import calc_info_loss, calc_spectral_norm
 
 
 class VCBM(CBM):
@@ -31,12 +14,12 @@ class VCBM(CBM):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.base.fc = nn.Linear(
-            self.base.fc.in_features, 2 * self.num_concepts
-        )  # encoder
+        self.fc = nn.Linear(self.base.fc.in_features, 2 * self.num_concepts)
+        self.base.fc = nn.Identity()
 
     def forward(self, x, concept_pred=None):
-        statistics = self.base(x)
+        features = self.base(x)
+        statistics = self.fc(features)
         std, mu = torch.chunk(statistics, 2, dim=1)
         if concept_pred is None:
             concept_pred = mu + std * torch.randn_like(std)
@@ -73,7 +56,7 @@ class VCBM(CBM):
             self.log("trades_loss", trades_loss)
 
         if self.hparams.spectral_weight > 0:
-            loss += calc_spectral_norm(self.classifier) * self.hparams.spectral_weight
+            loss += calc_spectral_norm(self.fc) * self.hparams.spectral_weight
 
         if self.hparams.mtl_mode != "normal":
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
