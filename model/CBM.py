@@ -210,7 +210,7 @@ class CBM(L.LightningModule):
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(
-            concept_pred, concepts
+            concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
         )
         label_loss = F.cross_entropy(label_pred, label)
         loss = label_loss + self.hparams.concept_weight * concept_loss
