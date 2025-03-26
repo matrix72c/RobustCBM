@@ -51,7 +51,7 @@ class VCBM(CBM):
             concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
         )
         info_loss = calc_info_loss(mu, var)
-        label_loss = F.cross_entropy(label_pred, label, label_smoothing=0.1)
+        label_loss = F.cross_entropy(label_pred, label)
         loss = (
             label_loss
             + self.hparams.concept_weight * concept_loss
