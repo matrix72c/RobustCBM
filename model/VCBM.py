@@ -41,12 +41,18 @@ class VCBM(CBM):
             + self.hparams.vib * info_loss
         )
         if self.adv_mode == "adv" and self.hparams.trades > 0:
-            clean_var, adv_var = torch.chunk(var, 2, dim=0)
-            clean_mu, adv_mu = torch.chunk(mu, 2, dim=0)
-            clean_logvar, adv_logvar = clean_var.log(), adv_var.log()
-            trades_loss = 0.5 * (clean_logvar.detach() - adv_logvar + (adv_var + (adv_mu - clean_mu.detach()).pow(2)) / (clean_var.detach() + 1e-8) - 1).sum()
-            self.log("trades_loss", trades_loss)
+            clean_concept_pred, adv_concept_pred = torch.chunk(concept_pred, 2, dim=0)
+            clean_probs = torch.sigmoid(clean_concept_pred.detach())  # (N, D)
+            adv_probs = torch.sigmoid(adv_concept_pred)  # (N, D)
+
+            kl_elementwise = clean_probs * (
+                torch.log(clean_probs + 1e-8) - torch.log(adv_probs + 1e-8)
+            ) + (1 - clean_probs) * (
+                torch.log(1 - clean_probs + 1e-8) - torch.log(1 - adv_probs + 1e-8)
+            )
+            trades_loss = kl_elementwise.mean()
             loss += trades_loss * self.hparams.trades
+            self.log("trades_loss", trades_loss)
 
         if self.hparams.spectral_weight > 0:
             loss += calc_spectral_norm(self.fc) * self.hparams.spectral_weight
