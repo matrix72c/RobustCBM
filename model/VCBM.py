@@ -9,8 +9,6 @@ from utils import calc_info_loss, calc_spectral_norm
 class VCBM(CBM):
     def __init__(
         self,
-        vib_lambda: float = 0.1,
-        use_gate: str = "nogate",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -20,13 +18,17 @@ class VCBM(CBM):
     def forward(self, x, concept_pred=None):
         features = self.base(x)
         statistics = self.fc(features)
-        std, mu = torch.chunk(statistics, 2, dim=1)
+        logvar, mu = torch.chunk(statistics, 2, dim=1)
+        var = torch.exp(logvar)
+        std = torch.sqrt(var)
         if concept_pred is None:
-            concept_pred = mu + std * torch.randn_like(std)
+            if self.training:
+                concept_pred = mu + std * torch.randn_like(std)
+            else:
+                concept_pred = mu
 
-        c = torch.sigmoid(std) * 2.0 if self.hparams.use_gate == "gate" else 1.0
-        label_pred = self.classifier(concept_pred * c)
-        return label_pred, concept_pred, mu, std**2
+        label_pred = self.classifier(concept_pred)
+        return label_pred, concept_pred, mu, var
 
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred, mu, var = self(img)
