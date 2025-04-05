@@ -43,9 +43,9 @@ class VCBM(CBM):
             + self.hparams.vib * info_loss
         )
         if self.adv_mode == "adv" and self.hparams.trades > 0:
-            clean_mu, adv_mu = torch.chunk(mu, 2, dim=0)
-            clean_probs = torch.sigmoid(clean_mu.detach())  # (N, D)
-            adv_probs = torch.sigmoid(adv_mu)  # (N, D)
+            clean_concept_pred, adv_concept_pred = torch.chunk(concept_pred, 2, dim=0)
+            clean_probs = torch.sigmoid(clean_concept_pred.detach())  # (N, D)
+            adv_probs = torch.sigmoid(adv_concept_pred)  # (N, D)
 
             kl_elementwise = clean_probs * (
                 torch.log(clean_probs + 1e-8) - torch.log(adv_probs + 1e-8)
