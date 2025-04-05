@@ -18,9 +18,7 @@ class VCBM(CBM):
     def forward(self, x, concept_pred=None):
         features = self.base(x)
         statistics = self.fc(features)
-        logvar, mu = torch.chunk(statistics, 2, dim=1)
-        var = torch.exp(logvar)
-        std = torch.sqrt(var)
+        std, mu = torch.chunk(statistics, 2, dim=1)
         if concept_pred is None:
             if self.training:
                 concept_pred = mu + std * torch.randn_like(std)
@@ -28,7 +26,7 @@ class VCBM(CBM):
                 concept_pred = mu
 
         label_pred = self.classifier(concept_pred)
-        return label_pred, concept_pred, mu, var
+        return label_pred, concept_pred, mu, std**2
 
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred, mu, var = self(img)
@@ -43,18 +41,12 @@ class VCBM(CBM):
             + self.hparams.vib * info_loss
         )
         if self.adv_mode == "adv" and self.hparams.trades > 0:
-            clean_concept_pred, adv_concept_pred = torch.chunk(concept_pred, 2, dim=0)
-            clean_probs = torch.sigmoid(clean_concept_pred.detach())  # (N, D)
-            adv_probs = torch.sigmoid(adv_concept_pred)  # (N, D)
-
-            kl_elementwise = clean_probs * (
-                torch.log(clean_probs + 1e-8) - torch.log(adv_probs + 1e-8)
-            ) + (1 - clean_probs) * (
-                torch.log(1 - clean_probs + 1e-8) - torch.log(1 - adv_probs + 1e-8)
-            )
-            trades_loss = kl_elementwise.mean() * self.hparams.trades
-            loss += trades_loss
+            clean_var, adv_var = torch.chunk(var, 2, dim=0)
+            clean_mu, adv_mu = torch.chunk(mu, 2, dim=0)
+            clean_logvar, adv_logvar = clean_var.log(), adv_var.log()
+            trades_loss = 0.5 * (clean_logvar.detach() - adv_logvar + (adv_var + (adv_mu - clean_mu.detach()).pow(2)) / clean_var.detach() - 1).sum()
             self.log("trades_loss", trades_loss)
+            loss += trades_loss * self.hparams.trades
 
         if self.hparams.spectral_weight > 0:
             loss += calc_spectral_norm(self.fc) * self.hparams.spectral_weight
