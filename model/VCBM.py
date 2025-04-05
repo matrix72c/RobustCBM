@@ -44,7 +44,7 @@ class VCBM(CBM):
             clean_var, adv_var = torch.chunk(var, 2, dim=0)
             clean_mu, adv_mu = torch.chunk(mu, 2, dim=0)
             clean_logvar, adv_logvar = clean_var.log(), adv_var.log()
-            trades_loss = 0.5 * (clean_logvar.detach() - adv_logvar + (adv_var + (adv_mu - clean_mu.detach()).pow(2)) / clean_var.detach() - 1).sum()
+            trades_loss = 0.5 * (clean_logvar.detach() - adv_logvar + (adv_var + (adv_mu - clean_mu.detach()).pow(2)) / (clean_var.detach() + 1e-8) - 1).sum()
             self.log("trades_loss", trades_loss)
             loss += trades_loss * self.hparams.trades
 
