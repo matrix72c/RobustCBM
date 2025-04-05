@@ -11,6 +11,26 @@ from torchmetrics import Accuracy, MeanMetric
 import attacks
 from mtl import mtl
 
+class AttentionClassifier(nn.Module):
+    def __init__(self, concept_dim, hidden_dim, num_classes):
+        super().__init__()
+        self.attn = nn.Sequential(
+            nn.Linear(concept_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, concept_dim),
+            nn.Sigmoid()
+        )
+        self.mlp = nn.Sequential(
+            nn.Linear(concept_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, num_classes),
+        )
+        self.shortcut = nn.Linear(concept_dim, num_classes)
+    
+    def forward(self, x):
+        attn_weights = self.attn(x)
+        x = x * attn_weights
+        return self.mlp(x) + self.shortcut(x)
 
 class CBM(L.LightningModule):
     def __init__(
@@ -49,11 +69,7 @@ class CBM(L.LightningModule):
         self.base = build_base(base, num_concepts, use_pretrained)
 
         if hidden_dim > 0:
-            self.classifier = nn.Sequential(
-                nn.Linear(num_concepts, hidden_dim),
-                nn.LeakyReLU(),
-                nn.Linear(hidden_dim, num_classes),
-            ).apply(initialize_weights)
+            self.classifier = AttentionClassifier(num_concepts, hidden_dim, num_classes)
         else:
             self.classifier = nn.Linear(num_concepts, num_classes).apply(
                 initialize_weights
