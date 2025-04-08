@@ -42,15 +42,14 @@ class VCBM(CBM):
         )
         if self.adv_mode == "adv" and self.hparams.trades > 0:
             clean_concept_pred, adv_concept_pred = torch.chunk(mu, 2, dim=0)
-            clean_probs = torch.sigmoid(clean_concept_pred.detach()).clamp(1e-5, 1 - 1e-5)
+            clean_probs = torch.sigmoid(clean_concept_pred.detach()).clamp(
+                1e-5, 1 - 1e-5
+            )
             adv_probs = torch.sigmoid(adv_concept_pred).clamp(1e-5, 1 - 1e-5)
 
-            kl_elementwise = clean_probs * (
-                torch.log(clean_probs) - torch.log(adv_probs)
-            ) + (1 - clean_probs) * (
-                torch.log(1 - clean_probs) - torch.log(1 - adv_probs)
+            trades_loss = F.binary_cross_entropy(
+                adv_probs, clean_probs, reduction="mean"
             )
-            trades_loss = kl_elementwise.mean()
             loss += trades_loss * self.hparams.trades
             self.log("trades_loss", trades_loss)
 
