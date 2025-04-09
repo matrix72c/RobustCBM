@@ -1,4 +1,4 @@
-group: v2
+group: final
 seed: 42
 gpus: auto
 epochs: -1
