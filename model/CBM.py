@@ -232,16 +232,17 @@ class CBM(L.LightningModule):
         loss = label_loss + self.hparams.concept_weight * concept_loss
 
         if self.adv_mode == "adv" and self.hparams.trades > 0:
-            clean_concept, adv_concept = torch.chunk(concept_pred, 2, dim=1)
-            trades_loss = (
-                F.kl_div(
-                    F.log_softmax(clean_concept, dim=1),
-                    F.softmax(adv_concept, dim=1),
-                    reduction="batchmean",
-                )
-                * self.hparams.trades
+            clean_concept_pred, adv_concept_pred = torch.chunk(concept_pred, 2, dim=0)
+            clean_probs = torch.sigmoid(clean_concept_pred.detach()).clamp(
+                1e-5, 1 - 1e-5
             )
-            loss += trades_loss
+            adv_probs = torch.sigmoid(adv_concept_pred).clamp(1e-5, 1 - 1e-5)
+
+            trades_loss = F.binary_cross_entropy(
+                adv_probs, clean_probs, reduction="mean"
+            )
+            loss += trades_loss * self.hparams.trades
+            self.log("trades_loss", trades_loss)
 
         if self.hparams.spectral_weight > 0:
             spectral_loss = calc_spectral_norm(self.classifier) * self.hparams.spectral_weight
