@@ -543,6 +543,11 @@ class CUB(L.LightningDataModule):
             CONCEPT_GROUP_MAP[group].append(i)
         self.concept_group_map = CONCEPT_GROUP_MAP
         self.concept_names = list(np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS])
+        self.max_intervene_budget = 29
+        self.group_concept_map = {}
+        for name, idxs in self.concept_group_map.items():
+            for idx in idxs:
+                self.group_concept_map[idx] = name
 
     def train_dataloader(self):
         return DataLoader(

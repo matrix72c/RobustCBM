@@ -125,6 +125,15 @@ class AwA(L.LightningDataModule):
         sample = Subset(self.train, torch.arange(len(self.train) // 10))
         self.imbalance_weights = cal_class_imbalance_weights(sample)
 
+        self.max_intervene_budget = 85
+        self.concept_group_map = {}
+        for idx in range(self.num_concepts):
+            self.concept_group_map[idx] = [idx]
+        self.group_concept_map = {}
+        for name, idxs in self.concept_group_map.items():
+            for idx in idxs:
+                self.group_concept_map[idx] = name
+
     def train_dataloader(self):
         return DataLoader(
             self.train,

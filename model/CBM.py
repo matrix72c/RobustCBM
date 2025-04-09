@@ -55,7 +55,6 @@ class CBM(L.LightningModule):
         mtl_mode: str = "normal",
         intervene_budget: int = 0,
         spectral_weight: float = 0,
-        max_intervene_budget: int = 29,
         **kwargs,
     ):
         super().__init__()
@@ -66,6 +65,9 @@ class CBM(L.LightningModule):
         num_concepts = dm.num_concepts
         real_concepts = dm.real_concepts
         self.dm = dm
+        self.max_intervene_budget = dm.max_intervene_budget
+        self.concept_group_map = dm.concept_group_map
+        self.group_concept_map = dm.group_concept_map
         self.base = build_base(base, num_concepts, use_pretrained)
 
         if hidden_dim > 0:
@@ -139,7 +141,7 @@ class CBM(L.LightningModule):
                 nn.ModuleList(
                     [
                         Accuracy(task="multiclass", num_classes=num_classes)
-                        for _ in range(max_intervene_budget + 1)
+                        for _ in range(11)
                     ]
                 ),
             )
@@ -152,7 +154,7 @@ class CBM(L.LightningModule):
                             task="multilabel",
                             num_labels=min(num_concepts, real_concepts),
                         )
-                        for _ in range(max_intervene_budget + 1)
+                        for _ in range(11)
                     ]
                 ),
             )
@@ -160,13 +162,13 @@ class CBM(L.LightningModule):
         self.intervene_clean_accs = nn.ModuleList(
             [
                 Accuracy(task="multiclass", num_classes=num_classes)
-                for _ in range(max_intervene_budget + 1)
+                for _ in range(11)
             ]
         )
         self.intervene_clean_concept_accs = nn.ModuleList(
             [
                 Accuracy(task="multilabel", num_labels=min(num_concepts, real_concepts))
-                for _ in range(max_intervene_budget + 1)
+                for _ in range(11)
             ]
         )
 
@@ -321,18 +323,6 @@ class CBM(L.LightningModule):
         self.pos_logits = torch.from_numpy(percentiles[1]).to(self.device)
         self.neg_logits = torch.from_numpy(percentiles[0]).to(self.device)
 
-        if hasattr(self.dm, "concept_group_map"):
-            self.concept_group_map = self.dm.concept_group_map
-        else:
-            self.concept_group_map = {}
-            for idx in range(self.num_concepts):
-                self.concept_group_map[idx] = idx
-
-        self.group_concept_map = {}
-        for name, idxs in self.concept_group_map.items():
-            for idx in idxs:
-                self.group_concept_map[idx] = name
-
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
 
@@ -359,9 +349,8 @@ class CBM(L.LightningModule):
 
         outputs = self(img)
         label_pred, concept_pred = outputs[0], outputs[1]
-        for i, intervene_budget in enumerate(
-            range(self.hparams.max_intervene_budget + 1)
-        ):
+        for i in range(11):
+            intervene_budget = self.max_intervene_budget * i // 10
             cur_concept_pred = self.intervene(
                 concepts, concept_pred.clone(), intervene_budget
             )
@@ -376,9 +365,8 @@ class CBM(L.LightningModule):
             x = self.generate_adv(img, label, concepts)
             outputs = self(x)
             label_pred, concept_pred = outputs[0], outputs[1]
-            for i, intervene_budget in enumerate(
-                range(self.hparams.max_intervene_budget + 1)
-            ):
+            for i in range(11):
+                intervene_budget = self.max_intervene_budget * i // 10
                 cur_concept_pred = self.intervene(
                     concepts, concept_pred.clone(), intervene_budget
                 )
@@ -416,9 +404,7 @@ class CBM(L.LightningModule):
         if self.hparams.model == "backbone":
             return
 
-        for i, intervene_budget in enumerate(
-            range(self.hparams.max_intervene_budget + 1)
-        ):
+        for i in range(11):
             acc = self.intervene_clean_accs[i].compute()
             concept_acc = self.intervene_clean_concept_accs[i].compute()
             self.intervene_clean_accs[i].reset()
@@ -427,14 +413,12 @@ class CBM(L.LightningModule):
                 {
                     "Clean Acc under Intervene": acc,
                     "Clean Concept Acc under Intervene": concept_acc,
-                    "Intervene Budget": intervene_budget,
+                    "Intervene Budget": i,
                 }
             )
 
         for atk_name in ["label", "concept", "combined"]:
-            for i, intervene_budget in enumerate(
-                range(self.hparams.max_intervene_budget + 1)
-            ):
+            for i in range(11):
                 acc = getattr(self, f"{atk_name}_atk_intervene_accs")[i].compute()
                 concept_acc = getattr(self, f"{atk_name}_atk_intervene_concept_accs")[
                     i
@@ -445,6 +429,6 @@ class CBM(L.LightningModule):
                     {
                         f"{atk_name} Attack Acc under Intervene": acc,
                         f"{atk_name} Attack Concept Acc under Intervene": concept_acc,
-                        f"Adv Intervene Budget": intervene_budget,
+                        f"Adv Intervene Budget": i,
                     }
                 )
