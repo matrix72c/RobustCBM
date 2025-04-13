@@ -50,7 +50,7 @@ class VCBM(CBM):
             trades_loss = F.binary_cross_entropy(
                 adv_probs, clean_probs, reduction="mean"
             )
-            loss += trades_loss * self.hparams.trades
+            loss += trades_loss * self.hparams.trades * min(1, self.current_epoch / 300)
             self.log("trades_loss", trades_loss)
 
         if self.hparams.spectral_weight > 0:
