@@ -11,6 +11,7 @@ from torchmetrics import Accuracy, MeanMetric
 import attacks
 from mtl import mtl
 
+
 class AttentionClassifier(nn.Module):
     def __init__(self, concept_dim, hidden_dim, num_classes):
         super().__init__()
@@ -18,7 +19,7 @@ class AttentionClassifier(nn.Module):
             nn.Linear(concept_dim, hidden_dim),
             nn.Tanh(),
             nn.Linear(hidden_dim, concept_dim),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
         self.mlp = nn.Sequential(
             nn.Linear(concept_dim, hidden_dim),
@@ -26,11 +27,12 @@ class AttentionClassifier(nn.Module):
             nn.Linear(hidden_dim, num_classes),
         )
         self.shortcut = nn.Linear(concept_dim, num_classes)
-    
+
     def forward(self, x):
         attn_weights = self.attn(x)
         x = x * attn_weights
         return self.mlp(x) + self.shortcut(x)
+
 
 class CBM(L.LightningModule):
     def __init__(
@@ -160,10 +162,7 @@ class CBM(L.LightningModule):
             )
 
         self.intervene_clean_accs = nn.ModuleList(
-            [
-                Accuracy(task="multiclass", num_classes=num_classes)
-                for _ in range(11)
-            ]
+            [Accuracy(task="multiclass", num_classes=num_classes) for _ in range(11)]
         )
         self.intervene_clean_concept_accs = nn.ModuleList(
             [
@@ -228,7 +227,13 @@ class CBM(L.LightningModule):
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(
-            concept_pred, concepts#, weight=self.dm.imbalance_weights.to(self.device)
+            concept_pred,
+            concepts,
+            weight=(
+                self.dm.imbalance_weights.to(self.device)
+                if self.hparams.dataset == "CUB"
+                else None
+            ),
         )
         label_loss = F.cross_entropy(label_pred, label)
         loss = label_loss + self.hparams.concept_weight * concept_loss
@@ -247,7 +252,9 @@ class CBM(L.LightningModule):
             self.log("trades_loss", trades_loss)
 
         if self.hparams.spectral_weight > 0:
-            spectral_loss = calc_spectral_norm(self.classifier) * self.hparams.spectral_weight
+            spectral_loss = (
+                calc_spectral_norm(self.classifier) * self.hparams.spectral_weight
+            )
             loss += spectral_loss
             self.log("spectral_loss", spectral_loss)
 
