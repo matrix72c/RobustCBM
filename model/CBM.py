@@ -248,7 +248,7 @@ class CBM(L.LightningModule):
             trades_loss = F.binary_cross_entropy(
                 adv_probs, clean_probs, reduction="mean"
             )
-            loss += trades_loss * self.hparams.trades
+            loss += trades_loss * self.hparams.trades * max(0, self.current_epoch / 100 - 2)
             self.log("trades_loss", trades_loss)
 
         if self.hparams.spectral_weight > 0:
