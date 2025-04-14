@@ -81,7 +81,6 @@ class CBM(L.LightningModule):
         self.real_concepts = real_concepts
         self.num_classes = num_classes
         self.num_concepts = num_concepts
-        self.intervene_budget = intervene_budget
 
         self.concept_acc = Accuracy(
             task="multilabel", num_labels=min(num_concepts, real_concepts)

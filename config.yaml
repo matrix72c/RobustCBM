@@ -48,6 +48,3 @@ cl_weight: 0.1
 spectral_weight: 0
 # adversarial invariant
 trades: 0
-
-intervene_budget: 0
-max_intervene_budget: 29
