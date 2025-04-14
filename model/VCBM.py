@@ -9,22 +9,27 @@ from utils import calc_info_loss, calc_spectral_norm
 class VCBM(CBM):
     def __init__(
         self,
+        res_dim: int = 0,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.fc = nn.Linear(self.base.fc.in_features, 2 * self.num_concepts)
+        self.fc = nn.Linear(self.base.fc.in_features, 2 * (self.num_concepts + res_dim))
         self.base.fc = nn.Identity()
-        self.classifier = nn.Linear(self.num_concepts, self.num_classes)
+        self.classifier = nn.Linear(self.num_concepts + res_dim, self.num_classes)
 
     def forward(self, x, concept_pred=None):
         features = self.base(x)
         statistics = self.fc(features)
         std, mu = torch.chunk(statistics, 2, dim=1)
+        logits = mu + std * torch.randn_like(std)
         if concept_pred is None:
-            concept_pred = mu + std * torch.randn_like(std)
+            concept_pred = logits
+        else:
+            logits[:, : self.num_concepts] = concept_pred
+            concept_pred = logits
 
         label_pred = self.classifier(concept_pred)
-        return label_pred, concept_pred, mu, std**2
+        return label_pred, concept_pred[:, : self.num_concepts], mu, std**2
 
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred, mu, var = self(img)
@@ -48,7 +53,9 @@ class VCBM(CBM):
             trades_loss = F.binary_cross_entropy(
                 adv_probs, clean_probs, reduction="mean"
             )
-            loss += trades_loss * self.hparams.trades * max(0, self.current_epoch / 100 - 2)
+            loss += (
+                trades_loss * self.hparams.trades * max(0, self.current_epoch / 100 - 2)
+            )
             self.log("trades_loss", trades_loss)
 
         if self.hparams.spectral_weight > 0:
