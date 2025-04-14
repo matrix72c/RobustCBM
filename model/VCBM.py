@@ -14,16 +14,14 @@ class VCBM(CBM):
         super().__init__(**kwargs)
         self.fc = nn.Linear(self.base.fc.in_features, 2 * self.num_concepts)
         self.base.fc = nn.Identity()
+        self.classifier = nn.Linear(self.num_concepts, self.num_classes)
 
     def forward(self, x, concept_pred=None):
         features = self.base(x)
         statistics = self.fc(features)
         std, mu = torch.chunk(statistics, 2, dim=1)
         if concept_pred is None:
-            if self.training:
-                concept_pred = mu + std * torch.randn_like(std)
-            else:
-                concept_pred = mu
+            concept_pred = mu + std * torch.randn_like(std)
 
         label_pred = self.classifier(concept_pred)
         return label_pred, concept_pred, mu, std**2
