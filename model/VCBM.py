@@ -34,7 +34,13 @@ class VCBM(CBM):
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred, mu, var = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(
-            concept_pred, concepts, weight=self.dm.imbalance_weights.to(self.device)
+            concept_pred,
+            concepts,
+            weight=(
+                self.dm.imbalance_weights.to(self.device)
+                if self.hparams.dataset == "CUB"
+                else None
+            ),
         )
         info_loss = calc_info_loss(mu, var)
         label_loss = F.cross_entropy(label_pred, label)
@@ -51,9 +57,7 @@ class VCBM(CBM):
             trades_loss = F.binary_cross_entropy(
                 adv_probs / 3.0, clean_probs / 3.0, reduction="mean"
             )
-            loss += (
-                trades_loss * self.hparams.trades
-            )
+            loss += trades_loss * self.hparams.trades
             self.log("trades_loss", trades_loss)
 
         if self.hparams.spectral_weight > 0:
