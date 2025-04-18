@@ -483,8 +483,18 @@ class CUBDataSet(Dataset):
         concept_counts = torch.zeros(len(self.data[0]["attribute_label"]))
         for img_data in self.data:
             concept_counts += torch.FloatTensor(img_data["attribute_label"])
-        most_common = concept_counts.argsort(descending=True)
-        self.combos = list(itertools.combinations(most_common[:32], 2))
+        self.top_vuln_concepts = [
+            50,
+            20,
+            100,
+            7,
+            13,
+            111,
+            11,
+            76,
+            61,
+            86,
+        ]
 
     def __getitem__(self, index):
         img_data = self.data[index]
@@ -499,15 +509,11 @@ class CUBDataSet(Dataset):
         label = img_data["class_label"]
         img = self.transform(img)
         attr_label = torch.FloatTensor(img_data["attribute_label"])
-        combo_attr = torch.zeros(len(self.combos))
-        for i, (a, b) in enumerate(self.combos):
-            combo_attr[i] = attr_label[a] * attr_label[b]
-        if self.num_concepts < 112:
-            attr_label = attr_label[: self.num_concepts]
-        elif self.num_concepts > 112:
-            attr_label = torch.cat(
-                [attr_label, combo_attr[: self.num_concepts - 112]], dim=0
-            )
+        if self.num_concepts < len(attr_label):
+            ignored = self.top_vuln_concepts[: len(attr_label) - self.num_concepts]
+            mask = torch.ones(len(attr_label), dtype=torch.bool)
+            mask[ignored] = False
+            attr_label = attr_label[mask]
         return img, label, attr_label
 
     def __len__(self):
@@ -535,12 +541,39 @@ class CUB(L.LightningDataModule):
         self.imbalance_weights = cal_class_imbalance_weights(self.train_data)
         # Generate a mapping containing all concept groups in CUB generated
         # using a simple prefix tree
+        self.top_vuln_concepts = [
+            50,
+            20,
+            100,
+            7,
+            13,
+            111,
+            11,
+            76,
+            61,
+            86,
+        ]
+        if num_concepts < 112:
+            ignored = self.top_vuln_concepts[: 112 - num_concepts]
+        else:
+            ignored = []
+        idx_map = []
+        for i in range(112):
+            v = 0
+            for j in ignored:
+                if j < i:
+                    v += 1
+            idx_map.append(i - v)
+        self.concept_names = list(
+            np.array(CONCEPT_SEMANTICS)[self.top_vuln_concepts]
+        )
         CONCEPT_GROUP_MAP = defaultdict(list)
         for i, concept_name in enumerate(
             list(np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS])
         ):
             group = concept_name[: concept_name.find("::")]
-            CONCEPT_GROUP_MAP[group].append(i)
+            if i not in ignored:
+                CONCEPT_GROUP_MAP[group].append(idx_map[i])
         self.concept_group_map = CONCEPT_GROUP_MAP
         self.concept_names = list(np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS])
         self.max_intervene_budget = 29
