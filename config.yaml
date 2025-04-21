@@ -1,4 +1,4 @@
-group: final
+group: ndss
 seed: 42
 gpus: auto
 epochs: -1
