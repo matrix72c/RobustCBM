@@ -15,7 +15,7 @@ class backbone(CBM):
     def forward(self, x):
         x = self.base(x)
         return x, torch.zeros(x.shape[0], self.num_concepts).detach().to(x.device)
-    
+
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred = self(img)
         label_loss = F.cross_entropy(label_pred, label, label_smoothing=0.1)

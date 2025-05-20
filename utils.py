@@ -1,5 +1,6 @@
 import math
 import os
+import sys
 import torch
 import torch.nn as nn
 from lightning.pytorch.plugins.io import CheckpointIO
@@ -110,22 +111,13 @@ def modify_fc(model, base, out_size):
         model.fc = nn.Linear(model.fc.in_features, out_size).apply(initialize_weights)
 
 
-def contrastive_loss(z, z_q, concepts, margin=1.0, lambda_neg=1.0):
-    B, N, E = z.size()
-    z_flat = z.view(B * N, E)
-    zq_flat = z_q.view(B * N, E)
-    c_flat = concepts.view(-1)
-    dist_matrix = torch.cdist(z_flat, zq_flat, p=2)
-    c_i = c_flat.unsqueeze(1)
-    c_j = c_flat.unsqueeze(0)
-    pos_mask = (c_i == 1) & (c_j == 1)
-    eye_mask = torch.eye(B * N, device=z.device).bool()
-    pos_mask = pos_mask & (~eye_mask)
-    neg_mask = ((c_i == 1) & (c_j == 0)) | ((c_i == 0) & (c_j == 1))
-
-    pos_loss = dist_matrix[pos_mask].pow(2).mean()
-    neg_loss = F.relu(margin - dist_matrix[neg_mask]).pow(2).mean()
-    return pos_loss + lambda_neg * neg_loss
+def suppress_stdout(func):
+    def wrapper(*args, **kwargs):
+        sys.stdout = open(os.devnull, 'w')
+        result = func(*args, **kwargs)
+        sys.stdout = sys.__stdout__
+        return result
+    return wrapper
 
 
 def build_base(base, out_size, use_pretrained=True):
@@ -170,8 +162,3 @@ class cls_wrapper(nn.Module):
     def forward(self, *args, **kwargs):
         o = self.model(*args, **kwargs)
         return o[self.index]
-
-def calc_spectral_norm(model: nn.Linear):
-    mat = model.weight.data
-    u, s, v = torch.svd(mat)
-    return s.max().item()

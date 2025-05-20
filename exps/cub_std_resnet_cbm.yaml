@@ -1,4 +1,0 @@
-experiment_name: cub_std_resnet_cbm
-model: CBM
-base: resnet50
-adv_mode: False

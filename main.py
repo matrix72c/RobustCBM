@@ -32,7 +32,7 @@ def exp(config):
             if isinstance(v, dict):
                 d.remove((k, v))
                 d.extend(v.items())
-            if k == "gpus":
+            if k == "gpus" or k == "ckpt_path" or k == "experiment_name" or k == "group":
                 d.remove((k, v))
         name = "_".join([f"{v}" if isinstance(v, str) else f"{k}-{v}" for k, v in d])
         name = name.lower()
@@ -44,13 +44,13 @@ def exp(config):
         tags=[
             cfg["model"],
             cfg["dataset"],
-            cfg["adv_mode"],
+            cfg["train_mode"],
             cfg["base"],
         ],
         group=cfg.get("group", None),
     )
     checkpoint_callback = ModelCheckpoint(
-        monitor="acc",
+        monitor="fit/acc",
         dirpath="checkpoints/",
         filename=name,
         save_top_k=1,
@@ -60,7 +60,7 @@ def exp(config):
         every_n_epochs=1,
     )
     early_stopping = EarlyStopping(
-        monitor="lr", mode="min", patience=1000, stopping_threshold=1e-4
+        monitor="fit/lr", mode="min", patience=1000, stopping_threshold=1e-4
     )
     callbacks = [checkpoint_callback, early_stopping]
     trainer = Trainer(
@@ -96,11 +96,6 @@ def exp(config):
             print(f"Upload {best} to {ckpt_path}")
         except Exception as e:
             print(f"Upload {best} to {ckpt_path} failed: {e}")
-            wandb.run.alert(
-                title="Upload failed",
-                text=(f"Upload {best} to {ckpt_path} failed: {e}"),
-                level="ERROR",
-            )
 
     trainer.test(model, dm)
     wandb.finish()

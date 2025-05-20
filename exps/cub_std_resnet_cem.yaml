@@ -1,6 +1,0 @@
-experiment_name: cub_std_resnet_cem
-model: CEM
-base: resnet50
-adv_mode: False
-
-concept_weight: 5
