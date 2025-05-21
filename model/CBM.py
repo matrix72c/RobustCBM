@@ -156,7 +156,7 @@ class CBM(L.LightningModule):
                 "optimizer": optimizer,
                 "lr_scheduler": {
                     "scheduler": scheduler,
-                    "monitor": "fit/acc",
+                    "monitor": "acc",
                     "interval": "epoch",
                     "frequency": 1,
                     "strict": True,
@@ -266,7 +266,7 @@ class CBM(L.LightningModule):
         if self.hparams.mtl_mode != "normal" and self.global_rank == 0:
             sch = self.lr_schedulers()
             if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                sch.step(self.trainer.callback_metrics["fit/acc"])
+                sch.step(self.trainer.callback_metrics["acc"])
 
     def validation_step(self, batch, batch_idx):
         img, label, concepts = batch
@@ -281,16 +281,16 @@ class CBM(L.LightningModule):
         self.concept_acc(concept_pred, concepts)
         self.acc(label_pred, label)
         for name, val in losses.items():
-            self.log(f"fit/{name}", val, on_step=False, on_epoch=True)
+            self.log(f"{name}", val, on_step=False, on_epoch=True)
         self.log(
-            "fit/lr",
+            "lr",
             self.optimizers().param_groups[0]["lr"],
             on_step=False,
             on_epoch=True,
         )
-        self.log("fit/acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
+        self.log("acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
         self.log(
-            "fit/concept_acc",
+            "concept_acc",
             self.concept_acc,
             prog_bar=True,
             on_epoch=True,

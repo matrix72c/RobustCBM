@@ -49,15 +49,15 @@ def exp(config):
         group=cfg.get("group", None),
     )
     checkpoint_callback = ModelCheckpoint(
-        monitor="fit/acc",
+        monitor="acc",
         dirpath="checkpoints/",
-        filename=name + "-{epoch}-{acc:.2f}",
+        filename=name + "-{epoch}-{acc:.4f}",
         mode="max",
         enable_version_counter=False,
         save_weights_only=True,
     )
     early_stopping = EarlyStopping(
-        monitor="fit/lr", mode="min", patience=1000, stopping_threshold=1e-4
+        monitor="lr", mode="min", patience=1000, stopping_threshold=1e-4
     )
     callbacks = [checkpoint_callback, early_stopping]
     trainer = Trainer(
