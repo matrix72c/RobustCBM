@@ -268,7 +268,7 @@ class CBM(L.LightningModule):
         if self.hparams.mtl_mode != "normal" and self.global_rank == 0:
             sch = self.lr_schedulers()
             if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                sch.step(self.trainer.callback_metrics["val/acc"])
+                sch.step(self.trainer.callback_metrics["fit/acc"])
 
     def validation_step(self, batch, batch_idx):
         img, label, concepts = batch
