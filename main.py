@@ -39,7 +39,7 @@ def exp(config):
 
     logger = WandbLogger(
         name=name,
-        project="CBM",
+        project="RAID",
         config=cfg,
         tags=[
             cfg["model"],
