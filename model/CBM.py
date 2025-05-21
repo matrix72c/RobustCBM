@@ -335,14 +335,15 @@ class CBM(L.LightningModule):
         self.log("clean label loss", label_loss, on_step=False, on_epoch=True)
         self.log("clean concept loss", concept_loss, on_step=False, on_epoch=True)
 
-        for i in range(11):
-            intervene_budget = self.max_intervene_budget * i // 10
-            cur_concept_pred = self.intervene(
-                concepts, concept_pred.clone(), intervene_budget
-            )
-            cur_label_pred = self(img, cur_concept_pred)[0]
-            self.intervene_clean_accs[i](cur_label_pred, label)
-            self.intervene_clean_concept_accs[i](cur_concept_pred, concepts)
+        if self.hparams.model != "backbone":
+            for i in range(11):
+                intervene_budget = self.max_intervene_budget * i // 10
+                cur_concept_pred = self.intervene(
+                    concepts, concept_pred.clone(), intervene_budget
+                )
+                cur_label_pred = self(img, cur_concept_pred)[0]
+                self.intervene_clean_accs[i](cur_label_pred, label)
+                self.intervene_clean_concept_accs[i](cur_concept_pred, concepts)
 
         for atk_name in ["label", "concept", "combined", "cw", "auto"]:
             if self.hparams.model == "backbone" and (
