@@ -41,9 +41,9 @@ class CBM(L.LightningModule):
         res_dim: int = 0,
         cbm_mode: str = "hybrid",
         train_mode: str = "std",
-        label_atk_args: dict = {"eps": 4},
-        concept_atk_args: dict = {"eps": 4},
-        combined_atk_args: dict = {"eps": 4},
+        label_atk_args: dict = {},
+        concept_atk_args: dict = {},
+        combined_atk_args: dict = {},
         auto_atk_args: dict = {"eps": 4 / 255},
         cw_atk_args: dict = {},
         mtl_mode: str = "normal",
@@ -79,17 +79,14 @@ class CBM(L.LightningModule):
 
         self.train_mode = train_mode
         self.label_atk = PGD(
-            num_classes=num_classes,
             loss_fn=F.cross_entropy,
             **label_atk_args,
         )
         self.concept_atk = PGD(
-            num_classes=num_concepts,
             loss_fn=F.binary_cross_entropy_with_logits,
             **concept_atk_args,
         )
         self.combined_atk = PGD(
-            num_classes=num_classes,
             loss_fn=lambda o, y: F.cross_entropy(o[0], y[0])
             + F.binary_cross_entropy_with_logits(o[1], y[1]),
             **combined_atk_args,
