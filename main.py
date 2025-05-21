@@ -51,12 +51,10 @@ def exp(config):
     checkpoint_callback = ModelCheckpoint(
         monitor="fit/acc",
         dirpath="checkpoints/",
-        filename=name,
-        save_top_k=1,
+        filename=name + "-{epoch}-{acc:.2f}",
         mode="max",
         enable_version_counter=False,
         save_weights_only=True,
-        every_n_epochs=1,
     )
     early_stopping = EarlyStopping(
         monitor="fit/lr", mode="min", patience=1000, stopping_threshold=1e-4
@@ -65,7 +63,6 @@ def exp(config):
     trainer = Trainer(
         accelerator="gpu",
         devices=cfg["gpus"],
-        log_every_n_steps=1,
         logger=logger,
         callbacks=callbacks,
         max_epochs=cfg["epochs"],
@@ -73,13 +70,12 @@ def exp(config):
     )
     ckpt_path = cfg.get("ckpt_path", None)
     if ckpt_path is not None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            if os.path.exists(ckpt_path):
-                fp = ckpt_path
-            else:
-                raise ValueError(f"Checkpoint {ckpt_path} not found")
-            model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
-            print("Load from checkpoint: ", ckpt_path)
+        if os.path.exists(ckpt_path):
+            fp = ckpt_path
+        else:
+            raise ValueError(f"Checkpoint {ckpt_path} not found")
+        model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
+        print("Load from checkpoint: ", ckpt_path)
     else:
         trainer.fit(model, dm)
         ckpt_path = "checkpoints/" + name + ".ckpt"
