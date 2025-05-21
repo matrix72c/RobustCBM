@@ -41,9 +41,9 @@ class CBM(L.LightningModule):
         res_dim: int = 0,
         cbm_mode: str = "hybrid",
         train_mode: str = "std",
-        label_atk_args: dict = {"eps": 4 / 255},
-        concept_atk_args: dict = {"eps": 4 / 255},
-        combined_atk_args: dict = {"eps": 4 / 255},
+        label_atk_args: dict = {"eps": 4},
+        concept_atk_args: dict = {"eps": 4},
+        combined_atk_args: dict = {"eps": 4},
         auto_atk_args: dict = {"eps": 4 / 255},
         cw_atk_args: dict = {},
         mtl_mode: str = "normal",
@@ -133,6 +133,10 @@ class CBM(L.LightningModule):
                 ),
             )
 
+        self.test_acc = Accuracy(task="multiclass", num_classes=num_classes)
+        self.test_concept_acc = Accuracy(
+            task="multilabel", num_labels=min(num_concepts, real_concepts)
+        )
         self.intervene_clean_accs = nn.ModuleList(
             [Accuracy(task="multiclass", num_classes=num_classes) for _ in range(11)]
         )
@@ -317,8 +321,8 @@ class CBM(L.LightningModule):
 
         o = self(img)
         label_pred, concept_pred = o[0], o[1]
-        self.acc(label_pred, label)
-        self.concept_acc(concept_pred, concepts)
+        self.test_acc(label_pred, label)
+        self.test_concept_acc(concept_pred, concepts)
 
         label_loss = F.cross_entropy(label_pred, label)
         concept_loss = F.binary_cross_entropy_with_logits(
@@ -368,9 +372,17 @@ class CBM(L.LightningModule):
             )
             loss = label_loss + self.hparams.concept_weight * concept_loss
             self.log(f"Loss under {atk_name} atk", loss, on_step=False, on_epoch=True)
-            self.log(f"Label Loss under {atk_name} atk", label_loss, on_step=False, on_epoch=True)
             self.log(
-                f"Concept Loss under {atk_name} atk", concept_loss, on_step=False, on_epoch=True
+                f"Label Loss under {atk_name} atk",
+                label_loss,
+                on_step=False,
+                on_epoch=True,
+            )
+            self.log(
+                f"Concept Loss under {atk_name} atk",
+                concept_loss,
+                on_step=False,
+                on_epoch=True,
             )
 
             if self.hparams.model == "backbone":
@@ -392,10 +404,10 @@ class CBM(L.LightningModule):
             torch.cuda.empty_cache()
 
     def on_test_epoch_end(self):
-        clean_acc = self.acc.compute()
-        clean_concept_acc = self.concept_acc.compute()
-        self.acc.reset()
-        self.concept_acc.reset()
+        clean_acc = self.test_acc.compute()
+        clean_concept_acc = self.test_concept_acc.compute()
+        self.test_acc.reset()
+        self.test_concept_acc.reset()
         self.log("Clean Acc", clean_acc)
         self.log("Clean Concept Acc", clean_concept_acc)
         for i in range(11):
