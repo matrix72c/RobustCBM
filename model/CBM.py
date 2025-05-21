@@ -331,9 +331,9 @@ class CBM(L.LightningModule):
             ),
         )
         loss = label_loss + self.hparams.concept_weight * concept_loss
-        self.log("clean loss", loss, on_step=False, on_epoch=True)
-        self.log("clean label loss", label_loss, on_step=False, on_epoch=True)
-        self.log("clean concept loss", concept_loss, on_step=False, on_epoch=True)
+        self.log("Clean Loss", loss, on_step=False, on_epoch=True)
+        self.log("Clean Label Loss", label_loss, on_step=False, on_epoch=True)
+        self.log("Clean Concept Loss", concept_loss, on_step=False, on_epoch=True)
 
         if self.hparams.model != "backbone":
             for i in range(11):
@@ -367,10 +367,10 @@ class CBM(L.LightningModule):
                 ),
             )
             loss = label_loss + self.hparams.concept_weight * concept_loss
-            self.log(f"{atk_name} loss", loss, on_step=False, on_epoch=True)
-            self.log(f"{atk_name} label loss", label_loss, on_step=False, on_epoch=True)
+            self.log(f"Loss under {atk_name} atk", loss, on_step=False, on_epoch=True)
+            self.log(f"Label Loss under {atk_name} atk", label_loss, on_step=False, on_epoch=True)
             self.log(
-                f"{atk_name} concept loss", concept_loss, on_step=False, on_epoch=True
+                f"Concept Loss under {atk_name} atk", concept_loss, on_step=False, on_epoch=True
             )
 
             if self.hparams.model == "backbone":
@@ -403,10 +403,12 @@ class CBM(L.LightningModule):
             concept_acc = self.intervene_clean_concept_accs[i].compute()
             self.intervene_clean_accs[i].reset()
             self.intervene_clean_concept_accs[i].reset()
-            self.log(f"Clean Acc with Intervene", acc)
-            self.log(
-                f"Clean Concept Acc with Intervene",
-                concept_acc,
+            wandb.log(
+                {
+                    "Clean Acc with Intervene": acc,
+                    "Clean Concept Acc with Intervene": concept_acc,
+                    "Intervene Budget": i,
+                }
             )
 
         for atk_name in ["label", "concept", "combined", "cw", "auto"]:
@@ -432,5 +434,10 @@ class CBM(L.LightningModule):
                 ].compute()
                 getattr(self, f"intervene_{atk_name}_atk_accs")[i].reset()
                 getattr(self, f"intervene_{atk_name}_atk_concept_accs")[i].reset()
-                self.log(f"{atk_name} Attack Acc with Intervene", acc)
-                self.log(f"{atk_name} Attack Concept Acc with Intervene", concept_acc)
+                wandb.log(
+                    {
+                        f"{atk_name} Attack Acc with Intervene": acc,
+                        f"{atk_name} Attack Concept Acc with Intervene": concept_acc,
+                        "Intervene Budget": i,
+                    }
+                )
