@@ -4,6 +4,16 @@ import sys
 import torch
 import torch.nn as nn
 import torchvision
+import yaml
+
+def yaml_merge(default, update):
+    merged = default.copy()
+    for key, value in update.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
 
 def flatten_dict(d, parent_key='', sep='.'):
     items = []

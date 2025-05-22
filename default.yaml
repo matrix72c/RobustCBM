@@ -1,0 +1,42 @@
+seed: 42
+group: sp
+
+dataset_name: "CUB"
+data_path: "./data"
+batch_size: 128
+resol: 224
+num_workers: 12
+
+base: "resnet50"
+use_pretrained: true
+concept_weight: 1.0
+optimizer: "SGD"
+optimizer_args:
+  lr: 0.1
+  momentum: 0.9
+  weight_decay: 0.00004
+scheduler: "ReduceLROnPlateau"
+scheduler_args:
+  mode: "max"
+  patience: 30
+  factor: 0.1
+  min_lr: 0.00001
+plateau_args:
+  monitor: "acc"
+  interval: "epoch"
+  frequency: 1
+  strict: false
+hidden_dim: 0
+res_dim: 0
+cbm_mode: "hybrid"
+
+train_mode: "std"
+aa_args:
+  eps: 0.0156862745
+mtl_mode: "normal"
+weighted_bce: true
+ignore_intervenes: false
+
+embed_dim: 16
+
+vib: 0.01

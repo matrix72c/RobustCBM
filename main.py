@@ -10,18 +10,22 @@ import torch
 import wandb
 import yaml, argparse
 import model as pl_model
-from utils import flatten_dict
+from utils import flatten_dict, yaml_merge
 
 
-def exp(cfg):
+def exp(config):
+    with open("default.yaml", "r") as f:
+        cfg = yaml.safe_load(f)
+    cfg = yaml_merge(cfg, config)
+
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg.get("seed", 42))
     model = getattr(pl_model, cfg["model"])(**cfg)
     if cfg.get("experiment_name", None) is not None:
         name = cfg["experiment_name"]
     else:
-        d = flatten_dict(cfg)
-        d.pop("ckpt_path")
+        d = flatten_dict(config)
+        d.pop("ckpt_path", None)
         d = sorted(d.items(), key=lambda x: x[0])
         name = "_".join([f"{v}" if isinstance(v, str) else f"{k}-{v}" for k, v in d])
         name = name.lower()
@@ -36,7 +40,7 @@ def exp(cfg):
             cfg["train_mode"],
             cfg["base"],
         ],
-        group="sp",
+        group=cfg.get("group", None),
     )
     checkpoint_callback = ModelCheckpoint(
         monitor="acc",
@@ -55,6 +59,7 @@ def exp(cfg):
         callbacks=callbacks,
         max_epochs=cfg.get("epochs", None),
         inference_mode=False,
+        log_every_n_steps=10,
     )
     ckpt_path = cfg.get("ckpt_path", None)
     if ckpt_path is not None:
@@ -62,7 +67,7 @@ def exp(cfg):
             raise ValueError(f"Checkpoint {ckpt_path} not found")
         print("Load from checkpoint: ", ckpt_path)
     else:
-        trainer.fit(model)
+        trainer.fit(model, model.dm)
         ckpt_path = trainer.checkpoint_callback.best_model_path
 
     model = model.__class__.load_from_checkpoint(ckpt_path, **cfg)

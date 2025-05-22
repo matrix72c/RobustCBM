@@ -321,6 +321,8 @@ class CBM(L.LightningModule):
             getattr(self, f"{mode}_concept_acc")(concept_pred, concepts)
             for name, val in losses.items():
                 self.log(f"test/{mode} {name}", val, on_step=False, on_epoch=True)
+            self.log(f"test/{mode} Acc", getattr(self, f"{mode}_acc"), prog_bar=True, on_step=False, on_epoch=True)
+            self.log(f"test/{mode} Concept Acc", getattr(self, f"{mode}_concept_acc"), prog_bar=True, on_step=False, on_epoch=True)
 
             if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
@@ -338,24 +340,6 @@ class CBM(L.LightningModule):
 
     def on_test_epoch_end(self):
         for mode in ["Std", "LPGD", "CPGD", "JPGD", "CW", "AA"]:
-            if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
-                continue
-            acc = getattr(self, f"{mode}_acc").compute()
-            concept_acc = getattr(self, f"{mode}_concept_acc").compute()
-            getattr(self, f"{mode}_acc").reset()
-            getattr(self, f"{mode}_concept_acc").reset()
-            self.log(f"test/{mode} Acc", acc)
-            self.log(f"test/{mode} Concept Acc", concept_acc)
-            if mode == "Std":
-                clean_acc = acc
-                clean_concept_acc = concept_acc
-            else:
-                self.log(f"test/{mode} ASR", (clean_acc - acc) / clean_acc)
-                self.log(
-                    f"test/{mode} Concept ASR",
-                    (clean_concept_acc - concept_acc) / clean_concept_acc,
-                )
-
             if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
 
