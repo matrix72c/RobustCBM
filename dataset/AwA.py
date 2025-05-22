@@ -15,9 +15,8 @@ from utils import cal_class_imbalance_weights
 
 
 class AwADataset(Dataset):
-    def __init__(self, data_path, stage, num_concepts, resol):
+    def __init__(self, data_path, stage, resol):
         self.path = data_path
-        self.num_concepts = num_concepts
         class_to_index = dict()
         with open(self.path + "/Animals_with_Attributes2/classes.txt") as f:
             index = 1
@@ -102,15 +101,24 @@ class AwADataset(Dataset):
 
 
 class AwA(L.LightningDataModule):
-    def __init__(self, data_path, batch_size, num_concepts=85, resol=224, **kwargs):
+    def __init__(
+        self,
+        data_path="./data",
+        resol=224,
+        batch_size=128,
+        num_workers=12,
+        **kwargs,
+    ):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.resol = resol
         self.num_concepts = 85
         self.num_classes = 50
-        self.train = AwADataset(self.data_path, "fit", num_concepts, resol)
-        self.val = AwADataset(self.data_path, "val", num_concepts, resol)
-        self.test = AwADataset(self.data_path, "test", num_concepts, resol)
+        self.train = AwADataset(self.data_path, "fit", resol)
+        self.val = AwADataset(self.data_path, "val", resol)
+        self.test = AwADataset(self.data_path, "test", resol)
         sample = Subset(self.train, torch.arange(len(self.train) // 10))
         self.imbalance_weights = cal_class_imbalance_weights(sample)
 
@@ -128,7 +136,7 @@ class AwA(L.LightningDataModule):
             self.train,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=12,
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
@@ -137,7 +145,7 @@ class AwA(L.LightningDataModule):
             self.val,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=12,
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
@@ -146,16 +154,13 @@ class AwA(L.LightningDataModule):
             self.test,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=12,
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
 
 if __name__ == "__main__":
-    data_path = "./data/"
-    resol = 224
-    batch_size = 128
-    dm = AwA(data_path, resol, batch_size)
+    dm = AwA()
     dm.setup("fit")
     for x, y, z in dm.train:
         print(x.shape, y, z.shape)

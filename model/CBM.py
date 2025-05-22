@@ -11,6 +11,7 @@ from attacks import PGD
 from torchattacks import CW
 from autoattack import AutoAttack
 from mtl import mtl
+import dataset
 
 
 class MLP(nn.Module):
@@ -28,15 +29,29 @@ class MLP(nn.Module):
 class CBM(L.LightningModule):
     def __init__(
         self,
-        dm: L.LightningDataModule,
+        dataset_name: str = "CUB",
+        data_path: str = "./data",
+        batch_size: int = 128,
+        resol: int = 224,
+        num_workers: int = 12,
         base: str = "resnet50",
         use_pretrained: bool = True,
         concept_weight: float = 1,
         optimizer: str = "SGD",
-        lr: float = 0.1,
-        optimizer_args: dict = {},
+        optimizer_args: dict = {"lr": 0.1, "momentum": 0.9, "weight_decay": 4e-5},
         scheduler: str = "ReduceLROnPlateau",
-        scheduler_args: dict = {},
+        scheduler_args: dict = {
+            "mode": "max",
+            "patience": 30,
+            "factor": 0.1,
+            "min_lr": 1e-5,
+        },
+        plateau_args: dict = {
+            "monitor": "acc",
+            "interval": "epoch",
+            "frequency": 1,
+            "strict": False,
+        },
         hidden_dim: int = 0,
         res_dim: int = 0,
         cbm_mode: str = "hybrid",
@@ -47,12 +62,15 @@ class CBM(L.LightningModule):
         aa_args: dict = {"eps": 4 / 255},
         cw_args: dict = {},
         mtl_mode: str = "normal",
+        weighted_bce: bool = True,
+        ignore_intervenes: bool = False,
         **kwargs,
     ):
         super().__init__()
         if mtl_mode != "normal":
             self.automatic_optimization = False
-        self.save_hyperparameters(ignore="dm")
+        self.save_hyperparameters()
+        dm = getattr(dataset, dataset_name)(**self.hparams)
         num_classes = dm.num_classes
         num_concepts = dm.num_concepts
         self.dm = dm
@@ -128,7 +146,7 @@ class CBM(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = getattr(torch.optim, self.hparams.optimizer)(
-            self.parameters(), lr=self.hparams.lr, **self.hparams.optimizer_args
+            self.parameters(), **self.hparams.optimizer_args
         )
         scheduler = getattr(torch.optim.lr_scheduler, self.hparams.scheduler)(
             optimizer, **self.hparams.scheduler_args
@@ -136,13 +154,7 @@ class CBM(L.LightningModule):
         if self.hparams.scheduler == "ReduceLROnPlateau":
             return {
                 "optimizer": optimizer,
-                "lr_scheduler": {
-                    "scheduler": scheduler,
-                    "monitor": "acc",
-                    "interval": "epoch",
-                    "frequency": 1,
-                    "strict": True,
-                },
+                "lr_scheduler": {"scheduler": scheduler, **self.hparams.plateau_args},
             }
         else:
             return [optimizer], [scheduler]
@@ -191,7 +203,7 @@ class CBM(L.LightningModule):
             concepts,
             weight=(
                 self.dm.imbalance_weights.to(self.device)
-                if self.hparams.dataset == "CUB"
+                if self.hparams.weighted_bce
                 else None
             ),
         )
@@ -305,7 +317,7 @@ class CBM(L.LightningModule):
             getattr(self, f"{mode}_acc")(label_pred, label)
             getattr(self, f"{mode}_concept_acc")(concept_pred, concepts)
             for name, val in losses.items():
-                self.log(f"{mode} {name}", val, on_step=False, on_epoch=True)
+                self.log(f"test/{mode} {name}", val, on_step=False, on_epoch=True)
 
             if self.hparams.model == "backbone":
                 continue
@@ -329,19 +341,19 @@ class CBM(L.LightningModule):
             concept_acc = getattr(self, f"{mode}_concept_acc").compute()
             getattr(self, f"{mode}_acc").reset()
             getattr(self, f"{mode}_concept_acc").reset()
-            self.log(f"{mode} Acc", acc)
-            self.log(f"{mode} Concept Acc", concept_acc)
+            self.log(f"test/{mode} Acc", acc)
+            self.log(f"test/{mode} Concept Acc", concept_acc)
             if mode == "Std":
                 clean_acc = acc
                 clean_concept_acc = concept_acc
             else:
-                self.log(f"{mode} ASR", (clean_acc - acc) / clean_acc)
+                self.log(f"test/{mode} ASR", (clean_acc - acc) / clean_acc)
                 self.log(
-                    f"{mode} Concept ASR",
+                    f"test/{mode} Concept ASR",
                     (clean_concept_acc - concept_acc) / clean_concept_acc,
                 )
 
-            if self.hparams.model == "backbone":
+            if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
 
             for i in range(11):

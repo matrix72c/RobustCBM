@@ -3,13 +3,17 @@ import os
 import sys
 import torch
 import torch.nn as nn
-from lightning.pytorch.plugins.io import CheckpointIO
-import oss2
-from oss2.credentials import EnvironmentVariableCredentialsProvider
-import tempfile
-import torch.nn.functional as F
 import torchvision
 
+def flatten_dict(d, parent_key='', sep='.'):
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict) and v:
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
 def initialize_weights(module: nn.Module):
     """Initialize the weights of a module."""
@@ -57,43 +61,6 @@ def calc_info_loss(mu, var):
     var = torch.clamp(var, min=1e-8)  # avoid var -> 0
     info_loss = -0.5 * torch.mean(1 + var.log() - mu.pow(2) - var) / math.log(2)
     return info_loss
-
-
-class OssCheckpointIO(CheckpointIO):
-    def __init__(self, bucket: oss2.Bucket):
-        super().__init__()
-        self.bucket = bucket
-
-    def save_checkpoint(self, checkpoint, path, storage_options=None):
-        key = os.path.relpath(path, os.getcwd())
-        with tempfile.TemporaryFile() as f:
-            torch.save(checkpoint, f)
-            f.seek(0)
-            self.bucket.put_object(key, f)
-
-    def load_checkpoint(self, path, map_location=None):
-        key = os.path.relpath(path, os.getcwd())
-        with tempfile.TemporaryDirectory() as tmpdir:
-            fp = os.path.join(tmpdir, os.path.basename(key))
-            self.bucket.get_object_to_file(key, fp)
-            with open(fp, "rb") as f:
-                ckpt = torch.load(f, map_location=map_location)
-        return ckpt
-
-    def remove_checkpoint(self, path):
-        path = os.path.relpath(path, os.getcwd())
-        self.bucket.delete_object(path)
-
-
-def get_oss():
-    bucket_name, endpoint, region = (
-        os.environ["OSS_BUCKET"],
-        os.environ["OSS_ENDPOINT"],
-        os.environ["OSS_REGION"],
-    )
-    auth = oss2.ProviderAuthV4(EnvironmentVariableCredentialsProvider())
-    bucket = oss2.Bucket(auth, endpoint, bucket_name, region=region)
-    return bucket
 
 
 def modify_fc(model, base, out_size):

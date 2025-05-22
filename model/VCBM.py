@@ -10,6 +10,7 @@ class VCBM(CBM):
     def __init__(
         self,
         res_dim: int = 0,
+        vib: float = 0.01,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -38,7 +39,7 @@ class VCBM(CBM):
             concepts,
             weight=(
                 self.dm.imbalance_weights.to(self.device)
-                if self.hparams.dataset == "CUB"
+                if self.hparams.weighted_bce
                 else None
             ),
         )

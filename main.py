@@ -1,5 +1,4 @@
 import os
-import tempfile
 from lightning.pytorch.trainer import Trainer
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import (
@@ -11,28 +10,19 @@ import torch
 import wandb
 import yaml, argparse
 import model as pl_model
-import dataset
+from utils import flatten_dict
 
 
-def exp(config):
-    with open("config.yaml", "r") as f:
-        cfg = yaml.safe_load(f)
-    cfg.update(config)
+def exp(cfg):
     torch.set_float32_matmul_precision("high")
-    seed_everything(cfg["seed"])
-    dm = getattr(dataset, cfg["dataset"])(**cfg)
-    model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
-    if config.get("experiment_name", None) is not None:
-        name = config["experiment_name"]
+    seed_everything(cfg.get("seed", 42))
+    model = getattr(pl_model, cfg["model"])(**cfg)
+    if cfg.get("experiment_name", None) is not None:
+        name = cfg["experiment_name"]
     else:
-        d = sorted(config.items(), key=lambda x: x[0])
-        # pop dict
-        for k, v in d:
-            if isinstance(v, dict):
-                d.remove((k, v))
-                d.extend(v.items())
-            if k == "gpus" or k == "ckpt_path" or k == "seed" or k == "group":
-                d.remove((k, v))
+        d = flatten_dict(cfg)
+        d.pop("ckpt_path")
+        d = sorted(d.items(), key=lambda x: x[0])
         name = "_".join([f"{v}" if isinstance(v, str) else f"{k}-{v}" for k, v in d])
         name = name.lower()
 
@@ -46,7 +36,7 @@ def exp(config):
             cfg["train_mode"],
             cfg["base"],
         ],
-        group=cfg.get("group", None),
+        group="sp",
     )
     checkpoint_callback = ModelCheckpoint(
         monitor="acc",
@@ -61,11 +51,9 @@ def exp(config):
     )
     callbacks = [checkpoint_callback, early_stopping]
     trainer = Trainer(
-        accelerator="gpu",
-        devices=cfg["gpus"],
         logger=logger,
         callbacks=callbacks,
-        max_epochs=cfg["epochs"],
+        max_epochs=cfg.get("epochs", None),
         inference_mode=False,
     )
     ckpt_path = cfg.get("ckpt_path", None)
@@ -74,12 +62,12 @@ def exp(config):
             raise ValueError(f"Checkpoint {ckpt_path} not found")
         print("Load from checkpoint: ", ckpt_path)
     else:
-        trainer.fit(model, dm)
+        trainer.fit(model)
         ckpt_path = trainer.checkpoint_callback.best_model_path
 
-    model = model.__class__.load_from_checkpoint(ckpt_path, dm=dm, **cfg)
+    model = model.__class__.load_from_checkpoint(ckpt_path, **cfg)
 
-    trainer.test(model, dm)
+    trainer.test(model)
     wandb.finish()
 
 
