@@ -518,7 +518,6 @@ class CUB(L.LightningDataModule):
         self.test_data = CUBDataSet(self.data_path, "test", resol)
         self.imbalance_weights = cal_class_imbalance_weights(self.train_data)
         # Generate a mapping containing all concept groups in CUB generated using a simple prefix tree
-        self.concept_names = list(np.array(CONCEPT_SEMANTICS)[self.top_vuln_concepts])
         CONCEPT_GROUP_MAP = defaultdict(list)
         for i, concept_name in enumerate(
             list(np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS])

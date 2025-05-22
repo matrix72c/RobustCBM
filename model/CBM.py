@@ -223,6 +223,7 @@ class CBM(L.LightningModule):
         return losses, (label_pred, concept_pred)
 
     @suppress_stdout
+    @torch.enable_grad()
     def generate_adv(self, img, label, concepts, atk):
         if atk == "JPGD":
             adv_img = self.jpgd(self, img, (label, concepts))
@@ -289,6 +290,14 @@ class CBM(L.LightningModule):
         )
 
     def on_test_start(self):
+        self.cw = CW(cls_wrapper(self, 0), **self.hparams.cw_args)
+        self.aa = AutoAttack(
+            cls_wrapper(self, 0),
+            verbose=False,
+            **self.hparams.aa_args,
+        )
+        if self.hparams.ignore_intervenes:
+            return
         concept_logits = []
         for batch in self.dm.train_dataloader():
             outputs = self(batch[0].to(self.device))
@@ -298,12 +307,6 @@ class CBM(L.LightningModule):
         percentiles = np.percentile(c, [5, 95], axis=0)
         self.pos_logits = torch.from_numpy(percentiles[1]).to(self.device)
         self.neg_logits = torch.from_numpy(percentiles[0]).to(self.device)
-        self.cw = CW(cls_wrapper(self, 0), **self.hparams.cw_args)
-        self.aa = AutoAttack(
-            cls_wrapper(self, 0),
-            verbose=False,
-            **self.hparams.aa_args,
-        )
 
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
@@ -319,7 +322,7 @@ class CBM(L.LightningModule):
             for name, val in losses.items():
                 self.log(f"test/{mode} {name}", val, on_step=False, on_epoch=True)
 
-            if self.hparams.model == "backbone":
+            if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
 
             for i in range(11):

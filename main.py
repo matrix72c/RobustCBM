@@ -67,7 +67,7 @@ def exp(cfg):
 
     model = model.__class__.load_from_checkpoint(ckpt_path, **cfg)
 
-    trainer.test(model)
+    trainer.test(model, model.dm)
     wandb.finish()
 
 
