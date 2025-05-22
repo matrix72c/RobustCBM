@@ -10,7 +10,7 @@ def yaml_merge(default, update):
     merged = default.copy()
     for key, value in update.items():
         if isinstance(value, dict) and isinstance(merged.get(key), dict):
-            merged[key] = deep_merge(merged[key], value)
+            merged[key] = yaml_merge(merged[key], value)
         else:
             merged[key] = value
     return merged
