@@ -98,16 +98,6 @@ class AwADataset(Dataset):
             img = self.transform(img)
 
         attr_label = torch.Tensor(self.label_to_attr[class_label, :])
-        combo_attr = torch.zeros(len(self.combos))
-        for i, (a, b) in enumerate(self.combos):
-            combo_attr[i] = attr_label[a] * attr_label[b]
-        if self.num_concepts < 85:
-            attr_label = attr_label[: self.num_concepts]
-        else:
-            attr_label = torch.cat(
-                (attr_label, combo_attr[: self.num_concepts - 85]), dim=0
-            )
-
         return img, class_label, attr_label
 
 
@@ -116,8 +106,7 @@ class AwA(L.LightningDataModule):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
-        self.num_concepts = num_concepts
-        self.real_concepts = 85
+        self.num_concepts = 85
         self.num_classes = 50
         self.train = AwADataset(self.data_path, "fit", num_concepts, resol)
         self.val = AwADataset(self.data_path, "val", num_concepts, resol)
@@ -139,7 +128,7 @@ class AwA(L.LightningDataModule):
             self.train,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=24,
+            num_workers=12,
             pin_memory=True,
         )
 
@@ -148,7 +137,7 @@ class AwA(L.LightningDataModule):
             self.val,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=24,
+            num_workers=12,
             pin_memory=True,
         )
 
@@ -157,7 +146,7 @@ class AwA(L.LightningDataModule):
             self.test,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=24,
+            num_workers=12,
             pin_memory=True,
         )
 

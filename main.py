@@ -70,17 +70,14 @@ def exp(config):
     )
     ckpt_path = cfg.get("ckpt_path", None)
     if ckpt_path is not None:
-        if os.path.exists(ckpt_path):
-            fp = ckpt_path
-        else:
+        if not os.path.exists(ckpt_path):
             raise ValueError(f"Checkpoint {ckpt_path} not found")
-        model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
         print("Load from checkpoint: ", ckpt_path)
     else:
         trainer.fit(model, dm)
-        ckpt_path = "checkpoints/" + name + ".ckpt"
-        best = trainer.checkpoint_callback.best_model_path
-        model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
+        ckpt_path = trainer.checkpoint_callback.best_model_path
+
+    model = model.__class__.load_from_checkpoint(ckpt_path, dm=dm, **cfg)
 
     trainer.test(model, dm)
     wandb.finish()

@@ -252,7 +252,7 @@ class celeba(L.LightningDataModule):
             self.train_data,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=24,
+            num_workers=12,
             pin_memory=True,
         )
 
@@ -261,7 +261,7 @@ class celeba(L.LightningDataModule):
             self.val_data,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=24,
+            num_workers=12,
             pin_memory=True,
         )
 
@@ -270,7 +270,7 @@ class celeba(L.LightningDataModule):
             self.test_data,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=24,
+            num_workers=12,
             pin_memory=True,
         )
 
