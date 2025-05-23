@@ -194,12 +194,13 @@ class CBM(L.LightningModule):
         )
         label_loss = F.cross_entropy(label_pred, label)
         loss = label_loss + self.hparams.concept_weight * concept_loss
+        losses = {"label_loss": label_loss, "concept_loss": concept_loss, "loss": loss}
 
         if self.hparams.mtl_mode != "normal":
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
             for name, param in self.named_parameters():
                 param.grad = g[name]
-        return loss, (label_pred, concept_pred)
+        return losses, (label_pred, concept_pred)
 
     def generate_adv(self, img, label, concepts, atk_target):
         if atk_target == "JPGD":
@@ -218,7 +219,8 @@ class CBM(L.LightningModule):
             img = torch.cat([img[:bs], adv_img], dim=0)
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
-        loss, _ = self.calc_loss(img, label, concepts)
+        losses, _ = self.calc_loss(img, label, concepts)
+        loss = losses["loss"]
         if self.hparams.mtl_mode != "normal":
             self.optimizers().step()
             self.optimizers().zero_grad()
@@ -235,8 +237,9 @@ class CBM(L.LightningModule):
         if self.train_mode != "Std":
             img = self.generate_adv(img, label, concepts, self.train_mode)
 
-        loss, o = self.calc_loss(img, label, concepts)
-        self.losses(loss)
+        losses, o = self.calc_loss(img, label, concepts)
+        for name, val in losses.items():
+            self.log(f"{name}", val, on_step=False, on_epoch=True)
         label_pred, concept_pred = o[0], o[1]
         self.concept_acc(concept_pred, concepts)
         self.acc(label_pred, label)
@@ -248,10 +251,8 @@ class CBM(L.LightningModule):
         )
         self.log("acc", self.acc.compute(), prog_bar=True)
         self.log("concept_acc", self.concept_acc.compute(), prog_bar=True)
-        self.log("val_loss", self.losses.compute(), prog_bar=True)
         self.acc.reset()
         self.concept_acc.reset()
-        self.losses.reset()
 
     def on_test_start(self):
         concept_logits = []
