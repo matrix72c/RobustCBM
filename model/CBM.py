@@ -8,6 +8,8 @@ from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
 from attacks import PGD
+from torchattacks import CW
+from autoattack import AutoAttack
 from mtl import mtl
 
 
@@ -97,7 +99,7 @@ class CBM(L.LightningModule):
             **jpgd_args,
         )
 
-        for s in ["Std", "LPGD", "CPGD", "JPGD"]:
+        for s in ["Std", "LPGD", "CPGD", "JPGD", "CW", "AA"]:
             setattr(
                 self,
                 f"{s}_acc",
@@ -206,6 +208,8 @@ class CBM(L.LightningModule):
                 param.grad = g[name]
         return losses, (label_pred, concept_pred)
 
+    @suppress_stdout
+    @torch.enable_grad()
     def generate_adv(self, img, label, concepts, atk):
         if atk == "JPGD":
             adv_img = self.jpgd(self, img, (label, concepts))
@@ -269,6 +273,14 @@ class CBM(L.LightningModule):
         self.concept_acc.reset()
 
     def on_test_start(self):
+        self.cw = CW(cls_wrapper(self, 0), **self.hparams.cw_args)
+        self.aa = AutoAttack(
+            cls_wrapper(self, 0),
+            verbose=False,
+            **self.hparams.aa_args,
+        )
+        if self.hparams.ignore_intervenes:
+            return
         concept_logits = []
         for batch in self.dm.train_dataloader():
             outputs = self(batch[0].to(self.device))
@@ -282,7 +294,7 @@ class CBM(L.LightningModule):
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
 
-        for mode in ["Std", "LPGD", "CPGD", "JPGD"]:
+        for mode in ["Std", "LPGD", "CPGD", "JPGD", "CW", "AA"]:
             if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
                 continue
             if mode == "Std":
@@ -325,7 +337,7 @@ class CBM(L.LightningModule):
                 )
 
     def on_test_epoch_end(self):
-        for mode in ["Std", "LPGD", "CPGD", "JPGD"]:
+        for mode in ["Std", "LPGD", "CPGD", "JPGD", "CW", "AA"]:
             if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
 

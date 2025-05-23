@@ -1,5 +1,4 @@
 import os
-import tempfile
 from lightning.pytorch.trainer import Trainer
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import (
@@ -12,6 +11,7 @@ import wandb
 import yaml, argparse
 import model as pl_model
 import dataset
+from utils import flatten_dict, yaml_merge
 
 
 def exp(config):
@@ -19,31 +19,26 @@ def exp(config):
         cfg = yaml.safe_load(f)
     cfg.update(config)
     torch.set_float32_matmul_precision("high")
-    seed_everything(cfg["seed"])
+    seed_everything(cfg.get("seed", 42))
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
-    if config.get("experiment_name", None) is not None:
-        name = config["experiment_name"]
+    if cfg.get("experiment_name", None) is not None:
+        name = cfg["experiment_name"]
     else:
-        d = sorted(config.items(), key=lambda x: x[0])
-        # pop dict
-        for k, v in d:
-            if isinstance(v, dict):
-                d.remove((k, v))
-                d.extend(v.items())
-            if k == "gpus":
-                d.remove((k, v))
+        d = flatten_dict(config)
+        d.pop("ckpt_path", None)
+        d = sorted(d.items(), key=lambda x: x[0])
         name = "_".join([f"{v}" if isinstance(v, str) else f"{k}-{v}" for k, v in d])
         name = name.lower()
 
     logger = WandbLogger(
         name=name,
-        project="CBM",
+        project="RAID",
         config=cfg,
         tags=[
             cfg["model"],
             cfg["dataset"],
-            cfg["adv_mode"],
+            cfg["train_mode"],
             cfg["base"],
         ],
         group=cfg.get("group", None),
@@ -63,28 +58,22 @@ def exp(config):
     )
     callbacks = [checkpoint_callback, early_stopping]
     trainer = Trainer(
-        accelerator="gpu",
-        devices=cfg["gpus"],
         log_every_n_steps=1,
         logger=logger,
         callbacks=callbacks,
-        max_epochs=cfg["epochs"],
+        max_epochs=cfg.get("epochs", None),
         inference_mode=False,
     )
     ckpt_path = cfg.get("ckpt_path", None)
     if ckpt_path is not None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            if os.path.exists(ckpt_path):
-                fp = ckpt_path
-            else:
-                raise ValueError(f"Checkpoint {ckpt_path} not found")
-            model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
-            print("Load from checkpoint: ", ckpt_path)
+        if not os.path.exists(ckpt_path):
+            raise ValueError(f"Checkpoint {ckpt_path} not found")
+        print("Load from checkpoint: ", ckpt_path)
     else:
         trainer.fit(model, dm)
-        ckpt_path = "checkpoints/" + name + ".ckpt"
-        best = trainer.checkpoint_callback.best_model_path
-        model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
+        ckpt_path = trainer.checkpoint_callback.best_model_path
+
+    model = model.__class__.load_from_checkpoint(ckpt_path, dm=dm, **cfg)
 
     trainer.test(model, dm)
     wandb.finish()
