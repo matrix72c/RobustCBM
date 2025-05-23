@@ -10,7 +10,6 @@ from lightning.pytorch import seed_everything
 import torch
 import wandb
 import yaml, argparse
-from utils import get_oss
 import model as pl_model
 import dataset
 
@@ -72,16 +71,11 @@ def exp(config):
         max_epochs=cfg["epochs"],
         inference_mode=False,
     )
-    bucket = get_oss()
     ckpt_path = cfg.get("ckpt_path", None)
     if ckpt_path is not None:
         with tempfile.TemporaryDirectory() as tmpdir:
             if os.path.exists(ckpt_path):
                 fp = ckpt_path
-            elif bucket.object_exists(ckpt_path):
-                fp = os.path.join(tmpdir, os.path.basename(ckpt_path))
-                bucket.get_object_to_file(ckpt_path, fp)
-                print(f"Download {ckpt_path} to {fp}")
             else:
                 raise ValueError(f"Checkpoint {ckpt_path} not found")
             model = model.__class__.load_from_checkpoint(fp, dm=dm, **cfg)
@@ -91,16 +85,6 @@ def exp(config):
         ckpt_path = "checkpoints/" + name + ".ckpt"
         best = trainer.checkpoint_callback.best_model_path
         model = model.__class__.load_from_checkpoint(best, dm=dm, **cfg)
-        try:
-            bucket.put_object_from_file(ckpt_path, best)
-            print(f"Upload {best} to {ckpt_path}")
-        except Exception as e:
-            print(f"Upload {best} to {ckpt_path} failed: {e}")
-            wandb.run.alert(
-                title="Upload failed",
-                text=(f"Upload {best} to {ckpt_path} failed: {e}"),
-                level="ERROR",
-            )
 
     trainer.test(model, dm)
     wandb.finish()
