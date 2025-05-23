@@ -12,7 +12,7 @@ optimizer: SGD
 optimizer_args:
   momentum: 0.9
   weight_decay: 0.00004
-lr: 0.1
+  lr: 0.1
 scheduler: ReduceLROnPlateau
 scheduler_args:
   mode: max
@@ -20,6 +20,11 @@ scheduler_args:
   patience: *patience
   min_lr: 0.00001
   threshold: 0.0001
+plateau_args:
+  monitor: "acc"
+  interval: "epoch"
+  frequency: 1
+  strict: true
 adv_mode: adv
 hidden_dim: 0
 cbm_mode: hybrid # "bool", "fuzzy", "hybrid"
