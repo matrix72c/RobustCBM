@@ -266,7 +266,8 @@ class CBM(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         img, label, concepts = batch
-        img = self.generate_adv(img, label, concepts, self.train_mode)
+        if self.train_mode != "Std":
+            img = self.generate_adv(img, label, concepts, self.train_mode)
 
         losses, o = self.calc_loss(img, label, concepts)
         label_pred, concept_pred = o[0], o[1]
@@ -274,20 +275,16 @@ class CBM(L.LightningModule):
         self.acc(label_pred, label)
         for name, val in losses.items():
             self.log(f"{name}", val, on_step=False, on_epoch=True)
+    
+    def on_validation_epoch_end(self):
         self.log(
             "lr",
             self.optimizers().param_groups[0]["lr"],
-            on_step=False,
-            on_epoch=True,
         )
-        self.log("acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
-        self.log(
-            "concept_acc",
-            self.concept_acc,
-            prog_bar=True,
-            on_epoch=True,
-            on_step=False,
-        )
+        self.log("acc", self.acc.compute(), prog_bar=True)
+        self.log("concept_acc", self.concept_acc.compute(), prog_bar=True)
+        self.acc.reset()
+        self.concept_acc.reset()
 
     def on_test_start(self):
         self.cw = CW(cls_wrapper(self, 0), **self.hparams.cw_args)

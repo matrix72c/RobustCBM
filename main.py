@@ -49,6 +49,7 @@ def exp(config):
         mode="max",
         enable_version_counter=False,
         save_weights_only=True,
+        every_n_epochs=1,
     )
     early_stopping = EarlyStopping(
         monitor="lr", mode="min", patience=1000, stopping_threshold=1e-4
@@ -59,7 +60,7 @@ def exp(config):
         callbacks=callbacks,
         max_epochs=cfg.get("epochs", None),
         inference_mode=False,
-        log_every_n_steps=10,
+        log_every_n_steps=1,
     )
     ckpt_path = cfg.get("ckpt_path", None)
     if ckpt_path is not None:
