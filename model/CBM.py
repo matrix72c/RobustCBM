@@ -273,12 +273,12 @@ class CBM(L.LightningModule):
         self.concept_acc.reset()
 
     def on_test_start(self):
-        self.cw = CW(cls_wrapper(self, 0), **self.hparams.cw_args)
-        self.aa = AutoAttack(
-            cls_wrapper(self, 0),
-            verbose=False,
-            **self.hparams.aa_args,
-        )
+        # self.cw = CW(cls_wrapper(self, 0), **self.hparams.cw_args)
+        # self.aa = AutoAttack(
+        #     cls_wrapper(self, 0),
+        #     verbose=False,
+        #     **self.hparams.aa_args,
+        # )
         if self.hparams.ignore_intervenes:
             return
         concept_logits = []
@@ -294,7 +294,7 @@ class CBM(L.LightningModule):
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
 
-        for mode in ["Std", "LPGD", "CPGD", "JPGD", "CW", "AA"]:
+        for mode in ["Std", "LPGD", "CPGD", "JPGD"]:
             if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
                 continue
             if mode == "Std":
@@ -337,7 +337,7 @@ class CBM(L.LightningModule):
                 )
 
     def on_test_epoch_end(self):
-        for mode in ["Std", "LPGD", "CPGD", "JPGD", "CW", "AA"]:
+        for mode in ["Std", "LPGD", "CPGD", "JPGD"]:
             if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
 
