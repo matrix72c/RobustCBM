@@ -47,7 +47,8 @@ def exp(config):
     checkpoint_callback = ModelCheckpoint(
         monitor="acc",
         dirpath="checkpoints/",
-        filename=name + "-{epoch}-{acc:.4f}",
+        filename=name,
+        save_top_k=1,
         mode="max",
         enable_version_counter=False,
         save_weights_only=True,
@@ -70,7 +71,7 @@ def exp(config):
             raise ValueError(f"Checkpoint {ckpt_path} not found")
         print("Load from checkpoint: ", ckpt_path)
     else:
-        trainer.fit(model, model.dm)
+        trainer.fit(model, dm)
         ckpt_path = trainer.checkpoint_callback.best_model_path
 
     model = model.__class__.load_from_checkpoint(ckpt_path, dm=dm, **cfg)
