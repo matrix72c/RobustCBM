@@ -25,12 +25,12 @@ plateau_args:
   monitor: "acc"
   interval: "epoch"
   frequency: 1
-  strict: false
+  strict: true
 hidden_dim: 0
 res_dim: 0
 cbm_mode: "hybrid"
 
-train_mode: "std"
+train_mode: "Std"
 aa_args:
   eps: 0.0156862745
 mtl_mode: "normal"

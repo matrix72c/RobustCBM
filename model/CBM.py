@@ -29,11 +29,7 @@ class MLP(nn.Module):
 class CBM(L.LightningModule):
     def __init__(
         self,
-        dataset_name: str = "CUB",
-        data_path: str = "./data",
-        batch_size: int = 128,
-        resol: int = 224,
-        num_workers: int = 12,
+        dm: L.LightningDataModule,
         base: str = "resnet50",
         use_pretrained: bool = True,
         concept_weight: float = 1,
@@ -50,12 +46,11 @@ class CBM(L.LightningModule):
             "monitor": "acc",
             "interval": "epoch",
             "frequency": 1,
-            "strict": False,
+            "strict": True,
         },
         hidden_dim: int = 0,
-        res_dim: int = 0,
         cbm_mode: str = "hybrid",
-        train_mode: str = "std",
+        train_mode: str = "Std",
         lpgd_args: dict = {},
         cpgd_args: dict = {},
         jpgd_args: dict = {},
@@ -69,20 +64,19 @@ class CBM(L.LightningModule):
         super().__init__()
         if mtl_mode != "normal":
             self.automatic_optimization = False
-        self.save_hyperparameters()
-        dm = getattr(dataset, dataset_name)(**self.hparams)
+        self.save_hyperparameters(ignore="dm")
         num_classes = dm.num_classes
         num_concepts = dm.num_concepts
         self.dm = dm
         self.max_intervene_budget = dm.max_intervene_budget
         self.concept_group_map = dm.concept_group_map
         self.group_concept_map = dm.group_concept_map
-        self.base = build_base(base, num_concepts + res_dim, use_pretrained)
+        self.base = build_base(base, num_concepts, use_pretrained)
 
         if hidden_dim > 0:
-            self.classifier = MLP(num_concepts + res_dim, hidden_dim, num_classes)
+            self.classifier = MLP(num_concepts, hidden_dim, num_classes)
         else:
-            self.classifier = nn.Linear(num_concepts + res_dim, num_classes).apply(
+            self.classifier = nn.Linear(num_concepts, num_classes).apply(
                 initialize_weights
             )
         self.num_classes = num_classes
@@ -115,10 +109,7 @@ class CBM(L.LightningModule):
             setattr(
                 self,
                 f"{s}_concept_acc",
-                Accuracy(
-                    task="multilabel",
-                    num_labels=num_concepts,
-                ),
+                Accuracy(task="multilabel", num_labels=num_concepts),
             )
             setattr(
                 self,
@@ -179,12 +170,9 @@ class CBM(L.LightningModule):
         return concept_pred
 
     def forward(self, x, concept_pred=None):
-        logits = self.base(x)
         if concept_pred is None:
-            concept_pred = logits
-        else:
-            logits[:, : self.num_concepts] = concept_pred
-            concept_pred = logits
+            concept_pred = self.base(x)
+
         if self.hparams.cbm_mode == "fuzzy":
             concept = torch.sigmoid(concept_pred)
         elif self.hparams.cbm_mode == "bool":
@@ -194,7 +182,7 @@ class CBM(L.LightningModule):
         elif self.hparams.cbm_mode == "hybrid":
             concept = concept_pred
         label_pred = self.classifier(concept)
-        return label_pred, concept_pred[:, : self.num_concepts]
+        return label_pred, concept_pred
 
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred = self(img)
@@ -275,7 +263,7 @@ class CBM(L.LightningModule):
         self.acc(label_pred, label)
         for name, val in losses.items():
             self.log(f"{name}", val, on_step=False, on_epoch=True)
-    
+
     def on_validation_epoch_end(self):
         self.log(
             "lr",
@@ -318,8 +306,20 @@ class CBM(L.LightningModule):
             getattr(self, f"{mode}_concept_acc")(concept_pred, concepts)
             for name, val in losses.items():
                 self.log(f"test/{mode} {name}", val, on_step=False, on_epoch=True)
-            self.log(f"test/{mode} Acc", getattr(self, f"{mode}_acc"), prog_bar=True, on_step=False, on_epoch=True)
-            self.log(f"test/{mode} Concept Acc", getattr(self, f"{mode}_concept_acc"), prog_bar=True, on_step=False, on_epoch=True)
+            self.log(
+                f"test/{mode} Acc",
+                getattr(self, f"{mode}_acc"),
+                prog_bar=True,
+                on_step=False,
+                on_epoch=True,
+            )
+            self.log(
+                f"test/{mode} Concept Acc",
+                getattr(self, f"{mode}_concept_acc"),
+                prog_bar=True,
+                on_step=False,
+                on_epoch=True,
+            )
 
             if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
