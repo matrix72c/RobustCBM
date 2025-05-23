@@ -10,6 +10,7 @@ import torch
 import wandb
 import yaml, argparse
 import model as pl_model
+import dataset
 from utils import flatten_dict, yaml_merge
 
 
@@ -21,6 +22,7 @@ def exp(config):
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg.get("seed", 42))
     model = getattr(pl_model, cfg["model"])(**cfg)
+    dm = getattr(dataset, cfg["dataset"])(**cfg)
     if cfg.get("experiment_name", None) is not None:
         name = cfg["experiment_name"]
     else:
@@ -73,7 +75,7 @@ def exp(config):
 
     model = model.__class__.load_from_checkpoint(ckpt_path, **cfg)
 
-    trainer.test(model, model.dm)
+    trainer.test(model, dm)
     wandb.finish()
 
 
