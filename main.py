@@ -21,8 +21,8 @@ def exp(config):
 
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg.get("seed", 42))
-    model = getattr(pl_model, cfg["model"])(**cfg)
     dm = getattr(dataset, cfg["dataset"])(**cfg)
+    model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
     if cfg.get("experiment_name", None) is not None:
         name = cfg["experiment_name"]
     else:
