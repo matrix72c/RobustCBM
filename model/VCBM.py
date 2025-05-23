@@ -3,7 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 from model import CBM
 from mtl import mtl
-from utils import calc_info_loss, calc_spectral_norm
+from utils import calc_info_loss
 
 
 class VCBM(CBM):
@@ -38,7 +38,7 @@ class VCBM(CBM):
             concepts,
             weight=(
                 self.dm.imbalance_weights.to(self.device)
-                if self.hparams.dataset == "CUB"
+                if self.hparams.weighted_bce
                 else None
             ),
         )
@@ -49,22 +49,15 @@ class VCBM(CBM):
             + self.hparams.concept_weight * concept_loss
             + self.hparams.vib * info_loss
         )
-        if self.adv_mode == "adv" and self.hparams.trades > 0:
-            clean_concept_pred, adv_concept_pred = torch.chunk(concept_pred, 2, dim=0)
-            clean_probs = torch.sigmoid(clean_concept_pred)
-            adv_probs = torch.sigmoid(adv_concept_pred)
-
-            trades_loss = F.binary_cross_entropy(
-                adv_probs / 3.0, clean_probs / 3.0, reduction="mean"
-            )
-            loss += trades_loss * self.hparams.trades
-            self.log("trades_loss", trades_loss)
-
-        if self.hparams.spectral_weight > 0:
-            loss += calc_spectral_norm(self.fc) * self.hparams.spectral_weight
+        losses = {
+            "label_loss": label_loss,
+            "concept_loss": concept_loss,
+            "info_loss": info_loss,
+            "loss": loss,
+        }
 
         if self.hparams.mtl_mode != "normal":
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
             for name, param in self.named_parameters():
                 param.grad = g[name]
-        return loss, (label_pred, concept_pred, mu, var)
+        return losses, (label_pred, concept_pred, mu, var)

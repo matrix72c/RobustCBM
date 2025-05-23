@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
 from model import CBM
 from utils import initialize_weights, modify_fc
 
@@ -17,14 +16,11 @@ class CEM(CBM):
         ).apply(initialize_weights)
 
     def forward(self, x, concept_pred=None):
-        concept_context = self.base(x).reshape(x.size(0), -1, 2 * self.hparams.embed_dim)
+        concept_context = self.base(x).reshape(
+            x.size(0), -1, 2 * self.hparams.embed_dim
+        )
         if concept_pred is None:
-            concept_pred = (
-                self.concept_prob_gen(
-                    concept_context
-                )
-                .squeeze(-1)
-            )
+            concept_pred = self.concept_prob_gen(concept_context).squeeze(-1)
         concept_probs = torch.sigmoid(concept_pred)
         pos_embed, neg_embed = concept_context.chunk(2, dim=2)
         concept_probs = concept_probs.unsqueeze(-1)
