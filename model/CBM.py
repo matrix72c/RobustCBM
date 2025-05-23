@@ -8,7 +8,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy, MeanMetric
-import attacks
+from attacks import PGD
 from mtl import mtl
 
 
@@ -49,7 +49,13 @@ class CBM(L.LightningModule):
         hidden_dim: int = 0,
         cbm_mode: str = "hybrid",
         mtl_mode: str = "normal",
-        adv_mode: str = "std",
+        weighted_bce: bool = True,
+        train_mode: str = "Std",
+        lpgd_args: dict = {},
+        cpgd_args: dict = {},
+        jpgd_args: dict = {},
+        aa_args: dict = {"eps": 4 / 255},
+        cw_args: dict = {},
         **kwargs,
     ):
         super().__init__()
@@ -77,7 +83,54 @@ class CBM(L.LightningModule):
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
         self.losses = MeanMetric()
 
-        self.adv_mode = adv_mode
+        self.train_mode = train_mode
+        self.lpgd = PGD(
+            loss_fn=F.cross_entropy,
+            **lpgd_args,
+        )
+        self.cpgd = PGD(
+            loss_fn=F.binary_cross_entropy_with_logits,
+            **cpgd_args,
+        )
+        self.jpgd = PGD(
+            loss_fn=lambda o, y: F.cross_entropy(o[0], y[0])
+            + F.binary_cross_entropy_with_logits(o[1], y[1]),
+            **jpgd_args,
+        )
+        for s in ["Std", "LPGD", "CPGD", "JPGD"]:
+            setattr(
+                self,
+                f"{s}_acc",
+                Accuracy(task="multiclass", num_classes=num_classes),
+            )
+            setattr(
+                self,
+                f"{s}_concept_acc",
+                Accuracy(task="multilabel", num_labels=num_concepts),
+            )
+            setattr(
+                self,
+                f"intervene_{s}_accs",
+                nn.ModuleList(
+                    [
+                        Accuracy(task="multiclass", num_classes=num_classes)
+                        for _ in range(11)
+                    ]
+                ),
+            )
+            setattr(
+                self,
+                f"intervene_{s}_concept_accs",
+                nn.ModuleList(
+                    [
+                        Accuracy(
+                            task="multilabel",
+                            num_labels=num_concepts,
+                        )
+                        for _ in range(11)
+                    ]
+                ),
+            )
 
     def configure_optimizers(self):
         optimizer = getattr(torch.optim, self.hparams.optimizer)(
@@ -89,10 +142,7 @@ class CBM(L.LightningModule):
         if self.hparams.scheduler == "ReduceLROnPlateau":
             return {
                 "optimizer": optimizer,
-                "lr_scheduler": {
-                    "scheduler": scheduler,
-                    **self.hparams.plateau_args,
-                },
+                "lr_scheduler": {"scheduler": scheduler, **self.hparams.plateau_args},
             }
         else:
             return [optimizer], [scheduler]
@@ -123,7 +173,9 @@ class CBM(L.LightningModule):
         if self.hparams.cbm_mode == "fuzzy":
             concept = torch.sigmoid(concept_pred)
         elif self.hparams.cbm_mode == "bool":
-            concept = torch.sigmoid(concept_pred).ge(0.5).float()
+            concept_prob = torch.sigmoid(concept_pred)
+            concept_binary = concept_prob.ge(0.5).float()
+            concept = concept_prob + (concept_binary - concept_prob).detach()
         elif self.hparams.cbm_mode == "hybrid":
             concept = concept_pred
         label_pred = self.classifier(concept)
@@ -136,7 +188,7 @@ class CBM(L.LightningModule):
             concepts,
             weight=(
                 self.dm.imbalance_weights.to(self.device)
-                if self.hparams.dataset == "CUB"
+                if self.hparams.weighted_bce
                 else None
             ),
         )
@@ -149,20 +201,20 @@ class CBM(L.LightningModule):
                 param.grad = g[name]
         return loss, (label_pred, concept_pred)
 
-    def generate_adv(self, img, label, concepts):
-        if self.atk_target == "combined":
-            adv_img = self.combined_atk(self, img, (label, concepts))
-        elif self.atk_target == "label":
-            adv_img = self.label_atk(cls_wrapper(self, 0), img, label)
-        elif self.atk_target == "concept":
-            adv_img = self.concept_atk(cls_wrapper(self, 1), img, concepts)
+    def generate_adv(self, img, label, concepts, atk_target):
+        if atk_target == "JPGD":
+            adv_img = self.jpgd(self, img, (label, concepts))
+        elif atk_target == "LPGD":
+            adv_img = self.lpgd(cls_wrapper(self, 0), img, label)
+        elif self.atk_target == "CPGD":
+            adv_img = self.cpgd(cls_wrapper(self, 1), img, concepts)
         return adv_img
 
     def training_step(self, batch, batch_idx):
         img, label, concepts = batch
-        if self.adv_mode == "adv":
+        if self.train_mode != "Std":
             bs = img.shape[0] // 2
-            adv_img = self.generate_adv(img[:bs], label[:bs], concepts[:bs])
+            adv_img = self.generate_adv(img[:bs], label[:bs], concepts[:bs], self.train_mode)
             img = torch.cat([img[:bs], adv_img], dim=0)
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
@@ -180,8 +232,8 @@ class CBM(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         img, label, concepts = batch
-        if self.adv_mode == "adv":
-            img = self.generate_adv(img, label, concepts)
+        if self.train_mode != "Std":
+            img = self.generate_adv(img, label, concepts, self.train_mode)
 
         loss, o = self.calc_loss(img, label, concepts)
         self.losses(loss)
@@ -227,3 +279,64 @@ class CBM(L.LightningModule):
             on_step=False,
             on_epoch=True,
         )
+        for mode in ["Std", "LPGD", "CPGD", "JPGD"]:
+            if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
+                continue
+            if mode == "Std":
+                x = img
+            else:
+                x = self.generate_adv(img, label, concepts, mode)
+            losses, outputs = self.calc_loss(x, label, concepts)
+            label_pred, concept_pred = outputs[0], outputs[1]
+            getattr(self, f"{mode}_acc")(label_pred, label)
+            getattr(self, f"{mode}_concept_acc")(concept_pred, concepts)
+            for name, val in losses.items():
+                self.log(f"test/{mode} {name}", val, on_step=False, on_epoch=True)
+            self.log(
+                f"test/{mode} Acc",
+                getattr(self, f"{mode}_acc"),
+                prog_bar=True,
+                on_step=False,
+                on_epoch=True,
+            )
+            self.log(
+                f"test/{mode} Concept Acc",
+                getattr(self, f"{mode}_concept_acc"),
+                prog_bar=True,
+                on_step=False,
+                on_epoch=True,
+            )
+
+            if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
+                continue
+
+            for i in range(11):
+                intervene_budget = self.max_intervene_budget * i // 10
+                cur_concept_pred = self.intervene(
+                    concepts, concept_pred.clone(), intervene_budget
+                )
+                cur_label_pred = self(x, cur_concept_pred)[0]
+                getattr(self, f"intervene_{mode}_accs")[i](cur_label_pred, label)
+                getattr(self, f"intervene_{mode}_concept_accs")[i](
+                    cur_concept_pred, concepts
+                )
+
+    def on_test_epoch_end(self):
+        for mode in ["Std", "LPGD", "CPGD", "JPGD"]:
+            if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
+                continue
+
+            for i in range(11):
+                acc = getattr(self, f"intervene_{mode}_accs")[i].compute()
+                concept_acc = getattr(self, f"intervene_{mode}_concept_accs")[
+                    i
+                ].compute()
+                getattr(self, f"intervene_{mode}_accs")[i].reset()
+                getattr(self, f"intervene_{mode}_concept_accs")[i].reset()
+                wandb.log(
+                    {
+                        f"{mode} Acc with Intervene": acc,
+                        f"{mode} Concept Acc with Intervene": concept_acc,
+                        "Intervene Budget": i,
+                    }
+                )
