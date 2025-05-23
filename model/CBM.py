@@ -1,13 +1,12 @@
-import math
 import random
 import numpy as np
 import lightning as L
 import wandb
-from utils import initialize_weights, build_base, cls_wrapper, calc_spectral_norm
+from utils import initialize_weights, build_base, cls_wrapper, suppress_stdout
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torchmetrics import Accuracy, MeanMetric
+from torchmetrics import Accuracy
 from attacks import PGD
 from mtl import mtl
 
@@ -50,6 +49,7 @@ class CBM(L.LightningModule):
         cbm_mode: str = "hybrid",
         mtl_mode: str = "normal",
         weighted_bce: bool = True,
+        ignore_intervenes: bool = False,
         train_mode: str = "Std",
         lpgd_args: dict = {},
         cpgd_args: dict = {},
@@ -81,7 +81,6 @@ class CBM(L.LightningModule):
 
         self.concept_acc = Accuracy(task="multilabel", num_labels=num_concepts)
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
-        self.losses = MeanMetric()
 
         self.train_mode = train_mode
         self.lpgd = PGD(
@@ -97,6 +96,7 @@ class CBM(L.LightningModule):
             + F.binary_cross_entropy_with_logits(o[1], y[1]),
             **jpgd_args,
         )
+
         for s in ["Std", "LPGD", "CPGD", "JPGD"]:
             setattr(
                 self,
@@ -194,7 +194,11 @@ class CBM(L.LightningModule):
         )
         label_loss = F.cross_entropy(label_pred, label)
         loss = label_loss + self.hparams.concept_weight * concept_loss
-        losses = {"label_loss": label_loss, "concept_loss": concept_loss, "loss": loss}
+        losses = {
+            "Label Loss": label_loss,
+            "Concept Loss": concept_loss,
+            "Loss": loss,
+        }
 
         if self.hparams.mtl_mode != "normal":
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
@@ -202,25 +206,35 @@ class CBM(L.LightningModule):
                 param.grad = g[name]
         return losses, (label_pred, concept_pred)
 
-    def generate_adv(self, img, label, concepts, atk_target):
-        if atk_target == "JPGD":
+    def generate_adv(self, img, label, concepts, atk):
+        if atk == "JPGD":
             adv_img = self.jpgd(self, img, (label, concepts))
-        elif atk_target == "LPGD":
+        elif atk == "LPGD":
             adv_img = self.lpgd(cls_wrapper(self, 0), img, label)
-        elif self.atk_target == "CPGD":
+        elif atk == "CPGD":
             adv_img = self.cpgd(cls_wrapper(self, 1), img, concepts)
+        elif atk == "AA":
+            adv_img = self.aa.run_standard_evaluation(img, label, bs=img.shape[0])
+        elif atk == "CW":
+            adv_img = self.cw(img, label)
+        elif atk == "Std":
+            adv_img = img
+        else:
+            raise NotImplementedError
         return adv_img
 
     def training_step(self, batch, batch_idx):
         img, label, concepts = batch
         if self.train_mode != "Std":
             bs = img.shape[0] // 2
-            adv_img = self.generate_adv(img[:bs], label[:bs], concepts[:bs], self.train_mode)
+            adv_img = self.generate_adv(
+                img[:bs], label[:bs], concepts[:bs], self.train_mode
+            )
             img = torch.cat([img[:bs], adv_img], dim=0)
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
         losses, _ = self.calc_loss(img, label, concepts)
-        loss = losses["loss"]
+        loss = losses["Loss"]
         if self.hparams.mtl_mode != "normal":
             self.optimizers().step()
             self.optimizers().zero_grad()
@@ -238,11 +252,11 @@ class CBM(L.LightningModule):
             img = self.generate_adv(img, label, concepts, self.train_mode)
 
         losses, o = self.calc_loss(img, label, concepts)
-        for name, val in losses.items():
-            self.log(f"{name}", val, on_step=False, on_epoch=True)
         label_pred, concept_pred = o[0], o[1]
         self.concept_acc(concept_pred, concepts)
         self.acc(label_pred, label)
+        for name, val in losses.items():
+            self.log(f"{name}", val, on_step=False, on_epoch=True)
 
     def on_validation_epoch_end(self):
         self.log(
@@ -268,18 +282,6 @@ class CBM(L.LightningModule):
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
 
-        outputs = self(img)
-        label_pred, concept_pred = outputs[0], outputs[1]
-        self.acc(label_pred, label)
-        self.concept_acc(concept_pred, concepts)
-        self.log("test acc", self.acc, prog_bar=True, on_step=False, on_epoch=True)
-        self.log(
-            "test concept acc",
-            self.concept_acc,
-            prog_bar=True,
-            on_step=False,
-            on_epoch=True,
-        )
         for mode in ["Std", "LPGD", "CPGD", "JPGD"]:
             if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
                 continue
