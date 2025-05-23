@@ -73,7 +73,7 @@ def exp(config):
         trainer.fit(model, model.dm)
         ckpt_path = trainer.checkpoint_callback.best_model_path
 
-    model = model.__class__.load_from_checkpoint(ckpt_path, **cfg)
+    model = model.__class__.load_from_checkpoint(ckpt_path, dm=dm, **cfg)
 
     trainer.test(model, dm)
     wandb.finish()
