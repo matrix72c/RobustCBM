@@ -1,6 +1,8 @@
+import os
 import random
 import numpy as np
 import lightning as L
+import pandas as pd
 import wandb
 from utils import initialize_weights, build_base, cls_wrapper, suppress_stdout
 import torch
@@ -8,9 +10,9 @@ from torch import nn
 import torch.nn.functional as F
 from torchmetrics import Accuracy
 from attacks import PGD
-from torchattacks import CW
 from autoattack import AutoAttack
 from mtl import mtl
+from collections import defaultdict
 
 
 class MLP(nn.Module):
@@ -134,6 +136,7 @@ class CBM(L.LightningModule):
                     ]
                 ),
             )
+        self.losses = defaultdict(list)
 
     def configure_optimizers(self):
         optimizer = getattr(torch.optim, self.hparams.optimizer)(
@@ -174,7 +177,7 @@ class CBM(L.LightningModule):
             concept_pred = self.base(x)
         elif self.hparams.res_dim > 0:
             l = self.base(x)
-            l[:, :self.num_concepts] = concept_pred
+            l[:, : self.num_concepts] = concept_pred
             concept_pred = l
 
         if self.hparams.cbm_mode == "fuzzy":
@@ -308,21 +311,7 @@ class CBM(L.LightningModule):
             getattr(self, f"{mode}_acc")(label_pred, label)
             getattr(self, f"{mode}_concept_acc")(concept_pred, concepts)
             for name, val in losses.items():
-                self.log(f"{mode} {name}", val, on_step=False, on_epoch=True)
-            self.log(
-                f"{mode} Acc",
-                getattr(self, f"{mode}_acc"),
-                prog_bar=True,
-                on_step=False,
-                on_epoch=True,
-            )
-            self.log(
-                f"{mode} Concept Acc",
-                getattr(self, f"{mode}_concept_acc"),
-                prog_bar=True,
-                on_step=False,
-                on_epoch=True,
-            )
+                self.losses[f"{mode} " + name].append(val)
 
             if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
@@ -339,10 +328,18 @@ class CBM(L.LightningModule):
                 )
 
     def on_test_epoch_end(self):
+        res = defaultdict(float)
         for mode in ["Std", "LPGD", "CPGD", "JPGD", "AA"]:
+            res[f"{mode} Acc"] = getattr(self, f"{mode}_acc").compute()
+            res[f"{mode} Concept Acc"] = getattr(self, f"{mode}_concept_acc").compute()
+            for name, val in self.losses.items():
+                res[f"{mode} {name}"] = torch.tensor(val).mean().item()
+
             if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
 
+            int_acc = []
+            int_concept_acc = []
             for i in range(11):
                 acc = getattr(self, f"intervene_{mode}_accs")[i].compute()
                 concept_acc = getattr(self, f"intervene_{mode}_concept_accs")[
@@ -357,3 +354,21 @@ class CBM(L.LightningModule):
                         "Intervene Budget": i,
                     }
                 )
+                int_acc.append(acc)
+                int_concept_acc.append(concept_acc)
+            res[f"{mode} Acc with Intervene"] = int_acc
+            res[f"{mode} Concept Acc with Intervene"] = int_concept_acc
+
+        for k, v in res.items():
+            if isinstance(v, list):
+                continue
+            self.log(k, v)
+
+        res["name"] = self.hparams.run_name
+        row = pd.DataFrame([res], columns=res.keys())
+        if os.path.exists("result.csv"):
+            df = pd.read_csv("result.csv")
+            df = pd.concat([df, row], ignore_index=True)
+        else:
+            df = row
+        df.to_csv("result.csv", index=False)

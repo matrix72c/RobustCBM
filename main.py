@@ -20,6 +20,7 @@ def exp(config):
         cfg = yaml.safe_load(f)
     cfg = yaml_merge(cfg, config)
     name = build_name(config)
+    cfg["run_name"] = name
     run_id = hashlib.md5(name.encode()).hexdigest()[:8]
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg.get("seed", 42))
@@ -67,12 +68,6 @@ def exp(config):
 
     model = model.__class__.load_from_checkpoint(ckpt_path, dm=dm, **cfg)
 
-    csv_logger = CSVLogger(save_dir="saved/", name=name)
-    trainer = Trainer(
-        log_every_n_steps=1,
-        logger=[csv_logger, logger],
-        inference_mode=False,
-    )
     trainer.test(model, dm)
     wandb.finish()
 

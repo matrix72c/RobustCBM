@@ -104,13 +104,12 @@ ENV/
 
 # input data, saved log, checkpoints
 data/
-input/
-saved/
 checkpoints/
 lightning_logs/
 wandb/
 logs/
 tmp*
+result.csv
 
 # editor, os cache directory
 .vscode/
