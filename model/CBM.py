@@ -308,16 +308,16 @@ class CBM(L.LightningModule):
             getattr(self, f"{mode}_acc")(label_pred, label)
             getattr(self, f"{mode}_concept_acc")(concept_pred, concepts)
             for name, val in losses.items():
-                self.log(f"test/{mode} {name}", val, on_step=False, on_epoch=True)
+                self.log(f"{mode} {name}", val, on_step=False, on_epoch=True)
             self.log(
-                f"test/{mode} Acc",
+                f"{mode} Acc",
                 getattr(self, f"{mode}_acc"),
                 prog_bar=True,
                 on_step=False,
                 on_epoch=True,
             )
             self.log(
-                f"test/{mode} Concept Acc",
+                f"{mode} Concept Acc",
                 getattr(self, f"{mode}_concept_acc"),
                 prog_bar=True,
                 on_step=False,
