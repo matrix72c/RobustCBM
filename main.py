@@ -35,7 +35,6 @@ def exp(config):
         config=cfg,
         group=cfg.get("group", None),
     )
-    csv_logger = CSVLogger(save_dir="saved/", name=name)
     checkpoint_callback = ModelCheckpoint(
         monitor="acc",
         dirpath="checkpoints/",
@@ -52,7 +51,7 @@ def exp(config):
     callbacks = [checkpoint_callback, early_stopping]
     trainer = Trainer(
         log_every_n_steps=1,
-        logger=[logger, csv_logger],
+        logger=logger,
         callbacks=callbacks,
         max_epochs=cfg.get("epochs", None),
         inference_mode=False,
@@ -68,6 +67,12 @@ def exp(config):
 
     model = model.__class__.load_from_checkpoint(ckpt_path, dm=dm, **cfg)
 
+    csv_logger = CSVLogger(save_dir="saved/", name=name)
+    trainer = Trainer(
+        log_every_n_steps=1,
+        logger=[csv_logger, logger],
+        inference_mode=False,
+    )
     trainer.test(model, dm)
     wandb.finish()
 
