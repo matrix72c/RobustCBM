@@ -48,6 +48,7 @@ class CBM(L.LightningModule):
             "strict": True,
         },
         hidden_dim: int = 0,
+        res_dim: int = 0,
         cbm_mode: str = "hybrid",
         mtl_mode: str = "normal",
         weighted_bce: bool = True,
@@ -70,12 +71,12 @@ class CBM(L.LightningModule):
         self.max_intervene_budget = dm.max_intervene_budget
         self.concept_group_map = dm.concept_group_map
         self.group_concept_map = dm.group_concept_map
-        self.base = build_base(base, num_concepts, use_pretrained)
+        self.base = build_base(base, num_concepts + res_dim, use_pretrained)
 
         if hidden_dim > 0:
-            self.classifier = MLP(num_concepts, hidden_dim, num_classes)
+            self.classifier = MLP(num_concepts + res_dim, hidden_dim, num_classes)
         else:
-            self.classifier = nn.Linear(num_concepts, num_classes).apply(
+            self.classifier = nn.Linear(num_concepts + res_dim, num_classes).apply(
                 initialize_weights
             )
         self.num_classes = num_classes
@@ -171,6 +172,10 @@ class CBM(L.LightningModule):
     def forward(self, x, concept_pred=None):
         if concept_pred is None:
             concept_pred = self.base(x)
+        elif self.hparams.res_dim > 0:
+            l = self.base(x)
+            l[:, :self.num_concepts] = concept_pred
+            concept_pred = l
 
         if self.hparams.cbm_mode == "fuzzy":
             concept = torch.sigmoid(concept_pred)
