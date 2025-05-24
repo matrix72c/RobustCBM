@@ -26,6 +26,16 @@ def flatten_dict(d, parent_key="", sep="."):
             items.append((new_key, v))
     return dict(items)
 
+def build_name(config):
+    if config.get("name", None) is not None:
+        return config["name"]
+    d = flatten_dict(config)
+    d.pop("ckpt_path", None)
+    d = sorted(d.items(), key=lambda x: x[0])
+    name = "_".join([f"{v}" if isinstance(v, str) else f"{k}-{v}" for k, v in d])
+    name = name.lower()
+    return name
+
 
 def initialize_weights(module: nn.Module):
     """Initialize the weights of a module."""

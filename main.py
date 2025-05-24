@@ -1,6 +1,6 @@
 import os
 from lightning.pytorch.trainer import Trainer
-from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.loggers import WandbLogger, CSVLogger
 from lightning.pytorch.callbacks import (
     ModelCheckpoint,
     EarlyStopping,
@@ -11,38 +11,31 @@ import wandb
 import yaml, argparse
 import model as pl_model
 import dataset
-from utils import flatten_dict, yaml_merge
+from utils import build_name, yaml_merge
+import hashlib
 
 
 def exp(config):
     with open("config.yaml", "r") as f:
         cfg = yaml.safe_load(f)
-    cfg.update(config)
+    cfg = yaml_merge(cfg, config)
+    name = build_name(config)
+    run_id = hashlib.md5(name.encode()).hexdigest()[:8]
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg.get("seed", 42))
+
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
-    if cfg.get("experiment_name", None) is not None:
-        name = cfg["experiment_name"]
-    else:
-        d = flatten_dict(config)
-        d.pop("ckpt_path", None)
-        d = sorted(d.items(), key=lambda x: x[0])
-        name = "_".join([f"{v}" if isinstance(v, str) else f"{k}-{v}" for k, v in d])
-        name = name.lower()
 
     logger = WandbLogger(
-        name=name,
         project="RAID",
+        name=name,
+        id=run_id,
+        resume="allow",
         config=cfg,
-        tags=[
-            cfg["model"],
-            cfg["dataset"],
-            cfg["train_mode"],
-            cfg["base"],
-        ],
         group=cfg.get("group", None),
     )
+    csv_logger = CSVLogger(save_dir="saved/", name=name)
     checkpoint_callback = ModelCheckpoint(
         monitor="acc",
         dirpath="checkpoints/",
@@ -59,7 +52,7 @@ def exp(config):
     callbacks = [checkpoint_callback, early_stopping]
     trainer = Trainer(
         log_every_n_steps=1,
-        logger=logger,
+        logger=[logger, csv_logger],
         callbacks=callbacks,
         max_epochs=cfg.get("epochs", None),
         inference_mode=False,

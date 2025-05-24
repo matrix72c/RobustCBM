@@ -1,8 +1,6 @@
-group: ndss
+group: sp
 seed: 42
-gpus: auto
 epochs: -1
-patience: &patience 30
 
 model: CBM
 base: resnet50
@@ -17,7 +15,7 @@ scheduler: ReduceLROnPlateau
 scheduler_args:
   mode: max
   factor: 0.1
-  patience: *patience
+  patience: 30
   min_lr: 0.00001
   threshold: 0.0001
 plateau_args:
@@ -25,31 +23,19 @@ plateau_args:
   interval: "epoch"
   frequency: 1
   strict: true
-adv_mode: adv
 hidden_dim: 0
+res_dim: 0
 cbm_mode: hybrid # "bool", "fuzzy", "hybrid"
-attacker: PGD
-atk_target: label
 mtl_mode: normal # "normal", "equal", "ordered"
+train_mode: Std
 
 dataset: CUB
 data_path: ./data
 batch_size: 128
 resol: 224
 
-embed_dim: 32
+# cem
+embed_dim: 16
 
-# VIB
+# vib
 vib: 0.01
-# VQ
-codebook_size: 5120
-codebook_weight: 0.1
-quantizer: EMA
-# gate
-use_gate: nogate
-# CL
-cl_weight: 0.1
-# spectral
-spectral_weight: 0
-# adversarial invariant
-trades: 0
