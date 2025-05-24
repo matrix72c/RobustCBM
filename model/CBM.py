@@ -329,9 +329,10 @@ class CBM(L.LightningModule):
 
     def on_test_epoch_end(self):
         res = defaultdict(float)
+        res["name"] = self.hparams.run_name
         for mode in ["Std", "LPGD", "CPGD", "JPGD", "AA"]:
-            res[f"{mode} Acc"] = getattr(self, f"{mode}_acc").compute()
-            res[f"{mode} Concept Acc"] = getattr(self, f"{mode}_concept_acc").compute()
+            res[f"{mode} Acc"] = getattr(self, f"{mode}_acc").compute().item()
+            res[f"{mode} Concept Acc"] = getattr(self, f"{mode}_concept_acc").compute().item()
             for name, val in self.losses.items():
                 res[f"{mode} {name}"] = torch.tensor(val).mean().item()
 
@@ -354,17 +355,16 @@ class CBM(L.LightningModule):
                         "Intervene Budget": i,
                     }
                 )
-                int_acc.append(acc)
-                int_concept_acc.append(concept_acc)
+                int_acc.append(acc.item())
+                int_concept_acc.append(concept_acc.item())
             res[f"{mode} Acc with Intervene"] = int_acc
             res[f"{mode} Concept Acc with Intervene"] = int_concept_acc
 
         for k, v in res.items():
-            if isinstance(v, list):
+            if isinstance(v, list) or k ==  "name":
                 continue
             self.log(k, v)
 
-        res["name"] = self.hparams.run_name
         row = pd.DataFrame([res], columns=res.keys())
         if os.path.exists("result.csv"):
             df = pd.read_csv("result.csv")
