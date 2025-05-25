@@ -24,6 +24,7 @@ def exp(config):
     run_id = hashlib.md5(name.encode()).hexdigest()[:8]
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg.get("seed", 42))
+    print(f"Run ID: {run_id}, Run name: {name}")
 
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
