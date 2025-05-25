@@ -75,12 +75,12 @@ def exp(config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
+    parser.add_argument("--task_id", type=int, default=0)
     args = parser.parse_args()
     with open(args.config, "r") as f:
         c = yaml.safe_load(f)
 
     if isinstance(c, list):
-        for config in c:
-            exp(config)
+        exp(c[args.task_id])
     elif isinstance(c, dict):
         exp(c)
