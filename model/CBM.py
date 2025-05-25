@@ -279,11 +279,11 @@ class CBM(L.LightningModule):
         self.concept_acc.reset()
 
     def on_test_start(self):
-        self.aa = AutoAttack(
-            cls_wrapper(self, 0),
-            verbose=False,
-            **self.hparams.aa_args,
-        )
+        # self.aa = AutoAttack(
+        #     cls_wrapper(self, 0),
+        #     verbose=False,
+        #     **self.hparams.aa_args,
+        # )
         if self.hparams.ignore_intervenes:
             return
         concept_logits = []
@@ -299,7 +299,7 @@ class CBM(L.LightningModule):
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
 
-        for mode in ["Std", "LPGD", "CPGD", "JPGD", "AA"]:
+        for mode in ["Std", "LPGD", "CPGD", "JPGD"]:
             if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
                 continue
             if mode == "Std":
@@ -330,7 +330,7 @@ class CBM(L.LightningModule):
     def on_test_epoch_end(self):
         res = defaultdict(float)
         res["name"] = self.hparams.run_name
-        for mode in ["Std", "LPGD", "CPGD", "JPGD", "AA"]:
+        for mode in ["Std", "LPGD", "CPGD", "JPGD"]:
             res[f"{mode} Acc"] = getattr(self, f"{mode}_acc").compute().item()
             res[f"{mode} Concept Acc"] = getattr(self, f"{mode}_concept_acc").compute().item()
             for name, val in self.losses.items():
