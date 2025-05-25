@@ -27,10 +27,9 @@ def flatten_dict(d, parent_key="", sep="."):
     return dict(items)
 
 def build_name(config):
-    if config.get("name", None) is not None:
-        return config["name"]
+    if config.get("run_name", None) is not None:
+        return config["run_name"]
     d = flatten_dict(config)
-    d.pop("ckpt_path", None)
     d = sorted(d.items(), key=lambda x: x[0])
     name = "_".join([f"{v}" if isinstance(v, str) else f"{k}-{v}" for k, v in d])
     name = name.lower()
