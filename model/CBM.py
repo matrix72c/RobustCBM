@@ -311,7 +311,7 @@ class CBM(L.LightningModule):
             getattr(self, f"{mode}_acc")(label_pred, label)
             getattr(self, f"{mode}_concept_acc")(concept_pred, concepts)
             for name, val in losses.items():
-                self.losses[f"{mode} " + name].append(val)
+                self.losses[f"{mode} {name}"].append(val)
 
             if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
@@ -334,7 +334,7 @@ class CBM(L.LightningModule):
             res[f"{mode} Acc"] = getattr(self, f"{mode}_acc").compute().item()
             res[f"{mode} Concept Acc"] = getattr(self, f"{mode}_concept_acc").compute().item()
             for name, val in self.losses.items():
-                res[f"{mode} {name}"] = torch.tensor(val).mean().item()
+                res[f"{name}"] = torch.tensor(val).mean().item()
 
             if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
