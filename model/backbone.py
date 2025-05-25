@@ -19,4 +19,4 @@ class backbone(CBM):
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred = self(img)
         label_loss = F.cross_entropy(label_pred, label, label_smoothing=0.1)
-        return label_loss, (label_pred, concept_pred)
+        return {"Loss": label_loss}, (label_pred, concept_pred)
