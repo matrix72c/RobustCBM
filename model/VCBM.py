@@ -50,10 +50,10 @@ class VCBM(CBM):
             + self.hparams.vib * info_loss
         )
         losses = {
-            "label_loss": label_loss,
-            "concept_loss": concept_loss,
-            "info_loss": info_loss,
-            "loss": loss,
+            "Label Loss": label_loss,
+            "Concept Loss": concept_loss,
+            "Info Loss": info_loss,
+            "Loss": loss,
         }
 
         if self.hparams.mtl_mode != "normal":
