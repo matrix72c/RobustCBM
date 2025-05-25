@@ -15,15 +15,26 @@ from utils import build_name, yaml_merge
 import hashlib
 
 
-def exp(config):
+def build(config):
+    if config.get("ckpt", None) is not None:
+        ckpt_path = "checkpoints/" + config["ckpt"] + ".ckpt"
+        cfg_path = "checkpoints/" + config["ckpt"] + ".yaml"
+        with open(cfg_path, "r") as f:
+            cfg = yaml.safe_load(f)
+        dm = getattr(dataset, cfg["dataset"])(**cfg)
+        model = getattr(pl_model, cfg["model"]).load_from_checkpoint(ckpt_path, dm=dm, **cfg)
+        return model, dm, cfg
+
     with open("config.yaml", "r") as f:
         cfg = yaml.safe_load(f)
     cfg = yaml_merge(cfg, config)
     name = build_name(config)
-    cfg["run_name"] = name
     run_id = hashlib.md5(name.encode()).hexdigest()[:8]
+    cfg["run_name"] = name
+    cfg["run_id"] = run_id
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg.get("seed", 42))
+    yaml.dump(cfg, open(f"checkpoints/{name}.yaml", "w"))
     print(f"Run ID: {run_id}, Run name: {name}")
 
     dm = getattr(dataset, cfg["dataset"])(**cfg)
@@ -58,19 +69,12 @@ def exp(config):
         max_epochs=cfg.get("epochs", None),
         inference_mode=False,
     )
-    ckpt_path = cfg.get("ckpt_path", None)
-    if ckpt_path is not None:
-        if not os.path.exists(ckpt_path):
-            raise ValueError(f"Checkpoint {ckpt_path} not found")
-        print("Load from checkpoint: ", ckpt_path)
-    else:
-        trainer.fit(model, dm)
-        ckpt_path = trainer.checkpoint_callback.best_model_path
-
-    model = model.__class__.load_from_checkpoint(ckpt_path, dm=dm, **cfg)
+    trainer.fit(model, dm)
+    model = model.__class__.load_from_checkpoint(trainer.checkpoint_callback.best_model_path, dm=dm, **cfg)
 
     trainer.test(model, dm)
     wandb.finish()
+    return model, dm, cfg
 
 
 if __name__ == "__main__":
@@ -82,6 +86,6 @@ if __name__ == "__main__":
         c = yaml.safe_load(f)
 
     if isinstance(c, list):
-        exp(c[args.task_id])
+        build(c[args.task_id])
     elif isinstance(c, dict):
-        exp(c)
+        build(c)

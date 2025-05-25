@@ -1,12 +1,12 @@
 import argparse, yaml
 import wandb
-from main import exp
+from main import build
 
 
 def sweep_exp():
     wandb.init(project="CBM")
     c = wandb.config.as_dict()
-    exp(c)
+    build(c)
 
 
 parser = argparse.ArgumentParser()
