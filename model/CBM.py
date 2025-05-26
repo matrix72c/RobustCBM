@@ -216,8 +216,8 @@ class CBM(L.LightningModule):
                 param.grad = g[name]
         return losses, (label_pred, concept_pred)
 
-    @suppress_stdout
-    @torch.enable_grad()
+    # @suppress_stdout
+    # @torch.enable_grad()
     def generate_adv(self, img, label, concepts, atk):
         if atk == "JPGD":
             adv_img = self.jpgd(self, img, (label, concepts))
