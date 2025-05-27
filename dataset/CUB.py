@@ -445,14 +445,13 @@ CONCEPT_SEMANTICS = [
 
 
 class CUBDataSet(Dataset):
-    def __init__(self, data_path, stage, num_concepts, resol):
+    def __init__(self, data_path, stage, resol):
         self.data = []
         self.image_dir = "images"
         if data_path[-1] != "/":
             data_path += "/"
         data_path += "CUB_200_2011/"
         self.data_path = data_path
-        self.num_concepts = num_concepts
         if stage == "fit":
             self.data.extend(pickle.load(open(data_path + "train.pkl", "rb")))
             self.transform = transforms.Compose(
@@ -480,21 +479,6 @@ class CUBDataSet(Dataset):
                     ),
                 ]
             )
-        concept_counts = torch.zeros(len(self.data[0]["attribute_label"]))
-        for img_data in self.data:
-            concept_counts += torch.FloatTensor(img_data["attribute_label"])
-        self.top_vuln_concepts = [
-            50,
-            20,
-            100,
-            7,
-            13,
-            111,
-            11,
-            76,
-            61,
-            86,
-        ]
 
     def __getitem__(self, index):
         img_data = self.data[index]
@@ -509,11 +493,6 @@ class CUBDataSet(Dataset):
         label = img_data["class_label"]
         img = self.transform(img)
         attr_label = torch.FloatTensor(img_data["attribute_label"])
-        if self.num_concepts < len(attr_label):
-            ignored = self.top_vuln_concepts[: len(attr_label) - self.num_concepts]
-            mask = torch.ones(len(attr_label), dtype=torch.bool)
-            mask[ignored] = False
-            attr_label = attr_label[mask]
         return img, label, attr_label
 
     def __len__(self):
@@ -523,57 +502,30 @@ class CUBDataSet(Dataset):
 class CUB(L.LightningDataModule):
     def __init__(
         self,
-        data_path,
-        batch_size,
-        num_concepts=112,
+        data_path: str = "./data",
         resol=224,
+        batch_size:int = 128,
+        num_workers: int = 12,
         **kwargs,
     ):
         super().__init__()
-        self.data_path = data_path
         self.batch_size = batch_size
-        self.num_concepts = num_concepts
-        self.real_concepts = 112
+        self.num_workers = num_workers
+        self.num_concepts = 112
         self.num_classes = 200
-        self.train_data = CUBDataSet(self.data_path, "fit", num_concepts, resol)
-        self.val_data = CUBDataSet(self.data_path, "val", num_concepts, resol)
-        self.test_data = CUBDataSet(self.data_path, "test", num_concepts, resol)
+        self.train_data = CUBDataSet(data_path, "fit", resol)
+        self.val_data = CUBDataSet(data_path, "val", resol)
+        self.test_data = CUBDataSet(data_path, "test", resol)
         self.imbalance_weights = cal_class_imbalance_weights(self.train_data)
         # Generate a mapping containing all concept groups in CUB generated
         # using a simple prefix tree
-        self.top_vuln_concepts = [
-            50,
-            20,
-            100,
-            7,
-            13,
-            111,
-            11,
-            76,
-            61,
-            86,
-        ]
-        if num_concepts < 112:
-            ignored = self.top_vuln_concepts[: 112 - num_concepts]
-        else:
-            ignored = []
-        idx_map = []
-        for i in range(112):
-            v = 0
-            for j in ignored:
-                if j < i:
-                    v += 1
-            idx_map.append(i - v)
-        self.concept_names = list(
-            np.array(CONCEPT_SEMANTICS)[self.top_vuln_concepts]
-        )
         CONCEPT_GROUP_MAP = defaultdict(list)
         for i, concept_name in enumerate(
             list(np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS])
         ):
             group = concept_name[: concept_name.find("::")]
-            if i not in ignored:
-                CONCEPT_GROUP_MAP[group].append(idx_map[i])
+            CONCEPT_GROUP_MAP[group].append(i)
+
         self.concept_group_map = CONCEPT_GROUP_MAP
         self.concept_names = list(np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS])
         self.max_intervene_budget = 29
@@ -587,7 +539,7 @@ class CUB(L.LightningDataModule):
             self.train_data,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=24,
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
@@ -596,7 +548,7 @@ class CUB(L.LightningDataModule):
             self.val_data,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=24,
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
@@ -605,16 +557,11 @@ class CUB(L.LightningDataModule):
             self.test_data,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=24,
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
 
 if __name__ == "__main__":
-    data_path = "./data/"
-    batch_size = 64
-    num_concepts = 112
-    dm = CUB(data_path, batch_size, num_concepts)
-    dm.prepare_data()
-    dm.setup("fit")
+    dm = CUB()
     print(len(dm.concept_group_map))
