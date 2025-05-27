@@ -268,15 +268,14 @@ class CBM(L.LightningModule):
         for name, val in losses.items():
             self.log(f"{name}", val, on_step=False, on_epoch=True)
 
-    def on_validation_epoch_end(self):
         self.log(
             "lr",
             self.optimizers().param_groups[0]["lr"],
+            on_step=False,
+            on_epoch=True,
         )
-        self.log("acc", self.acc.compute(), prog_bar=True)
-        self.log("concept_acc", self.concept_acc.compute(), prog_bar=True)
-        self.acc.reset()
-        self.concept_acc.reset()
+        self.log("acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
+        self.log("concept_acc", self.concept_acc, prog_bar=True, on_epoch=True, on_step=False)
 
     def on_test_start(self):
         self.aa = AutoAttack(
