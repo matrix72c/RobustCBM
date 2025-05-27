@@ -189,7 +189,7 @@ class CBM(L.LightningModule):
         elif self.hparams.cbm_mode == "hybrid":
             concept = concept_pred
         label_pred = self.classifier(concept)
-        return label_pred, concept_pred
+        return label_pred, concept_pred[:, : self.num_concepts]
 
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred = self(img)
