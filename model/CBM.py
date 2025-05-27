@@ -182,6 +182,8 @@ class CBM(L.LightningModule):
 
         if self.hparams.cbm_mode == "fuzzy":
             concept = torch.sigmoid(concept_pred)
+        elif self.hparams.cbm_mode == "relu":
+            concept = torch.relu(concept_pred)
         elif self.hparams.cbm_mode == "bool":
             concept_prob = torch.sigmoid(concept_pred)
             concept_binary = concept_prob.ge(0.5).float()
