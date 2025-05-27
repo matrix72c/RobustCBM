@@ -85,7 +85,8 @@ if __name__ == "__main__":
     with open(args.config, "r") as f:
         c = yaml.safe_load(f)
 
-    if isinstance(c, list):
+    if args.task_id is not None and args.task_id < len(c):
         build(c[args.task_id])
-    elif isinstance(c, dict):
-        build(c)
+    else:
+        for i, config in enumerate(c):
+            build(config)
