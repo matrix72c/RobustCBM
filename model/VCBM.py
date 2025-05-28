@@ -29,6 +29,10 @@ class VCBM(CBM):
             concept_pred = logits
 
         label_pred = self.classifier(concept_pred)
+
+        if self.hparams.res_dim == self.num_classes and self.hparams.add_residual:
+            label_pred += concept_pred[:, self.num_concepts :] * torch.sigmoid(self.res_alpha)
+
         return label_pred, concept_pred[:, : self.num_concepts], mu, std**2
 
     def calc_loss(self, img, label, concepts):

@@ -4,7 +4,7 @@ epochs: -1
 
 model: CBM
 base: resnet50
-use_pretrained: True
+use_pretrained: true
 concept_weight: 1
 optimizer: SGD
 optimizer_args:
@@ -28,6 +28,8 @@ res_dim: 0
 cbm_mode: hybrid # "bool", "fuzzy", "hybrid"
 mtl_mode: normal # "normal", "equal", "ordered"
 train_mode: Std
+add_residual: false
+res_alpha: 0.1
 
 dataset: CUB
 data_path: ./data

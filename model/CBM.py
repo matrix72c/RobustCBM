@@ -54,6 +54,8 @@ class CBM(L.LightningModule):
         cbm_mode: str = "hybrid",
         mtl_mode: str = "normal",
         weighted_bce: bool = True,
+        add_residual: bool = False,
+        res_alpha: float = 0.1,
         ignore_intervenes: bool = False,
         train_mode: str = "Std",
         lpgd_args: dict = {},
@@ -83,6 +85,9 @@ class CBM(L.LightningModule):
             )
         self.num_classes = num_classes
         self.num_concepts = num_concepts
+
+        if add_residual:
+            self.res_alpha = nn.Parameter(torch.logit(torch.tensor(res_alpha)))
 
         self.concept_acc = Accuracy(task="multilabel", num_labels=num_concepts)
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
@@ -191,6 +196,8 @@ class CBM(L.LightningModule):
         elif self.hparams.cbm_mode == "hybrid":
             concept = concept_pred
         label_pred = self.classifier(concept)
+        if self.hparams.res_dim == self.num_classes and self.hparams.add_residual:
+            label_pred += concept_pred[:, self.num_concepts :] * torch.sigmoid(self.res_alpha)
         return label_pred, concept_pred[:, : self.num_concepts]
 
     def calc_loss(self, img, label, concepts):
