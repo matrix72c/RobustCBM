@@ -19,6 +19,7 @@ class CEM(CBM):
         concept_context = self.base(x).reshape(
             x.size(0), -1, 2 * self.hparams.embed_dim
         )
+        concept_context = nn.LeakyReLU(concept_context)
         if concept_pred is None:
             concept_pred = self.concept_prob_gen(concept_context).squeeze(-1)
         concept_probs = torch.sigmoid(concept_pred)
