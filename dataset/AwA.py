@@ -15,9 +15,8 @@ from utils import cal_class_imbalance_weights
 
 
 class AwADataset(Dataset):
-    def __init__(self, data_path, stage, num_concepts, resol):
+    def __init__(self, data_path, stage, resol):
         self.path = data_path
-        self.num_concepts = num_concepts
         class_to_index = dict()
         with open(self.path + "/Animals_with_Attributes2/classes.txt") as f:
             index = 1
@@ -84,9 +83,6 @@ class AwADataset(Dataset):
                 dtype="float32",
             )
         )
-        concept_counts = np.sum(self.label_to_attr, axis=0)
-        most_common = np.argsort(concept_counts)[::-1]
-        self.combos = list(itertools.combinations(most_common[:32], 2))
 
     def __len__(self):
         return len(self.img_names)
@@ -98,30 +94,27 @@ class AwADataset(Dataset):
             img = self.transform(img)
 
         attr_label = torch.Tensor(self.label_to_attr[class_label, :])
-        combo_attr = torch.zeros(len(self.combos))
-        for i, (a, b) in enumerate(self.combos):
-            combo_attr[i] = attr_label[a] * attr_label[b]
-        if self.num_concepts < 85:
-            attr_label = attr_label[: self.num_concepts]
-        else:
-            attr_label = torch.cat(
-                (attr_label, combo_attr[: self.num_concepts - 85]), dim=0
-            )
 
         return img, class_label, attr_label
 
 
 class AwA(L.LightningDataModule):
-    def __init__(self, data_path, batch_size, num_concepts=85, resol=224, **kwargs):
+    def __init__(
+        self,
+        data_path: str = "./data",
+        resol: int = 224,
+        batch_size: int = 128,
+        num_workers: int = 12,
+        **kwargs,
+    ):
         super().__init__()
-        self.data_path = data_path
         self.batch_size = batch_size
-        self.num_concepts = num_concepts
-        self.real_concepts = 85
+        self.num_workers = num_workers
+        self.num_concepts = 85
         self.num_classes = 50
-        self.train = AwADataset(self.data_path, "fit", num_concepts, resol)
-        self.val = AwADataset(self.data_path, "val", num_concepts, resol)
-        self.test = AwADataset(self.data_path, "test", num_concepts, resol)
+        self.train = AwADataset(data_path, "fit", resol)
+        self.val = AwADataset(data_path, "val", resol)
+        self.test = AwADataset(data_path, "test", resol)
         sample = Subset(self.train, torch.arange(len(self.train) // 10))
         self.imbalance_weights = cal_class_imbalance_weights(sample)
 
@@ -139,7 +132,7 @@ class AwA(L.LightningDataModule):
             self.train,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=24,
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
@@ -148,7 +141,7 @@ class AwA(L.LightningDataModule):
             self.val,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=24,
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
@@ -157,7 +150,7 @@ class AwA(L.LightningDataModule):
             self.test,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=24,
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 

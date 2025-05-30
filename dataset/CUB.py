@@ -503,8 +503,8 @@ class CUB(L.LightningDataModule):
     def __init__(
         self,
         data_path: str = "./data",
-        resol=224,
-        batch_size:int = 128,
+        resol: int = 224,
+        batch_size: int = 128,
         num_workers: int = 12,
         **kwargs,
     ):
