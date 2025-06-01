@@ -661,6 +661,7 @@ class CustomCUB(CUB):
         self.val_data = CustomCUBDataSet(data_path, "val", resol, custom_num)
         self.test_data = CustomCUBDataSet(data_path, "test", resol, custom_num)
         self.imbalance_weights = cal_class_imbalance_weights(self.train_data)
+        self.num_concepts = custom_num
 
 
 if __name__ == "__main__":
