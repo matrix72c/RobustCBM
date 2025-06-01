@@ -18,7 +18,7 @@ class backbone(CBM):
     def forward(self, x):
         x = self.base(x)
         if self.hparams.backbone_plus != 0:
-            x = F.leaky_relu(x)
+            x = F.relu(x)
             x = self.fc(x)
         return x, torch.zeros(x.shape[0], self.num_concepts).detach().to(x.device)
 
