@@ -6,18 +6,19 @@ from utils import modify_fc
 
 
 class backbone(CBM):
-    def __init__(self, backbone_plus: bool = False, **kwargs):
+    def __init__(self, backbone_plus: int = 0, **kwargs):
         kwargs["concept_weight"] = 0
         super().__init__(**kwargs)
         modify_fc(self.base, kwargs["base"], self.num_classes)
         del self.classifier
-        if backbone_plus:
+        if backbone_plus != 0:
+            modify_fc(self.base, kwargs["base"], backbone_plus)
             self.fc = nn.Linear(self.num_classes, self.num_classes)
 
     def forward(self, x):
         x = self.base(x)
-        if self.hparams.backbone_plus:
-            x = torch.relu(x)
+        if self.hparams.backbone_plus != 0:
+            x = F.leaky_relu(x)
             x = self.fc(x)
         return x, torch.zeros(x.shape[0], self.num_concepts).detach().to(x.device)
 
