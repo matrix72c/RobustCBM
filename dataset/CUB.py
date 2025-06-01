@@ -562,6 +562,107 @@ class CUB(L.LightningDataModule):
         )
 
 
+import numpy as np
+from itertools import combinations
+from collections import Counter
+
+
+class CustomCUBDataSet(CUBDataSet):
+    def __init__(self, data_path, stage, resol, custom_num):
+
+        super().__init__(data_path, stage, resol)
+
+        self.custom_num = custom_num
+
+        all_attrs = []
+        for item in self.data:
+            all_attrs.append(item["attribute_label"])
+        all_attrs = np.array(all_attrs)
+
+        self.num_concepts = all_attrs.shape[1]
+
+        if self.custom_num < self.num_concepts:
+            attr_freq = np.sum(all_attrs, axis=0)
+
+            top_indices = np.argsort(attr_freq)[-self.custom_num :][::-1]
+            self.selected_indices = top_indices
+            self.attr_type = "single"
+
+        else:
+            self.selected_indices = list(range(self.num_concepts))
+
+            num_combinations = self.custom_num - self.num_concepts
+
+            if num_combinations > 0:
+
+                combination_freq = Counter()
+
+                for i in range(self.num_concepts):
+                    for j in range(i + 1, self.num_concepts):
+
+                        count = np.sum((all_attrs[:, i] == 1) & (all_attrs[:, j] == 1))
+                        combination_freq[(i, j)] = count
+
+                if len(combination_freq) < num_combinations:
+                    for combo in combinations(range(self.num_concepts), 3):
+                        count = np.sum(np.all(all_attrs[:, combo] == 1, axis=1))
+                        combination_freq[combo] = count
+
+                top_combinations = sorted(
+                    combination_freq.items(), key=lambda x: x[1], reverse=True
+                )[:num_combinations]
+
+                self.combinations = [combo[0] for combo in top_combinations]
+                self.attr_type = "combined"
+
+    def __getitem__(self, index):
+        img_data = self.data[index]
+        img_path = img_data["img_path"]
+        idx = img_path.split("/").index("CUB_200_2011")
+
+        if self.image_dir != "images":
+            img_path = "/".join([self.image_dir] + img_path.split("/")[idx + 1 :])
+            img_path = img_path.replace("images/", "")
+        else:
+            img_path = "/".join(img_path.split("/")[idx + 1 :])
+
+        img = Image.open(self.data_path + img_path).convert("RGB")
+        label = img_data["class_label"]
+        img = self.transform(img)
+
+        original_attr_label = img_data["attribute_label"]
+
+        if self.custom_num < self.num_concepts:
+
+            attr_label = [original_attr_label[i] for i in self.selected_indices]
+        else:
+
+            attr_label = original_attr_label.copy()
+
+            if hasattr(self, "combinations"):
+                for combo in self.combinations:
+
+                    combo_value = 1
+                    for idx in combo:
+                        combo_value = combo_value and original_attr_label[idx]
+                    attr_label.append(combo_value)
+
+        attr_label = torch.FloatTensor(attr_label)
+
+        return img, label, attr_label
+
+
+class CustomCUB(CUB):
+    def __init__(
+        self, custom_num, data_path: str = "./data", resol: int = 224, **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.train_data = CustomCUBDataSet(data_path, "fit", resol, custom_num)
+        self.val_data = CustomCUBDataSet(data_path, "val", resol, custom_num)
+        self.test_data = CustomCUBDataSet(data_path, "test", resol, custom_num)
+        self.imbalance_weights = cal_class_imbalance_weights(self.train_data)
+
+
 if __name__ == "__main__":
-    dm = CUB()
+    dm = CustomCUB(200)
     print(len(dm.concept_group_map))
