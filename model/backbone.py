@@ -13,7 +13,7 @@ class backbone(CBM):
         del self.classifier
         if backbone_plus != 0:
             modify_fc(self.base, kwargs["base"], backbone_plus)
-            self.fc = nn.Linear(self.num_classes, self.num_classes)
+            self.fc = nn.Linear(backbone_plus, self.num_classes)
 
     def forward(self, x):
         x = self.base(x)
