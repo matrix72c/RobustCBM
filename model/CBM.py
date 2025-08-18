@@ -3,7 +3,6 @@ import random
 import numpy as np
 import lightning as L
 import pandas as pd
-import wandb
 from utils import initialize_weights, build_base, cls_wrapper, suppress_stdout
 import torch
 from torch import nn
@@ -31,38 +30,28 @@ class CBM(L.LightningModule):
     def __init__(
         self,
         dm: L.LightningDataModule,
-        base: str = "resnet50",
-        use_pretrained: bool = True,
-        concept_weight: float = 1,
-        optimizer: str = "SGD",
-        optimizer_args: dict = {"lr": 0.1, "momentum": 0.9, "weight_decay": 4e-5},
-        scheduler: str = "ReduceLROnPlateau",
-        scheduler_args: dict = {
-            "mode": "max",
-            "patience": 30,
-            "factor": 0.1,
-            "min_lr": 1e-5,
-        },
-        plateau_args: dict = {
-            "monitor": "acc",
-            "interval": "epoch",
-            "frequency": 1,
-            "strict": True,
-        },
-        hidden_dim: int = 0,
-        res_dim: int = 0,
-        cbm_mode: str = "hybrid",
-        mtl_mode: str = "normal",
-        weighted_bce: bool = True,
-        add_residual: bool = False,
-        res_alpha: float = 0.1,
-        ignore_intervenes: bool = False,
-        train_mode: str = "Std",
-        lpgd_args: dict = {},
-        cpgd_args: dict = {},
-        jpgd_args: dict = {},
-        aa_args: dict = {"eps": 4 / 255},
-        cw_args: dict = {},
+        base: str,
+        use_pretrained: bool,
+        concept_weight: float,
+        optimizer: str,
+        optimizer_args: dict,
+        scheduler: str,
+        scheduler_args: dict,
+        plateau_args: dict,
+        hidden_dim: int,
+        res_dim: int,
+        cbm_mode: str,
+        mtl_mode: str,
+        weighted_bce: bool,
+        add_residual: bool,
+        res_alpha: float,
+        ignore_intervenes: bool,
+        train_mode: str,
+        lpgd_args: dict,
+        cpgd_args: dict,
+        jpgd_args: dict,
+        aa_args: dict,
+        cw_args: dict,
         **kwargs,
     ):
         super().__init__()
@@ -336,7 +325,7 @@ class CBM(L.LightningModule):
                 )
 
     def on_test_epoch_end(self):
-        res = defaultdict(float)
+        res = {}
         res["name"] = self.hparams.run_name
         for mode in ["Std", "LPGD", "CPGD", "JPGD", "AA"]:
             res[f"{mode} Acc"] = getattr(self, f"{mode}_acc").compute().item()
@@ -356,13 +345,8 @@ class CBM(L.LightningModule):
                 ].compute()
                 getattr(self, f"intervene_{mode}_accs")[i].reset()
                 getattr(self, f"intervene_{mode}_concept_accs")[i].reset()
-                wandb.log(
-                    {
-                        f"{mode} Acc with Intervene": acc,
-                        f"{mode} Concept Acc with Intervene": concept_acc,
-                        "Intervene Budget": i,
-                    }
-                )
+                self.log(f"{mode} Acc with {i}0% Intervene", acc)
+                self.log(f"{mode} Concept Acc with {i}0% Intervene", concept_acc)
                 int_acc.append(acc.item())
                 int_concept_acc.append(concept_acc.item())
             res[f"{mode} Acc with Intervene"] = int_acc

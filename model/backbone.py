@@ -6,7 +6,7 @@ from utils import modify_fc
 
 
 class backbone(CBM):
-    def __init__(self, backbone_plus: int = 0, **kwargs):
+    def __init__(self, backbone_plus: int, **kwargs):
         kwargs["concept_weight"] = 0
         super().__init__(**kwargs)
         modify_fc(self.base, kwargs["base"], self.num_classes)

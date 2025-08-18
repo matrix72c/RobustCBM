@@ -9,7 +9,7 @@ from utils import calc_info_loss
 class VCBM(CBM):
     def __init__(
         self,
-        res_dim: int = 0,
+        res_dim: int,
         **kwargs,
     ):
         super().__init__(**kwargs)

@@ -1,13 +1,12 @@
 import os
 from lightning.pytorch.trainer import Trainer
-from lightning.pytorch.loggers import WandbLogger, CSVLogger
+from lightning.pytorch.loggers import TensorBoardLogger, CSVLogger
 from lightning.pytorch.callbacks import (
     ModelCheckpoint,
     EarlyStopping,
 )
 from lightning.pytorch import seed_everything
 import torch
-import wandb
 import yaml, argparse
 import model as pl_model
 import dataset
@@ -40,13 +39,10 @@ def build(config):
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
 
-    logger = WandbLogger(
-        project="RAID",
+    logger = TensorBoardLogger(
+        save_dir="logs",
         name=name,
-        id=run_id,
-        resume="allow",
-        config=cfg,
-        group=cfg.get("group", None),
+        version=run_id,
     )
     checkpoint_callback = ModelCheckpoint(
         monitor="acc",
@@ -73,7 +69,6 @@ def build(config):
     model = model.__class__.load_from_checkpoint(trainer.checkpoint_callback.best_model_path, dm=dm, **cfg)
 
     trainer.test(model, dm)
-    wandb.finish()
     return model, dm, cfg
 
 
