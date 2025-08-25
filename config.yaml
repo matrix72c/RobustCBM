@@ -22,6 +22,12 @@ plateau_args:
   interval: "epoch"
   frequency: 1
   strict: true
+weighted_bce: true
+lpgd_args: {}
+cpgd_args: {}
+jpgd_args: {}
+aa_args: {}
+
 hidden_dim: 0
 res_dim: 0
 cbm_mode: hybrid # "bool", "fuzzy", "hybrid"
@@ -44,3 +50,6 @@ vib: 0.01
 # hsic
 hsic_weight: 0
 hsic_kernel: rbf # or 'linear'
+
+# test intervene
+ignore_intervenes: false

@@ -52,7 +52,6 @@ class CBM(L.LightningModule):
         cpgd_args: dict,
         jpgd_args: dict,
         aa_args: dict,
-        cw_args: dict,
         hsic_weight: float,
         hsic_kernel: str,
         **kwargs,
