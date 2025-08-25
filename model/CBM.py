@@ -12,6 +12,7 @@ from attacks import PGD
 from autoattack import AutoAttack
 from mtl import mtl
 from collections import defaultdict
+from hsic import nhsic, standardize
 
 
 class MLP(nn.Module):
@@ -52,6 +53,8 @@ class CBM(L.LightningModule):
         jpgd_args: dict,
         aa_args: dict,
         cw_args: dict,
+        hsic_weight: float = 0.0,
+        hsic_kernel: str = 'rbf',
         **kwargs,
     ):
         super().__init__()
@@ -187,12 +190,14 @@ class CBM(L.LightningModule):
         label_pred = self.classifier(concept)
         if self.hparams.res_dim == self.num_classes and self.hparams.add_residual:
             label_pred += concept_pred[:, self.num_concepts :] * torch.sigmoid(self.res_alpha)
-        return label_pred, concept_pred[:, : self.num_concepts]
+        
+        return label_pred, concept_pred
 
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred = self(img)
+        
         concept_loss = F.binary_cross_entropy_with_logits(
-            concept_pred,
+            concept_pred[:, : self.num_concepts],  # 只对语义概念计算损失
             concepts,
             weight=(
                 self.dm.imbalance_weights.to(self.device)
@@ -202,17 +207,37 @@ class CBM(L.LightningModule):
         )
         label_loss = F.cross_entropy(label_pred, label)
         loss = label_loss + self.hparams.concept_weight * concept_loss
+        
         losses = {
             "Label Loss": label_loss,
             "Concept Loss": concept_loss,
             "Loss": loss,
         }
+        
+        # 添加HSIC约束
+        if self.hparams.hsic_weight > 0 and self.hparams.res_dim > 0:
+            # 分离语义概念和虚拟概念
+            semantic_concepts = concept_pred[:, : self.num_concepts]
+            virtual_concepts = concept_pred[:, self.num_concepts :]
+            
+            # 对语义概念和虚拟概念进行标准化
+            semantic_std = standardize(semantic_concepts)
+            virtual_std = standardize(virtual_concepts)
+            
+            # 计算归一化HSIC
+            hsic_loss = nhsic(semantic_std, virtual_std, 
+                            kernel_c=self.hparams.hsic_kernel, 
+                            kernel_v=self.hparams.hsic_kernel)
+            
+            loss = loss + self.hparams.hsic_weight * hsic_loss
+            losses["HSIC Loss"] = hsic_loss
+            losses["Loss"] = loss
 
         if self.hparams.mtl_mode != "normal":
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
             for name, param in self.named_parameters():
                 param.grad = g[name]
-        return losses, (label_pred, concept_pred)
+        return losses, (label_pred, concept_pred[:, : self.num_concepts])
 
     @suppress_stdout
     @torch.enable_grad()
@@ -318,7 +343,7 @@ class CBM(L.LightningModule):
                 cur_concept_pred = self.intervene(
                     concepts, concept_pred.clone(), intervene_budget
                 )
-                cur_label_pred = self(x, cur_concept_pred)[0]
+                cur_label_pred, _ = self(x, cur_concept_pred)
                 getattr(self, f"intervene_{mode}_accs")[i](cur_label_pred, label)
                 getattr(self, f"intervene_{mode}_concept_accs")[i](
                     cur_concept_pred, concepts
