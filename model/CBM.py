@@ -53,8 +53,8 @@ class CBM(L.LightningModule):
         jpgd_args: dict,
         aa_args: dict,
         cw_args: dict,
-        hsic_weight: float = 0.0,
-        hsic_kernel: str = 'rbf',
+        hsic_weight: float,
+        hsic_kernel: str,
         **kwargs,
     ):
         super().__init__()
@@ -188,8 +188,6 @@ class CBM(L.LightningModule):
         elif self.hparams.cbm_mode == "hybrid":
             concept = concept_pred
         label_pred = self.classifier(concept)
-        if self.hparams.res_dim == self.num_classes and self.hparams.add_residual:
-            label_pred += concept_pred[:, self.num_concepts :] * torch.sigmoid(self.res_alpha)
         
         return label_pred, concept_pred
 

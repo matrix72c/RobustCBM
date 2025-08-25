@@ -40,3 +40,7 @@ embed_dim: 16
 
 # vib
 vib: 0.01
+
+# hsic
+hsic_weight: 0
+hsic_kernel: rbf # or 'linear'
