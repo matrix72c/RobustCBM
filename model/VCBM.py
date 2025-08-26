@@ -13,7 +13,7 @@ class VCBM(CBM):
         res_dim: int,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__(res_dim=res_dim, **kwargs)
         self.fc = nn.Linear(self.base.fc.in_features, 2 * (self.num_concepts + res_dim))
         self.base.fc = nn.Identity()
         self.classifier = nn.Linear(self.num_concepts + res_dim, self.num_classes)
