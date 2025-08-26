@@ -89,7 +89,9 @@ class CBM(L.LightningModule):
             **lpgd_args,
         )
         self.cpgd = PGD(
-            loss_fn=F.binary_cross_entropy_with_logits,
+            loss_fn=lambda o, y: F.binary_cross_entropy_with_logits(
+                o[:, : y.size(1)], y
+            ),
             **cpgd_args,
         )
         self.jpgd = PGD(
@@ -187,12 +189,12 @@ class CBM(L.LightningModule):
         elif self.hparams.cbm_mode == "hybrid":
             concept = concept_pred
         label_pred = self.classifier(concept)
-        
+
         return label_pred, concept_pred
 
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred = self(img)
-        
+
         concept_loss = F.binary_cross_entropy_with_logits(
             concept_pred[:, : self.num_concepts],  # 只对语义概念计算损失
             concepts,
@@ -204,28 +206,31 @@ class CBM(L.LightningModule):
         )
         label_loss = F.cross_entropy(label_pred, label)
         loss = label_loss + self.hparams.concept_weight * concept_loss
-        
+
         losses = {
             "Label Loss": label_loss,
             "Concept Loss": concept_loss,
             "Loss": loss,
         }
-        
+
         # 添加HSIC约束
         if self.hparams.hsic_weight > 0 and self.hparams.res_dim > 0:
             # 分离语义概念和虚拟概念
             semantic_concepts = concept_pred[:, : self.num_concepts]
             virtual_concepts = concept_pred[:, self.num_concepts :]
-            
+
             # 对语义概念和虚拟概念进行标准化
             semantic_std = standardize(semantic_concepts)
             virtual_std = standardize(virtual_concepts)
-            
+
             # 计算归一化HSIC
-            hsic_loss = nhsic(semantic_std, virtual_std, 
-                            kernel_c=self.hparams.hsic_kernel, 
-                            kernel_v=self.hparams.hsic_kernel)
-            
+            hsic_loss = nhsic(
+                semantic_std,
+                virtual_std,
+                kernel_c=self.hparams.hsic_kernel,
+                kernel_v=self.hparams.hsic_kernel,
+            )
+
             loss = loss + self.hparams.hsic_weight * hsic_loss
             losses["HSIC Loss"] = hsic_loss
             losses["Loss"] = loss
@@ -295,7 +300,9 @@ class CBM(L.LightningModule):
             on_epoch=True,
         )
         self.log("acc", self.acc, prog_bar=True, on_epoch=True, on_step=False)
-        self.log("concept_acc", self.concept_acc, prog_bar=True, on_epoch=True, on_step=False)
+        self.log(
+            "concept_acc", self.concept_acc, prog_bar=True, on_epoch=True, on_step=False
+        )
 
     def on_test_start(self):
         self.aa = AutoAttack(
@@ -351,7 +358,9 @@ class CBM(L.LightningModule):
         res["name"] = self.hparams.run_name
         for mode in ["Std", "LPGD", "CPGD", "JPGD", "AA"]:
             res[f"{mode} Acc"] = getattr(self, f"{mode}_acc").compute().item()
-            res[f"{mode} Concept Acc"] = getattr(self, f"{mode}_concept_acc").compute().item()
+            res[f"{mode} Concept Acc"] = (
+                getattr(self, f"{mode}_concept_acc").compute().item()
+            )
             for name, val in self.losses.items():
                 res[f"{name}"] = torch.tensor(val).mean().item()
 
@@ -375,7 +384,7 @@ class CBM(L.LightningModule):
             res[f"{mode} Concept Acc with Intervene"] = int_concept_acc
 
         for k, v in res.items():
-            if isinstance(v, list) or k ==  "name":
+            if isinstance(v, list) or k == "name":
                 continue
             self.log(k, v)
 
