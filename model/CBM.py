@@ -288,7 +288,8 @@ class CBM(L.LightningModule):
 
         losses, o = self.calc_loss(img, label, concepts)
         label_pred, concept_pred = o[0], o[1]
-        self.concept_acc(concept_pred, concepts)
+        semantic_concept_pred = concept_pred[:, : self.num_concepts]
+        self.concept_acc(semantic_concept_pred, concepts)
         self.acc(label_pred, label)
         for name, val in losses.items():
             self.log(f"{name}", val, on_step=False, on_epoch=True)
@@ -335,7 +336,8 @@ class CBM(L.LightningModule):
             losses, outputs = self.calc_loss(x, label, concepts)
             label_pred, concept_pred = outputs[0], outputs[1]
             getattr(self, f"{mode}_acc")(label_pred, label)
-            getattr(self, f"{mode}_concept_acc")(concept_pred, concepts)
+            semantic_concept_pred = concept_pred[:, : self.num_concepts]
+            getattr(self, f"{mode}_concept_acc")(semantic_concept_pred, concepts)
             for name, val in losses.items():
                 self.losses[f"{mode} {name}"].append(val)
 
@@ -349,8 +351,9 @@ class CBM(L.LightningModule):
                 )
                 cur_label_pred, _ = self(x, cur_concept_pred)
                 getattr(self, f"intervene_{mode}_accs")[i](cur_label_pred, label)
+                semantic_cur_concept_pred = cur_concept_pred[:, : self.num_concepts]
                 getattr(self, f"intervene_{mode}_concept_accs")[i](
-                    cur_concept_pred, concepts
+                    semantic_cur_concept_pred, concepts
                 )
 
     def on_test_epoch_end(self):
