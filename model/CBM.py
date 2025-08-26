@@ -44,8 +44,6 @@ class CBM(L.LightningModule):
         cbm_mode: str,
         mtl_mode: str,
         weighted_bce: bool,
-        add_residual: bool,
-        res_alpha: float,
         ignore_intervenes: bool,
         train_mode: str,
         lpgd_args: dict,
@@ -76,9 +74,6 @@ class CBM(L.LightningModule):
             )
         self.num_classes = num_classes
         self.num_concepts = num_concepts
-
-        if add_residual:
-            self.res_alpha = nn.Parameter(torch.logit(torch.tensor(res_alpha)))
 
         self.concept_acc = Accuracy(task="multilabel", num_labels=num_concepts)
         self.acc = Accuracy(task="multiclass", num_classes=num_classes)
