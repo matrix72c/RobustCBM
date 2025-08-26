@@ -26,7 +26,7 @@ class VCBM(CBM):
         if concept_pred is None:
             concept_pred = logits
         else:
-            logits[:, : self.num_concepts] = concept_pred
+            logits[:, : self.num_concepts] = concept_pred[:, : self.num_concepts]
             concept_pred = logits
 
         label_pred = self.classifier(concept_pred)
