@@ -349,7 +349,8 @@ class CBM(L.LightningModule):
                 cur_concept_pred = self.intervene(
                     concepts, concept_pred.clone(), intervene_budget
                 )
-                cur_label_pred, _ = self(x, cur_concept_pred)
+                forward_outputs = self(x, cur_concept_pred)
+                cur_label_pred = forward_outputs[0]
                 getattr(self, f"intervene_{mode}_accs")[i](cur_label_pred, label)
                 semantic_cur_concept_pred = cur_concept_pred[:, : self.num_concepts]
                 getattr(self, f"intervene_{mode}_concept_accs")[i](
