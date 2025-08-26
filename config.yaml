@@ -25,7 +25,7 @@ plateau_args:
 weighted_bce: true
 lpgd_args: {}
 cpgd_args: {}
-jpgd_args: {jpgd_lambda: 0.01}
+jpgd_args: {jpgd_lambda: 1}
 aa_args: {eps: 0.0156862745}
 
 hidden_dim: 0
@@ -33,7 +33,6 @@ res_dim: 0
 cbm_mode: hybrid # "bool", "fuzzy", "hybrid"
 mtl_mode: normal # "normal", "equal", "ordered"
 train_mode: Std
-add_residual: false
 
 dataset: CUB
 data_path: ./data
