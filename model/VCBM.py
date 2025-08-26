@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+from hsic import standardize, nhsic
 from model import CBM
 from mtl import mtl
 from utils import calc_info_loss
@@ -30,15 +31,12 @@ class VCBM(CBM):
 
         label_pred = self.classifier(concept_pred)
 
-        if self.hparams.res_dim == self.num_classes and self.hparams.add_residual:
-            label_pred += concept_pred[:, self.num_concepts :] * torch.sigmoid(self.res_alpha)
-
-        return label_pred, concept_pred[:, : self.num_concepts], mu, std**2
+        return label_pred, concept_pred, mu, std**2
 
     def calc_loss(self, img, label, concepts):
         label_pred, concept_pred, mu, var = self(img)
         concept_loss = F.binary_cross_entropy_with_logits(
-            concept_pred,
+            concept_pred[:, : self.num_concepts],
             concepts,
             weight=(
                 self.dm.imbalance_weights.to(self.device)
@@ -59,6 +57,25 @@ class VCBM(CBM):
             "Info Loss": info_loss,
             "Loss": loss,
         }
+
+        # 添加HSIC约束
+        if self.hparams.hsic_weight > 0 and self.hparams.res_dim > 0:
+            # 分离语义概念和虚拟概念
+            semantic_concepts = concept_pred[:, : self.num_concepts]
+            virtual_concepts = concept_pred[:, self.num_concepts :]
+            
+            # 对语义概念和虚拟概念进行标准化
+            semantic_std = standardize(semantic_concepts)
+            virtual_std = standardize(virtual_concepts)
+            
+            # 计算归一化HSIC
+            hsic_loss = nhsic(semantic_std, virtual_std, 
+                            kernel_c=self.hparams.hsic_kernel, 
+                            kernel_v=self.hparams.hsic_kernel)
+            
+            loss = loss + self.hparams.hsic_weight * hsic_loss
+            losses["HSIC Loss"] = hsic_loss
+            losses["Loss"] = loss
 
         if self.hparams.mtl_mode != "normal":
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
