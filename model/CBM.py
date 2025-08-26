@@ -96,7 +96,7 @@ class CBM(L.LightningModule):
         )
         self.jpgd = PGD(
             loss_fn=lambda o, y: F.cross_entropy(o[0], y[0])
-            + F.binary_cross_entropy_with_logits(o[1], y[1]),
+            + jpgd_args["jpgd_lambda"] * F.binary_cross_entropy_with_logits(o[1], y[1]),
             **jpgd_args,
         )
 
