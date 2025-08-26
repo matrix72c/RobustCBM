@@ -1,8 +1,7 @@
-lightning==2.5.0.post0
-numpy==2.2.1
-oss2==2.18.1
-Pillow==11.0.0
-scikit_learn==1.6.0
-torch==2.5.1
-torchmetrics==1.6.0
-torchvision==0.20.1
+autoattack==0.1
+lightning==2.5.3
+pandas==2.3.2
+scikit_learn==1.7.1
+torch==2.8.0
+torchmetrics==1.8.1
+torchvision==0.23.0
