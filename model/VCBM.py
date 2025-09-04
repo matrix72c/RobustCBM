@@ -58,17 +58,17 @@ class VCBM(CBM):
             "Loss": loss,
         }
 
-        # 添加HSIC约束
+        # add HSIC constraint
         if self.hparams.hsic_weight > 0 and self.hparams.res_dim > 0:
-            # 分离语义概念和虚拟概念
+            # separate semantic and virtual concepts
             semantic_concepts = concept_pred[:, : self.num_concepts]
             virtual_concepts = concept_pred[:, self.num_concepts :]
             
-            # 对语义概念和虚拟概念进行标准化
+            # standardize semantic and virtual concepts
             semantic_std = standardize(semantic_concepts)
             virtual_std = standardize(virtual_concepts)
             
-            # 计算归一化HSIC
+            # compute normalized HSIC
             hsic_loss = nhsic(semantic_std, virtual_std, 
                             kernel_c=self.hparams.hsic_kernel, 
                             kernel_v=self.hparams.hsic_kernel)

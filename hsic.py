@@ -61,7 +61,7 @@ def hsic_biased(zc, zv, kernel_c='rbf', kernel_v='rbf', sigma_c=None, sigma_v=No
 
 def nhsic(zc, zv, kernel_c='rbf', kernel_v='rbf', sigma_c=None, sigma_v=None, eps=1e-12):
     """
-    归一化 HSIC（CKA 形式），数值更稳，范围约在 [0, 1]
+    Normalized HSIC (in the form of CKA). More numerically stable, roughly in [0, 1].
     """
     if kernel_c == 'rbf':
         K = _rbf_kernel(zc, sigma_c, eps)
