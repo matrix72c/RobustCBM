@@ -88,7 +88,8 @@ class CBM(L.LightningModule):
         )
         self.jpgd = PGD(
             loss_fn=lambda o, y: F.cross_entropy(o[0], y[0])
-            + jpgd_args["jpgd_lambda"] * F.binary_cross_entropy_with_logits(o[1][:, : y[1].size(1)], y[1]),
+            + jpgd_args["jpgd_lambda"]
+            * F.binary_cross_entropy_with_logits(o[1][:, : y[1].size(1)], y[1]),
             **jpgd_args,
         )
 
@@ -187,7 +188,9 @@ class CBM(L.LightningModule):
         label_pred, concept_pred = self(img)
 
         concept_loss = F.binary_cross_entropy_with_logits(
-            concept_pred[:, : self.num_concepts],  # only compute loss for semantic concepts
+            concept_pred[
+                :, : self.num_concepts
+            ],  # only compute loss for semantic concepts
             concepts,
             weight=(
                 self.dm.imbalance_weights.to(self.device)
@@ -317,7 +320,12 @@ class CBM(L.LightningModule):
     def test_step(self, batch, batch_idx):
         img, label, concepts = batch
 
-        for mode in ["Std", "LPGD", "CPGD", "JPGD", "AA"]:
+        if self.hparams.get("ignore_adv", False):
+            modes = ["Std"]
+        else:
+            modes = ["Std", "LPGD", "CPGD", "JPGD", "AA"]
+
+        for mode in modes:
             if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
                 continue
             if mode == "Std":
