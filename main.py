@@ -14,16 +14,22 @@ import dataset
 from utils import build_name, yaml_merge
 import hashlib
 
+def load_checkpoint(ckpt):
+    ckpt_path = "checkpoints/train/" + ckpt + ".ckpt"
+    cfg_path = "checkpoints/train/" + ckpt + ".yaml"
 
-def build(config):
+    if not os.path.exists(ckpt_path) or not os.path.exists(cfg_path):
+        raise FileNotFoundError(f"Checkpoint or config file not found for ckpt: {ckpt}")
+
+    with open(cfg_path, "r") as f:
+        cfg = yaml.safe_load(f)
+    dm = getattr(dataset, cfg["dataset"])(**cfg)
+    model = getattr(pl_model, cfg["model"]).load_from_checkpoint(ckpt_path, dm=dm, **cfg)
+    return model, dm, cfg
+
+def train(config):
     if config.get("ckpt", None) is not None:
-        ckpt_path = "checkpoints/" + config["ckpt"] + ".ckpt"
-        cfg_path = "checkpoints/" + config["ckpt"] + ".yaml"
-        with open(cfg_path, "r") as f:
-            cfg = yaml.safe_load(f)
-        dm = getattr(dataset, cfg["dataset"])(**cfg)
-        model = getattr(pl_model, cfg["model"]).load_from_checkpoint(ckpt_path, dm=dm, **cfg)
-        return model, dm, cfg
+        return load_checkpoint(config["ckpt"])
 
     with open("config.yaml", "r") as f:
         cfg = yaml.safe_load(f)
@@ -34,7 +40,7 @@ def build(config):
     cfg["run_id"] = run_id
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg.get("seed", 42))
-    yaml.dump(cfg, open(f"checkpoints/{name}.yaml", "w"))
+    yaml.dump(cfg, open(f"checkpoints/train/{name}.yaml", "w"))
     print(f"Run ID: {run_id}, Run name: {name}")
 
     dm = getattr(dataset, cfg["dataset"])(**cfg)
@@ -82,7 +88,7 @@ def build(config):
         sanitized["run_id"] = cfg.get("run_id", "unknown")
 
         row = pd.DataFrame([sanitized])
-        results_path = os.path.join(os.getcwd(), "result.csv")
+        results_path = "train.csv"
         if os.path.exists(results_path):
             df = pd.read_csv(results_path)
             df = pd.concat([df, row], ignore_index=True)
@@ -102,7 +108,7 @@ if __name__ == "__main__":
 
     if args.task_id is not None:
         if args.task_id < len(c):
-            build(c[args.task_id])
+            train(c[args.task_id])
     else:
         for i, config in enumerate(c):
-            build(config)
+            train(config)
