@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 from lightning.pytorch.trainer import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger, CSVLogger
 from lightning.pytorch.callbacks import (
@@ -68,7 +69,25 @@ def build(config):
     trainer.fit(model, dm)
     model = model.__class__.load_from_checkpoint(trainer.checkpoint_callback.best_model_path, dm=dm, **cfg)
 
-    trainer.test(model, dm)
+    res = trainer.test(model, dm)
+    if res:
+        result = res[0]
+        sanitized = {}
+        for k, v in result.items():
+            if isinstance(v, torch.Tensor):
+                sanitized[k] = v.item()
+            else:
+                sanitized[k] = v
+        sanitized["name"] = cfg.get("run_name", cfg.get("run_id", "unknown"))
+
+        row = pd.DataFrame([sanitized])
+        results_path = os.path.join(os.getcwd(), "result.csv")
+        if os.path.exists(results_path):
+            df = pd.read_csv(results_path)
+            df = pd.concat([df, row], ignore_index=True)
+        else:
+            df = row
+        df.to_csv(results_path, index=False)
     return model, dm, cfg
 
 

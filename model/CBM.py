@@ -1,8 +1,6 @@
-import os
 import random
 import numpy as np
 import lightning as L
-import pandas as pd
 from utils import initialize_weights, build_base, cls_wrapper, suppress_stdout
 import torch
 from torch import nn
@@ -11,7 +9,6 @@ from torchmetrics import Accuracy
 from attacks import PGD
 from autoattack import AutoAttack
 from mtl import mtl
-from collections import defaultdict
 from hsic import nhsic, standardize
 
 
@@ -129,7 +126,6 @@ class CBM(L.LightningModule):
                     ]
                 ),
             )
-        self.losses = defaultdict(list)
 
     def configure_optimizers(self):
         optimizer = getattr(torch.optim, self.hparams.optimizer)(
@@ -330,11 +326,31 @@ class CBM(L.LightningModule):
                 x = self.generate_adv(img, label, concepts, mode)
             losses, outputs = self.calc_loss(x, label, concepts)
             label_pred, concept_pred = outputs[0], outputs[1]
-            getattr(self, f"{mode}_acc")(label_pred, label)
             semantic_concept_pred = concept_pred[:, : self.num_concepts]
-            getattr(self, f"{mode}_concept_acc")(semantic_concept_pred, concepts)
+            acc_metric = getattr(self, f"{mode}_acc")
+            acc_metric(label_pred, label)
+            self.log(
+                f"{mode} Acc",
+                acc_metric,
+                on_step=False,
+                on_epoch=True,
+            )
+            concept_metric = getattr(self, f"{mode}_concept_acc")
+            concept_metric(semantic_concept_pred, concepts)
+            self.log(
+                f"{mode} Concept Acc",
+                concept_metric,
+                on_step=False,
+                on_epoch=True,
+            )
             for name, val in losses.items():
-                self.losses[f"{mode} {name}"].append(val)
+                self.log(
+                    f"{mode} {name}",
+                    val,
+                    on_step=False,
+                    on_epoch=True,
+                    batch_size=label.size(0),
+                )
 
             if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
@@ -346,51 +362,22 @@ class CBM(L.LightningModule):
                 )
                 forward_outputs = self(x, cur_concept_pred)
                 cur_label_pred = forward_outputs[0]
-                getattr(self, f"intervene_{mode}_accs")[i](cur_label_pred, label)
-                semantic_cur_concept_pred = cur_concept_pred[:, : self.num_concepts]
-                getattr(self, f"intervene_{mode}_concept_accs")[i](
-                    semantic_cur_concept_pred, concepts
+                intervene_acc_metric = getattr(self, f"intervene_{mode}_accs")[i]
+                intervene_acc_metric(cur_label_pred, label)
+                self.log(
+                    f"{mode} Acc with {i}0% Intervene",
+                    intervene_acc_metric,
+                    on_step=False,
+                    on_epoch=True,
                 )
-
-    def on_test_epoch_end(self):
-        res = {}
-        res["name"] = self.hparams.run_name
-        for mode in ["Std", "LPGD", "CPGD", "JPGD", "AA"]:
-            res[f"{mode} Acc"] = getattr(self, f"{mode}_acc").compute().item()
-            res[f"{mode} Concept Acc"] = (
-                getattr(self, f"{mode}_concept_acc").compute().item()
-            )
-            for name, val in self.losses.items():
-                res[f"{name}"] = torch.tensor(val).mean().item()
-
-            if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
-                continue
-
-            int_acc = []
-            int_concept_acc = []
-            for i in range(11):
-                acc = getattr(self, f"intervene_{mode}_accs")[i].compute()
-                concept_acc = getattr(self, f"intervene_{mode}_concept_accs")[
-                    i
-                ].compute()
-                getattr(self, f"intervene_{mode}_accs")[i].reset()
-                getattr(self, f"intervene_{mode}_concept_accs")[i].reset()
-                self.log(f"{mode} Acc with {i}0% Intervene", acc)
-                self.log(f"{mode} Concept Acc with {i}0% Intervene", concept_acc)
-                int_acc.append(acc.item())
-                int_concept_acc.append(concept_acc.item())
-            res[f"{mode} Acc with Intervene"] = int_acc
-            res[f"{mode} Concept Acc with Intervene"] = int_concept_acc
-
-        for k, v in res.items():
-            if isinstance(v, list) or k == "name":
-                continue
-            self.log(k, v)
-
-        row = pd.DataFrame([res], columns=res.keys())
-        if os.path.exists("result.csv"):
-            df = pd.read_csv("result.csv")
-            df = pd.concat([df, row], ignore_index=True)
-        else:
-            df = row
-        df.to_csv("result.csv", index=False)
+                semantic_cur_concept_pred = cur_concept_pred[:, : self.num_concepts]
+                intervene_concept_metric = getattr(
+                    self, f"intervene_{mode}_concept_accs"
+                )[i]
+                intervene_concept_metric(semantic_cur_concept_pred, concepts)
+                self.log(
+                    f"{mode} Concept Acc with {i}0% Intervene",
+                    intervene_concept_metric,
+                    on_step=False,
+                    on_epoch=True,
+                )
