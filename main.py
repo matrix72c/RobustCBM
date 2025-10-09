@@ -78,7 +78,8 @@ def build(config):
                 sanitized[k] = v.item()
             else:
                 sanitized[k] = v
-        sanitized["name"] = cfg.get("run_name", cfg.get("run_id", "unknown"))
+        sanitized["name"] = cfg.get("run_name", "unknown")
+        sanitized["run_id"] = cfg.get("run_id", "unknown")
 
         row = pd.DataFrame([sanitized])
         results_path = os.path.join(os.getcwd(), "result.csv")
