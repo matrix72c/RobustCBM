@@ -245,7 +245,22 @@ class CBM(L.LightningModule):
         elif atk == "CPGD":
             adv_img = self.cpgd(cls_wrapper(self, 1), img, concepts)
         elif atk == "AA":
-            adv_img = self.aa.run_standard_evaluation(img, label, bs=img.shape[0])
+            # AutoAttack can internally end up with an empty subset (e.g., if all samples
+            # are already misclassified on clean inputs). TorchVision ViT does not support
+            # forward passes with batch size 0 in attention.
+            with torch.inference_mode():
+                clean_logits = cls_wrapper(self, 0)(img)
+                correct_mask = clean_logits.argmax(dim=1).eq(label)
+
+            if correct_mask.sum().item() == 0:
+                adv_img = img
+            else:
+                adv_img = img.clone()
+                idx = correct_mask.nonzero(as_tuple=False).squeeze(1)
+                adv_part = self.aa.run_standard_evaluation(
+                    img[idx], label[idx], bs=img[idx].shape[0]
+                )
+                adv_img[idx] = adv_part.to(device=adv_img.device, dtype=adv_img.dtype)
         elif atk == "Std":
             adv_img = img
         else:

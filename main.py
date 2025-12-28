@@ -15,8 +15,8 @@ from utils import build_name, yaml_merge
 import hashlib
 
 def load_checkpoint(ckpt):
-    ckpt_path = "checkpoints/train/" + ckpt + ".ckpt"
-    cfg_path = "checkpoints/train/" + ckpt + ".yaml"
+    ckpt_path = "checkpoints/" + ckpt + ".ckpt"
+    cfg_path = "checkpoints/" + ckpt + ".yaml"
 
     if not os.path.exists(ckpt_path) or not os.path.exists(cfg_path):
         raise FileNotFoundError(f"Checkpoint or config file not found for ckpt: {ckpt}")
@@ -40,7 +40,7 @@ def train(config):
     cfg["run_id"] = run_id
     torch.set_float32_matmul_precision("high")
     seed_everything(cfg.get("seed", 42))
-    yaml.dump(cfg, open(f"checkpoints/train/{name}.yaml", "w"))
+    yaml.dump(cfg, open(f"checkpoints/{name}.yaml", "w"))
     print(f"Run ID: {run_id}, Run name: {name}")
 
     dm = getattr(dataset, cfg["dataset"])(**cfg)
