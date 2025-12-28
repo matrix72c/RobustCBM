@@ -1,6 +1,9 @@
+import ast
 import math
 import os
 import sys
+import pandas as pd
+import numpy as np
 import torch
 import torch.nn as nn
 import torchvision
@@ -151,3 +154,55 @@ class cls_wrapper(nn.Module):
     def forward(self, *args, **kwargs):
         o = self.model(*args, **kwargs)
         return o[self.index]
+
+
+def parse_value(value):
+    """
+    解析 CSV 文件中的值，可以解析数字与列表
+    """
+    if value == "":
+        return None
+
+    try:
+        return float(value)
+    except ValueError:
+        pass
+
+    if value.startswith("[") and value.endswith("]"):
+        try:
+            return ast.literal_eval(value)  # 使用 ast 解析列表
+        except (SyntaxError, ValueError) as e:
+            print(e)
+
+    return value
+
+
+def get_df(names, cols):
+    csv_path = os.path.join(os.path.dirname(__file__), "result.csv")
+    df = pd.read_csv(csv_path)
+    df = df.apply(lambda x: x.apply(parse_value))
+    if "name" in df.columns:
+        df["name"] = df["name"].astype(str).str.strip()
+    names = [str(n).strip() for n in names]
+    order_df = pd.DataFrame({"name": names, "order": range(len(names))})
+    merged = order_df.merge(df, on="name", how="left")
+    df = merged.sort_values(by="order").reset_index(drop=True)
+    df = df.drop(columns=["order"])
+    concept_cols = [col for col in df.columns if "Concept" in col]
+    backbone_mask = df["name"].str.contains("backbone", case=False, na=False)
+    df.loc[backbone_mask, concept_cols] = np.nan
+    df.replace(0, np.nan, inplace=True)
+
+    for atk in ["LPGD", "CPGD", "JPGD", "AA"]:
+        df[f"{atk} ASR"] = df.apply(
+            lambda row: 1 - row[f"{atk} Acc"] / row["Std Acc"], axis=1
+        )
+        df[f"{atk} Concept ASR"] = df.apply(
+            lambda row: (
+                None
+                if "backbone" in row["name"]
+                else 1 - row[f"{atk} Concept Acc"] / row["Std Concept Acc"]
+            ),
+            axis=1,
+        )
+    return df[cols]
