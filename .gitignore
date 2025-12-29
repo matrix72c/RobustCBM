@@ -108,7 +108,7 @@ lightning_logs/
 wandb/
 logs/
 tmp*
-result.csv
+results/
 
 # editor, os cache directory
 .vscode/

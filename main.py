@@ -88,7 +88,7 @@ def train(config):
         sanitized["run_id"] = cfg.get("run_id", "unknown")
 
         row = pd.DataFrame([sanitized])
-        results_path = "train.csv"
+        results_path = "results/result.csv"
         if os.path.exists(results_path):
             df = pd.read_csv(results_path)
             df = pd.concat([df, row], ignore_index=True)
