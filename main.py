@@ -46,11 +46,6 @@ def train(config):
     dm = getattr(dataset, cfg["dataset"])(**cfg)
     model = getattr(pl_model, cfg["model"])(dm=dm, **cfg)
 
-    logger = TensorBoardLogger(
-        save_dir="logs",
-        name=name,
-        version=run_id,
-    )
     checkpoint_callback = ModelCheckpoint(
         monitor="acc",
         dirpath="checkpoints/",
@@ -67,14 +62,17 @@ def train(config):
     callbacks = [checkpoint_callback, early_stopping]
     trainer = Trainer(
         log_every_n_steps=1,
-        logger=logger,
+        logger=None,
         callbacks=callbacks,
         max_epochs=cfg.get("epochs", None),
         inference_mode=False,
     )
     trainer.fit(model, dm)
     model = model.__class__.load_from_checkpoint(trainer.checkpoint_callback.best_model_path, dm=dm, **cfg)
+    return model, dm, cfg
 
+def evaluate(model, dm, cfg):
+    trainer = Trainer(logger=None, inference_mode=False)
     res = trainer.test(model, dm)
     if res:
         result = res[0]
@@ -95,7 +93,6 @@ def train(config):
         else:
             df = row
         df.to_csv(results_path, index=False)
-    return model, dm, cfg
 
 
 if __name__ == "__main__":
@@ -108,7 +105,9 @@ if __name__ == "__main__":
 
     if args.task_id is not None:
         if args.task_id < len(c):
-            train(c[args.task_id])
+            model, dm, cfg = train(c[args.task_id])
+            evaluate(model, dm, cfg)
     else:
         for i, config in enumerate(c):
-            train(config)
+            model, dm, cfg = train(config)
+            evaluate(model, dm, cfg)

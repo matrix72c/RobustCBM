@@ -1,0 +1,111 @@
+#################### Robustness Evaluation #####################
+# CUB
+- model: backbone
+  dataset: CUB
+  train_mode: Std
+- model: backbone
+  dataset: CUB
+  train_mode: LPGD
+- model: CBM
+  dataset: CUB
+  train_mode: Std
+- model: CBM
+  dataset: CUB
+  train_mode: LPGD
+- model: CBM
+  dataset: CUB
+  train_mode: CPGD
+- model: CEM
+  dataset: CUB
+  train_mode: Std
+- model: CEM
+  dataset: CUB
+  train_mode: LPGD
+- model: CEM
+  dataset: CUB
+  train_mode: CPGD
+# AwA
+- model: backbone
+  dataset: AwA
+  train_mode: Std
+- model: backbone
+  dataset: AwA
+  train_mode: LPGD
+- model: CBM
+  dataset: AwA
+  train_mode: Std
+- model: CBM
+  dataset: AwA
+  train_mode: LPGD
+- model: CBM
+  dataset: AwA
+  train_mode: CPGD
+- model: CEM
+  dataset: AwA
+  train_mode: Std
+- model: CEM
+  dataset: AwA
+  train_mode: LPGD
+- model: CEM
+  dataset: AwA
+  train_mode: CPGD
+##################### RAIDCXM Evaluation #####################
+# CUB
+- model: VCBM
+  dataset: CUB
+  train_mode: JPGD
+  res_dim: 32
+  hsic_weight: 0.0001
+- model: VCBM # -jat
+  dataset: CUB
+  train_mode: LPGD
+  res_dim: 32
+  hsic_weight: 0.0001
+- model: CBM # -il
+  dataset: CUB
+  train_mode: JPGD
+  res_dim: 32
+  hsic_weight: 0.0001
+- model: VCBM # -rc
+  dataset: CUB
+  train_mode: JPGD
+# AwA
+- model: VCBM
+  dataset: AwA
+  train_mode: JPGD
+  res_dim: 32
+  hsic_weight: 0.0001
+- model: VCBM # -jat
+  dataset: AwA
+  train_mode: LPGD
+  res_dim: 32
+  hsic_weight: 0.0001
+- model: CBM # -il
+  dataset: AwA
+  train_mode: JPGD
+  res_dim: 32
+  hsic_weight: 0.0001
+- model: VCBM # -rc
+  dataset: AwA
+  train_mode: JPGD
+##################### Backbone Variant Comparison #####################
+- model: backbone
+  dataset: CUB
+  train_mode: Std
+  base: vit
+- model: backbone
+  dataset: CUB
+  train_mode: LPGD
+  base: vit
+- model: CBM
+  dataset: CUB
+  train_mode: Std
+  base: vit
+- model: CBM
+  dataset: CUB
+  train_mode: LPGD
+  base: vit
+- model: CBM
+  dataset: CUB
+  train_mode: CPGD
+  base: vit

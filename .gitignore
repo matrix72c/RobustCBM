@@ -109,6 +109,7 @@ wandb/
 logs/
 tmp*
 results/
+backup/
 
 # editor, os cache directory
 .vscode/
