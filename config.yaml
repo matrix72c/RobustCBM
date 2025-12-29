@@ -28,6 +28,7 @@ cpgd_args: {}
 jpgd_args: {jpgd_lambda: 1}
 aa_args: {eps: 0.0156862745}
 
+backbone_plus: 0
 hidden_dim: 0
 res_dim: 0
 cbm_mode: hybrid # "bool", "fuzzy", "hybrid"
