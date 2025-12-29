@@ -190,7 +190,7 @@ def parse_value(value):
 
 
 def get_df(names, cols):
-    csv_path = os.path.join(os.path.dirname(__file__), "result.csv")
+    csv_path = os.path.join(os.path.dirname(__file__), "results/result.csv")
     df = pd.read_csv(csv_path)
     df = df.apply(lambda x: x.apply(parse_value))
     if "name" in df.columns:
