@@ -65,7 +65,7 @@ def train(cfg):
         log_every_n_steps=1,
         logger=logger,
         callbacks=callbacks,
-        max_epochs=cfg.get("epochs", None),
+        max_epochs=cfg.get("epochs", -1),
         inference_mode=False,
     )
     trainer.fit(model, dm)
