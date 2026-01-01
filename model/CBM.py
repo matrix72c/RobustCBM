@@ -46,6 +46,7 @@ class CBM(L.LightningModule):
         lpgd_args: dict,
         cpgd_args: dict,
         jpgd_args: dict,
+        apgd_args: dict,
         aa_args: dict,
         hsic_weight: float,
         hsic_kernel: str,
@@ -92,8 +93,12 @@ class CBM(L.LightningModule):
             * F.binary_cross_entropy_with_logits(o["concept"][:, : y["concept"].size(1)], y["concept"]),
             **jpgd_args,
         )
+        self.apgd = PGD(
+            loss_fn=lambda o, y: F.cross_entropy(o["label"], y["label"]), # placeholder fot calc loss instantiation
+            **apgd_args,
+        )
 
-        for s in ["Std", "LPGD", "CPGD", "JPGD", "AA"]:
+        for s in ["Std", "LPGD", "CPGD", "JPGD", "APGD", "AA"]:
             setattr(
                 self,
                 f"{s}_acc",
@@ -245,6 +250,8 @@ class CBM(L.LightningModule):
             adv_img = self.lpgd(self, img, {"label": label, "concept": concepts})
         elif atk == "CPGD":
             adv_img = self.cpgd(self, img, {"label": label, "concept": concepts})
+        elif atk == "APGD":
+            adv_img = self.apgd(self, img, {"label": label, "concept": concepts})
         elif atk == "AA":
             adv_img = self.aa.run_standard_evaluation(img, label, bs=img.shape[0])
         elif atk == "Std":
@@ -306,7 +313,8 @@ class CBM(L.LightningModule):
             verbose=False,
             **self.hparams.aa_args,
         )
-        if self.hparams.ignore_intervenes:
+        self.apgd.loss_fn = lambda o, y: self.calc_loss(y, o)["Loss"]
+        if self.hparams.ignore_intervenes or self.hparams.model == "backbone":
             return
         concept_logits = []
         for batch in self.dm.train_dataloader():
@@ -324,7 +332,7 @@ class CBM(L.LightningModule):
         if self.hparams.get("ignore_adv", False):
             modes = ["Std"]
         else:
-            modes = ["Std", "LPGD", "CPGD", "JPGD", "AA"]
+            modes = ["Std", "LPGD", "CPGD", "JPGD", "APGD", "AA"]
 
         for mode in modes:
             if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
