@@ -5,7 +5,7 @@ from utils import initialize_weights, modify_fc
 
 
 class CEM(CBM):
-    def __init__(self, embed_dim: int, **kwargs):
+    def __init__(self, embed_dim: int = 16, **kwargs):
         super().__init__(**kwargs)
         modify_fc(self.base, kwargs["base"], 2 * embed_dim * self.num_concepts)
 

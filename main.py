@@ -27,14 +27,11 @@ def load_checkpoint(ckpt):
     model = getattr(pl_model, cfg["model"]).load_from_checkpoint(ckpt_path, dm=dm, **cfg)
     return model, dm, cfg
 
-def train(config):
-    if config.get("ckpt", None) is not None:
-        return load_checkpoint(config["ckpt"])
+def train(cfg):
+    if cfg.get("ckpt", None) is not None:
+        return load_checkpoint(cfg["ckpt"])
 
-    with open("config.yaml", "r") as f:
-        cfg = yaml.safe_load(f)
-    cfg = yaml_merge(cfg, config)
-    name = build_name(config)
+    name = build_name(cfg)
     run_id = hashlib.md5(name.encode()).hexdigest()[:8]
     cfg["run_name"] = name
     cfg["run_id"] = run_id

@@ -28,28 +28,39 @@ class CBM(L.LightningModule):
     def __init__(
         self,
         dm: L.LightningDataModule,
-        base: str,
-        use_pretrained: bool,
-        concept_weight: float,
-        optimizer: str,
-        optimizer_args: dict,
-        scheduler: str,
-        scheduler_args: dict,
-        plateau_args: dict,
-        hidden_dim: int,
-        res_dim: int,
-        cbm_mode: str,
-        mtl_mode: str,
-        weighted_bce: bool,
-        ignore_intervenes: bool,
-        train_mode: str,
-        lpgd_args: dict,
-        cpgd_args: dict,
-        jpgd_args: dict,
-        apgd_args: dict,
-        aa_args: dict,
-        hsic_weight: float,
-        hsic_kernel: str,
+        base: str = "resnet50",
+        use_pretrained: bool = True,
+        concept_weight: float = 1.0,
+        optimizer: str = "SGD",
+        optimizer_args: dict = {"lr": 0.1, "momentum": 0.9, "weight_decay": 4e-5},
+        scheduler: str = "ReduceLROnPlateau",
+        scheduler_args: dict = {
+            "mode": "max",
+            "factor": 0.1,
+            "patience": 30,
+            "min_lr": 1e-5,
+            "threshold": 1e-4,
+        },
+        plateau_args: dict = {
+            "monitor": "acc",
+            "interval": "epoch",
+            "frequency": 1,
+            "strict": True,
+        },
+        hidden_dim: int = 0,
+        res_dim: int = 0,
+        cbm_mode: str = "hybrid",
+        mtl_mode: str = "normal",
+        weighted_bce: bool = True,
+        ignore_intervenes: bool = False,
+        train_mode: str = "Std",
+        lpgd_args: dict = {},
+        cpgd_args: dict = {},
+        jpgd_args: dict = {"jpgd_lambda": 1},
+        apgd_args: dict = {},
+        aa_args: dict = {"eps": 0.0156862745},
+        hsic_weight: float = 0,
+        hsic_kernel: str = "rbf",
         **kwargs,
     ):
         super().__init__()
@@ -90,11 +101,15 @@ class CBM(L.LightningModule):
         self.jpgd = PGD(
             loss_fn=lambda o, y: F.cross_entropy(o["label"], y["label"])
             + jpgd_args["jpgd_lambda"]
-            * F.binary_cross_entropy_with_logits(o["concept"][:, : y["concept"].size(1)], y["concept"]),
+            * F.binary_cross_entropy_with_logits(
+                o["concept"][:, : y["concept"].size(1)], y["concept"]
+            ),
             **jpgd_args,
         )
         self.apgd = PGD(
-            loss_fn=lambda o, y: F.cross_entropy(o["label"], y["label"]), # placeholder fot calc loss instantiation
+            loss_fn=lambda o, y: F.cross_entropy(
+                o["label"], y["label"]
+            ),  # placeholder fot calc loss instantiation
             **apgd_args,
         )
 

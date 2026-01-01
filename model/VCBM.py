@@ -10,13 +10,20 @@ from utils import calc_info_loss
 class VCBM(CBM):
     def __init__(
         self,
-        res_dim: int,
+        vib: float = 0.1,
+        res_dim: int = 0,
+        hsic_weight: float = 1e-4,
+        hsic_kernel: str = "rbf",
         **kwargs,
     ):
-        super().__init__(res_dim=res_dim, **kwargs)
+        super().__init__(res_dim=res_dim, hsic_weight=hsic_weight, hsic_kernel=hsic_kernel, **kwargs)
         self.fc = nn.Linear(self.base.fc.in_features, 2 * (self.num_concepts + res_dim))
         self.base.fc = nn.Identity()
         self.classifier = nn.Linear(self.num_concepts + res_dim, self.num_classes)
+        self.vib = vib
+        self.res_dim = res_dim
+        self.hsic_weight = hsic_weight
+        self.hsic_kernel = hsic_kernel
 
     def forward(self, x, concept_pred=None):
         features = self.base(x)
@@ -50,7 +57,7 @@ class VCBM(CBM):
         loss = (
             label_loss
             + self.hparams.concept_weight * concept_loss
-            + self.hparams.vib * info_loss
+            + self.vib * info_loss
         )
         losses = {
             "Label Loss": label_loss,
@@ -60,7 +67,7 @@ class VCBM(CBM):
         }
 
         # add HSIC constraint
-        if self.hparams.hsic_weight > 0 and self.hparams.res_dim > 0:
+        if self.hsic_weight > 0 and self.res_dim > 0:
             # separate semantic and virtual concepts
             semantic_concepts = concept_pred[:, : self.num_concepts]
             virtual_concepts = concept_pred[:, self.num_concepts :]
@@ -71,10 +78,10 @@ class VCBM(CBM):
             
             # compute normalized HSIC
             hsic_loss = nhsic(semantic_std, virtual_std, 
-                            kernel_c=self.hparams.hsic_kernel, 
-                            kernel_v=self.hparams.hsic_kernel)
+                            kernel_c=self.hsic_kernel, 
+                            kernel_v=self.hsic_kernel)
             
-            loss = loss + self.hparams.hsic_weight * hsic_loss
+            loss = loss + self.hsic_weight * hsic_loss
             losses["HSIC Loss"] = hsic_loss
             losses["Loss"] = loss
 

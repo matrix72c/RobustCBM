@@ -445,7 +445,7 @@ CONCEPT_SEMANTICS = [
 
 
 class CUBDataSet(Dataset):
-    def __init__(self, data_path, stage, resol):
+    def __init__(self, data_path: str = "./data", stage: str = "fit", resol: int = 224):
         self.data = []
         self.image_dir = "images"
         if data_path[-1] != "/":
@@ -504,7 +504,7 @@ class CUB(L.LightningDataModule):
         self,
         data_path: str = "./data",
         resol: int = 224,
-        batch_size: int = 128,
+        batch_size: int = 512,
         num_workers: int = 12,
         **kwargs,
     ):
@@ -568,7 +568,13 @@ from collections import Counter
 
 
 class CustomCUBDataSet(CUBDataSet):
-    def __init__(self, data_path, stage, resol, custom_num):
+    def __init__(
+        self,
+        data_path: str = "./data",
+        stage: str = "fit",
+        resol: int = 224,
+        custom_num: int = 112,
+    ):
 
         super().__init__(data_path, stage, resol)
 
@@ -654,7 +660,11 @@ class CustomCUBDataSet(CUBDataSet):
 
 class CustomCUB(CUB):
     def __init__(
-        self, custom_num, data_path: str = "./data", resol: int = 224, **kwargs
+        self,
+        custom_num: int = 112,
+        data_path: str = "./data",
+        resol: int = 224,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.train_data = CustomCUBDataSet(data_path, "fit", resol, custom_num)

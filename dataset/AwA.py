@@ -15,7 +15,7 @@ from utils import cal_class_imbalance_weights
 
 
 class AwADataset(Dataset):
-    def __init__(self, data_path, stage, resol):
+    def __init__(self, data_path: str = "./data", stage: str = "fit", resol: int = 224):
         self.path = data_path
         class_to_index = dict()
         with open(self.path + "/Animals_with_Attributes2/classes.txt") as f:
@@ -103,7 +103,7 @@ class AwA(L.LightningDataModule):
         self,
         data_path: str = "./data",
         resol: int = 224,
-        batch_size: int = 128,
+        batch_size: int = 512,
         num_workers: int = 12,
         **kwargs,
     ):

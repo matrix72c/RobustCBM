@@ -6,7 +6,7 @@ from utils import modify_fc
 
 
 class backbone(CBM):
-    def __init__(self, backbone_plus: int, **kwargs):
+    def __init__(self, backbone_plus: int = 0, **kwargs):
         kwargs["concept_weight"] = 0
         super().__init__(**kwargs)
         modify_fc(self.base, kwargs["base"], self.num_classes)
@@ -20,7 +20,10 @@ class backbone(CBM):
         if self.hparams.backbone_plus != 0:
             x = F.relu(x)
             x = self.fc(x)
-        return {"label": x, "concept": torch.zeros(x.shape[0], self.num_concepts).detach().to(x.device)}
+        return {
+            "label": x,
+            "concept": torch.zeros(x.shape[0], self.num_concepts).detach().to(x.device),
+        }
 
     def calc_loss(self, gt, pred):
         label_pred, concept_pred = pred["label"], pred["concept"]
