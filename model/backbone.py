@@ -26,7 +26,4 @@ class backbone(CBM):
         label_pred, concept_pred = pred["label"], pred["concept"]
         label, concepts = gt["label"], gt["concept"]
         label_loss = F.cross_entropy(label_pred, label, label_smoothing=0.1)
-        return {"Label Loss": label_loss, "Loss": label_loss}, (
-            label_pred,
-            concept_pred,
-        )
+        return {"Label Loss": label_loss, "Loss": label_loss}
