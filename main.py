@@ -1,17 +1,17 @@
 import os
 import pandas as pd
 from lightning.pytorch.trainer import Trainer
-from lightning.pytorch.loggers import TensorBoardLogger, CSVLogger
 from lightning.pytorch.callbacks import (
     ModelCheckpoint,
     EarlyStopping,
 )
 from lightning.pytorch import seed_everything
+from swanlab.integration.pytorch_lightning import SwanLabLogger
 import torch
 import yaml, argparse
 import model as pl_model
 import dataset
-from utils import build_name, yaml_merge
+from utils import build_name
 import hashlib
 
 def load_checkpoint(ckpt):
@@ -57,9 +57,13 @@ def train(cfg):
         monitor="lr", mode="min", patience=1000, stopping_threshold=1e-4
     )
     callbacks = [checkpoint_callback, early_stopping]
+    logger = SwanLabLogger(
+        project="RAIDCXM",
+        name=name,
+    )
     trainer = Trainer(
         log_every_n_steps=1,
-        logger=None,
+        logger=logger,
         callbacks=callbacks,
         max_epochs=cfg.get("epochs", None),
         inference_mode=False,
