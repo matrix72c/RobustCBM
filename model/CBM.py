@@ -185,10 +185,10 @@ class CBM(L.LightningModule):
     def forward(self, x, concept_pred=None):
         if concept_pred is None:
             concept_pred = self.base(x)
-        elif self.hparams.res_dim > 0:
-            l = self.base(x)
-            l[:, : self.num_concepts] = concept_pred
-            concept_pred = l
+        # elif self.hparams.res_dim > 0:
+        #     l = self.base(x)
+        #     l[:, : self.num_concepts] = concept_pred
+        #     concept_pred = l
 
         if self.hparams.cbm_mode == "fuzzy":
             concept = torch.sigmoid(concept_pred)
