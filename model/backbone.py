@@ -20,10 +20,11 @@ class backbone(CBM):
         if self.hparams.backbone_plus != 0:
             x = F.relu(x)
             x = self.fc(x)
-        return x, torch.zeros(x.shape[0], self.num_concepts).detach().to(x.device)
+        return {"label": x, "concept": torch.zeros(x.shape[0], self.num_concepts).detach().to(x.device)}
 
-    def calc_loss(self, img, label, concepts):
-        label_pred, concept_pred = self(img)
+    def calc_loss(self, gt, pred):
+        label_pred, concept_pred = pred["label"], pred["concept"]
+        label, concepts = gt["label"], gt["concept"]
         label_loss = F.cross_entropy(label_pred, label, label_smoothing=0.1)
         return {"Label Loss": label_loss, "Loss": label_loss}, (
             label_pred,

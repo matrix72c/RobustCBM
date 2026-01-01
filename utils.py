@@ -146,26 +146,14 @@ def build_base(base, out_size, use_pretrained=True):
 
 
 class cls_wrapper(nn.Module):
-    def __init__(self, model, index=0):
+    def __init__(self, model, key="label"):
         super().__init__()
         self.model = model
-        self.index = index
+        self.key = key
 
     def forward(self, *args, **kwargs):
-        # Some attacks (e.g., AutoAttack Square) can end up querying the model with
-        # an empty batch. TorchVision ViT does not support batch size 0 in attention.
-        # Returning an empty output tensor keeps the attack code well-defined.
-        if args and isinstance(args[0], torch.Tensor) and args[0].shape[0] == 0:
-            x = args[0]
-            if self.index == 0 and hasattr(self.model, "num_classes"):
-                return x.new_empty((0, int(self.model.num_classes)))
-            if self.index == 1 and hasattr(self.model, "num_concepts"):
-                res_dim = getattr(getattr(self.model, "hparams", None), "res_dim", 0)
-                return x.new_empty((0, int(self.model.num_concepts) + int(res_dim)))
-            # Fallback: preserve batch dimension; last dim is unknown.
-            return x.new_empty((0, 0))
         o = self.model(*args, **kwargs)
-        return o[self.index]
+        return o[self.key]
 
 
 def parse_value(value):

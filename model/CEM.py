@@ -29,4 +29,4 @@ class CEM(CBM):
         concept_embed = combined_embed.view(combined_embed.size(0), -1)
 
         label_pred = self.classifier(concept_embed)
-        return label_pred, concept_pred
+        return {"label": label_pred, "concept": concept_pred}

@@ -77,19 +77,19 @@ class CBM(L.LightningModule):
 
         self.train_mode = train_mode
         self.lpgd = PGD(
-            loss_fn=F.cross_entropy,
+            loss_fn=lambda o, y: F.cross_entropy(o["label"], y["label"]),
             **lpgd_args,
         )
         self.cpgd = PGD(
             loss_fn=lambda o, y: F.binary_cross_entropy_with_logits(
-                o[:, : y.size(1)], y
+                o["concept"][:, : y["concept"].size(1)], y["concept"]
             ),
             **cpgd_args,
         )
         self.jpgd = PGD(
-            loss_fn=lambda o, y: F.cross_entropy(o[0], y[0])
+            loss_fn=lambda o, y: F.cross_entropy(o["label"], y["label"])
             + jpgd_args["jpgd_lambda"]
-            * F.binary_cross_entropy_with_logits(o[1][:, : y[1].size(1)], y[1]),
+            * F.binary_cross_entropy_with_logits(o["concept"][:, : y["concept"].size(1)], y["concept"]),
             **jpgd_args,
         )
 
@@ -182,10 +182,11 @@ class CBM(L.LightningModule):
             concept = concept_pred
         label_pred = self.classifier(concept)
 
-        return label_pred, concept_pred
+        return {"label": label_pred, "concept": concept_pred}
 
-    def calc_loss(self, img, label, concepts):
-        label_pred, concept_pred = self(img)
+    def calc_loss(self, gt, pred):
+        label_pred, concept_pred = pred["label"], pred["concept"]
+        label, concepts = gt["label"], gt["concept"]
 
         concept_loss = F.binary_cross_entropy_with_logits(
             concept_pred[
@@ -233,34 +234,19 @@ class CBM(L.LightningModule):
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
             for name, param in self.named_parameters():
                 param.grad = g[name]
-        return losses, (label_pred, concept_pred[:, : self.num_concepts])
+        return losses
 
     @suppress_stdout
     @torch.enable_grad()
     def generate_adv(self, img, label, concepts, atk):
         if atk == "JPGD":
-            adv_img = self.jpgd(self, img, (label, concepts))
+            adv_img = self.jpgd(self, img, {"label": label, "concept": concepts})
         elif atk == "LPGD":
-            adv_img = self.lpgd(cls_wrapper(self, 0), img, label)
+            adv_img = self.lpgd(self, img, {"label": label, "concept": concepts})
         elif atk == "CPGD":
-            adv_img = self.cpgd(cls_wrapper(self, 1), img, concepts)
+            adv_img = self.cpgd(self, img, {"label": label, "concept": concepts})
         elif atk == "AA":
-            # AutoAttack can internally end up with an empty subset (e.g., if all samples
-            # are already misclassified on clean inputs). TorchVision ViT does not support
-            # forward passes with batch size 0 in attention.
-            with torch.inference_mode():
-                clean_logits = cls_wrapper(self, 0)(img)
-                correct_mask = clean_logits.argmax(dim=1).eq(label)
-
-            if correct_mask.sum().item() == 0:
-                adv_img = img
-            else:
-                adv_img = img.clone()
-                idx = correct_mask.nonzero(as_tuple=False).squeeze(1)
-                adv_part = self.aa.run_standard_evaluation(
-                    img[idx], label[idx], bs=img[idx].shape[0]
-                )
-                adv_img[idx] = adv_part.to(device=adv_img.device, dtype=adv_img.dtype)
+            adv_img = self.aa.run_standard_evaluation(img, label, bs=img.shape[0])
         elif atk == "Std":
             adv_img = img
         else:
@@ -277,7 +263,7 @@ class CBM(L.LightningModule):
             img = torch.cat([img[:bs], adv_img], dim=0)
             label = torch.cat([label[:bs], label[:bs]], dim=0)
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
-        losses, _ = self.calc_loss(img, label, concepts)
+        losses = self.calc_loss({"label": label, "concept": concepts}, self(img))
         loss = losses["Loss"]
         if self.hparams.mtl_mode != "normal":
             self.optimizers().step()
@@ -294,9 +280,9 @@ class CBM(L.LightningModule):
         img, label, concepts = batch
         if self.train_mode != "Std":
             img = self.generate_adv(img, label, concepts, self.train_mode)
-
-        losses, o = self.calc_loss(img, label, concepts)
-        label_pred, concept_pred = o[0], o[1]
+        pred = self(img)
+        losses = self.calc_loss({"label": label, "concept": concepts}, pred)
+        label_pred, concept_pred = pred["label"], pred["concept"]
         semantic_concept_pred = concept_pred[:, : self.num_concepts]
         self.concept_acc(semantic_concept_pred, concepts)
         self.acc(label_pred, label)
@@ -316,7 +302,7 @@ class CBM(L.LightningModule):
 
     def on_test_start(self):
         self.aa = AutoAttack(
-            cls_wrapper(self, 0),
+            cls_wrapper(self, "label"),
             verbose=False,
             **self.hparams.aa_args,
         )
@@ -325,7 +311,7 @@ class CBM(L.LightningModule):
         concept_logits = []
         for batch in self.dm.train_dataloader():
             outputs = self(batch[0].to(self.device))
-            concept_logits.append(outputs[1].detach().cpu())
+            concept_logits.append(outputs["concept"].detach().cpu())
         c = torch.cat(concept_logits, dim=0).numpy()
 
         percentiles = np.percentile(c, [5, 95], axis=0)
@@ -347,8 +333,8 @@ class CBM(L.LightningModule):
                 x = img
             else:
                 x = self.generate_adv(img, label, concepts, mode)
-            losses, outputs = self.calc_loss(x, label, concepts)
-            label_pred, concept_pred = outputs[0], outputs[1]
+            pred = self(x)
+            label_pred, concept_pred = pred["label"], pred["concept"]
             semantic_concept_pred = concept_pred[:, : self.num_concepts]
             acc_metric = getattr(self, f"{mode}_acc")
             acc_metric(label_pred, label)
@@ -366,14 +352,6 @@ class CBM(L.LightningModule):
                 on_step=False,
                 on_epoch=True,
             )
-            for name, val in losses.items():
-                self.log(
-                    f"{mode} {name}",
-                    val,
-                    on_step=False,
-                    on_epoch=True,
-                    batch_size=label.size(0),
-                )
 
             if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
@@ -384,7 +362,7 @@ class CBM(L.LightningModule):
                     concepts, concept_pred.clone(), intervene_budget
                 )
                 forward_outputs = self(x, cur_concept_pred)
-                cur_label_pred = forward_outputs[0]
+                cur_label_pred = forward_outputs["label"]
                 intervene_acc_metric = getattr(self, f"intervene_{mode}_accs")[i]
                 intervene_acc_metric(cur_label_pred, label)
                 self.log(

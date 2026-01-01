@@ -31,10 +31,11 @@ class VCBM(CBM):
 
         label_pred = self.classifier(concept_pred)
 
-        return label_pred, concept_pred, mu, std**2
+        return {"label": label_pred, "concept": concept_pred, "mu": mu, "var": std**2}
 
-    def calc_loss(self, img, label, concepts):
-        label_pred, concept_pred, mu, var = self(img)
+    def calc_loss(self, gt, pred):
+        label_pred, concept_pred, mu, var = pred["label"], pred["concept"], pred["mu"], pred["var"]
+        label, concepts = gt["label"], gt["concept"]
         concept_loss = F.binary_cross_entropy_with_logits(
             concept_pred[:, : self.num_concepts],
             concepts,
@@ -81,4 +82,4 @@ class VCBM(CBM):
             g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
             for name, param in self.named_parameters():
                 param.grad = g[name]
-        return losses, (label_pred, concept_pred, mu, var)
+        return losses
