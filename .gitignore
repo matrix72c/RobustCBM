@@ -104,7 +104,7 @@ ENV/
 # input data, saved log, checkpoints
 data
 checkpoints/
-swanlog/
+wandb/
 logs/
 tmp*
 results/
