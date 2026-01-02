@@ -6,7 +6,7 @@ from lightning.pytorch.callbacks import (
     EarlyStopping,
 )
 from lightning.pytorch import seed_everything
-from swanlab.integration.pytorch_lightning import SwanLabLogger
+from lightning.pytorch.loggers import WandbLogger
 import torch
 import yaml, argparse
 import model as pl_model
@@ -57,9 +57,10 @@ def train(cfg):
         monitor="lr", mode="min", patience=1000, stopping_threshold=1e-4
     )
     callbacks = [checkpoint_callback, early_stopping]
-    logger = SwanLabLogger(
+    logger = WandbLogger(
         project="RAIDCXM",
         name=name,
+        offline=True,
     )
     trainer = Trainer(
         log_every_n_steps=1,
@@ -73,7 +74,12 @@ def train(cfg):
     return model, dm, cfg
 
 def evaluate(model, dm, cfg):
-    trainer = Trainer(logger=None, inference_mode=False)
+    logger = WandbLogger(
+        project="RAIDCXM",
+        name=(cfg.get("run_name", "unknown") + "_test"),
+        offline=True,
+    )
+    trainer = Trainer(logger=logger, inference_mode=False)
     res = trainer.test(model, dm)
     if res:
         result = res[0]
