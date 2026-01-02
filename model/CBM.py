@@ -56,7 +56,8 @@ class CBM(L.LightningModule):
         train_mode: str = "Std",
         lpgd_args: dict = {},
         cpgd_args: dict = {},
-        jpgd_args: dict = {"jpgd_lambda": 1},
+        jpgd_args: dict = {},
+        jpgd_lambda: float = 1.0,
         apgd_args: dict = {},
         aa_args: dict = {"eps": 0.0156862745},
         hsic_weight: float = 0,
@@ -100,7 +101,7 @@ class CBM(L.LightningModule):
         )
         self.jpgd = PGD(
             loss_fn=lambda o, y: F.cross_entropy(o["label"], y["label"])
-            + jpgd_args["jpgd_lambda"]
+            + jpgd_lambda
             * F.binary_cross_entropy_with_logits(
                 o["concept"][:, : y["concept"].size(1)], y["concept"]
             ),
