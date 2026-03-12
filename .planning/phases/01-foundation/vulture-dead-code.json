@@ -1,0 +1,5 @@
+dataset/AwA.py:2: unused import 'itertools' (90% confidence)
+dataset/CUB.py:1: unused import 'itertools' (90% confidence)
+model/CBM.py:277: unused variable 'batch_idx' (100% confidence)
+model/CBM.py:300: unused variable 'batch_idx' (100% confidence)
+model/CBM.py:343: unused variable 'batch_idx' (100% confidence)
