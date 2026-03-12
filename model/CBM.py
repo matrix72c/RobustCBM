@@ -105,9 +105,9 @@ class CBM(LightningModule):
         num_classes = dm.num_classes
         num_concepts = dm.num_concepts
         self.dm = dm
-        self.max_intervene_budget = dm.max_intervene_budget
-        self.concept_group_map = dm.concept_group_map
-        self.group_concept_map = dm.group_concept_map
+        self.max_intervene_budget = getattr(dm, "max_intervene_budget", 0)
+        self.concept_group_map = getattr(dm, "concept_group_map", {})
+        self.group_concept_map = getattr(dm, "group_concept_map", {})
         self.base = build_base(base, num_concepts + res_dim, use_pretrained)
 
         logger.info(
