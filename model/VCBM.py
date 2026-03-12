@@ -1,7 +1,8 @@
 import torch
-from torch import nn
 import torch.nn.functional as F
-from hsic import standardize, nhsic
+from torch import nn
+
+from hsic import nhsic, standardize
 from model import CBM
 from mtl import mtl
 from utils import calc_info_loss

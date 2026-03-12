@@ -1,13 +1,16 @@
-import os
-from lightning.pytorch.trainer import Trainer
-from lightning.pytorch.loggers import TensorBoardLogger, CSVLogger
-from lightning.pytorch import seed_everything
-import torch
-import yaml, argparse
-import model as pl_model
-import dataset
-from utils import build_name, yaml_merge
+import argparse
 import hashlib
+import os
+
+import torch
+import yaml
+from lightning.pytorch import seed_everything
+from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
+from lightning.pytorch.trainer import Trainer
+
+import dataset
+import model as pl_model
+from utils import build_name, yaml_merge
 
 
 def test_model(config):

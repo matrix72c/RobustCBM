@@ -1,15 +1,17 @@
 import random
+
 import numpy as np
-import lightning as L
-from utils import initialize_weights, build_base, cls_wrapper, suppress_stdout
 import torch
-from torch import nn
+import torch.nn as nn
 import torch.nn.functional as F
+import lightning as L
 from torchmetrics import Accuracy
+
 from attacks import PGD
 from autoattack import AutoAttack
-from mtl import mtl
 from hsic import nhsic, standardize
+from mtl import mtl
+from utils import build_base, cls_wrapper, initialize_weights, suppress_stdout
 
 
 class MLP(nn.Module):
@@ -186,10 +188,6 @@ class CBM(L.LightningModule):
     def forward(self, x, concept_pred=None):
         if concept_pred is None:
             concept_pred = self.base(x)
-        # elif self.hparams.res_dim > 0:
-        #     l = self.base(x)
-        #     l[:, : self.num_concepts] = concept_pred
-        #     concept_pred = l
 
         if self.hparams.cbm_mode == "fuzzy":
             concept = torch.sigmoid(concept_pred)

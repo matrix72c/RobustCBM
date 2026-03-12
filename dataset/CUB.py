@@ -1,14 +1,15 @@
 import itertools
 import os
+import pickle
+
 import numpy as np
 import torch
-import pickle
 import lightning as L
+import torchvision.transforms as transforms
 from collections import defaultdict
 from PIL import Image
-from torch.utils.data import Dataset
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
+
 from utils import cal_class_imbalance_weights
 
 # Set of CUB attributes selected by original CBM paper
