@@ -12,3 +12,14 @@ def test_config_has_required_keys(config_data):
     """Verify config has 'model' or 'models' key."""
     has_model_key = "model" in config_data or "models" in config_data
     assert has_model_key, "Config must have 'model' or 'models' key"
+
+
+def test_config_has_dataset_key(config_data):
+    """Verify config has 'dataset' key."""
+    assert "dataset" in config_data, "Config must have 'dataset' key"
+
+
+def test_config_has_model_class_name(config_data):
+    """Verify config has model class name specified."""
+    if "model" in config_data:
+        assert isinstance(config_data["model"], (str, dict)), "model should be str or dict"
