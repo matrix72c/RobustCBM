@@ -86,10 +86,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | QUAL-02 | Phase 4 | Pending |
 | QUAL-03 | Phase 4 | Pending |
 | QUAL-04 | Phase 4 | Pending |
-| VALID-01 | Phase 5 | Pending |
-| VALID-02 | Phase 5 | Pending |
-| VALID-03 | Phase 5 | Pending |
-| VALID-04 | Phase 5 | Pending |
+| VALID-01 | Phase 4 | Pending |
+| VALID-02 | Phase 4 | Pending |
+| VALID-03 | Phase 4 | Pending |
+| VALID-04 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 17 total
@@ -98,4 +98,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-12*
-*Last updated: 2026-03-12 after research phase*
+*Last updated: 2026-03-12 after roadmap creation*
