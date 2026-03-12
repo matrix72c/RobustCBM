@@ -9,8 +9,8 @@ Refactoring the existing RobustCBM codebase. Each maps to roadmap phases.
 
 ### Foundation
 
-- [ ] **FOUND-01**: Establish baseline by committing current working state
-- [ ] **FOUND-02**: Analyze existing codebase to identify refactoring targets
+- [x] **FOUND-01**: Establish baseline by committing current working state
+- [x] **FOUND-02**: Analyze existing codebase to identify refactoring targets
 
 ### Code Cleanup
 
@@ -73,8 +73,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 1 | Pending |
-| FOUND-02 | Phase 1 | Pending |
+| FOUND-01 | Phase 1 | Complete |
+| FOUND-02 | Phase 1 | Complete |
 | CLEAN-01 | Phase 2 | Pending |
 | CLEAN-02 | Phase 2 | Pending |
 | CLEAN-03 | Phase 2 | Pending |
