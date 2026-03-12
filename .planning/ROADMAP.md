@@ -56,7 +56,8 @@
 2. Module structure reorganized for better maintainability and logical grouping
 3. Type hints added to key public functions and classes
 
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 03-01-PLAN.md — Extract common logic, add type hints, reorganize modules
 
 ---
 
