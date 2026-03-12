@@ -1,5 +1,4 @@
 import glob
-import itertools
 import os
 
 import numpy as np
@@ -12,11 +11,17 @@ from torch.utils.data import DataLoader, Dataset, Subset
 
 from utils import cal_class_imbalance_weights
 
+# Constants
+DEFAULT_RESOLUTION = 224
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
+DEFAULT_TEST_SPLIT = 0.3
+
 
 class AwADataset(Dataset):
     def __init__(self, data_path: str = "./data", stage: str = "fit", resol: int = 224):
         self.path = data_path
-        class_to_index = dict()
+        class_to_index = {}
         with open(self.path + "/Animals_with_Attributes2/classes.txt") as f:
             index = 1
             for line in f:
@@ -27,10 +32,10 @@ class AwADataset(Dataset):
         img_index = []
         for c in class_to_index.keys():
             class_name = c
-            FOLDER_DIR = os.path.join(
+            folder_dir = os.path.join(
                 f"{data_path}/Animals_with_Attributes2/JPEGImages", class_name
             )
-            file_descriptor = os.path.join(FOLDER_DIR, "*.jpg")
+            file_descriptor = os.path.join(folder_dir, "*.jpg")
             files = glob.glob(file_descriptor)
 
             class_index = class_to_index[class_name]

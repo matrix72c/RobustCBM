@@ -1,6 +1,6 @@
-import itertools
-import os
 import pickle
+from collections import Counter
+from itertools import combinations
 
 import numpy as np
 import torch
@@ -11,6 +11,12 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
 from utils import cal_class_imbalance_weights
+
+# Constants
+DEFAULT_RESOLUTION = 224
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
+DEFAULT_BATCH_SIZE = 512
 
 # Set of CUB attributes selected by original CBM paper
 SELECTED_CONCEPTS = [
@@ -520,14 +526,14 @@ class CUB(L.LightningDataModule):
         self.imbalance_weights = cal_class_imbalance_weights(self.train_data)
         # Generate a mapping containing all concept groups in CUB generated
         # using a simple prefix tree
-        CONCEPT_GROUP_MAP = defaultdict(list)
+        concept_group_map = defaultdict(list)
         for i, concept_name in enumerate(
             list(np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS])
         ):
             group = concept_name[: concept_name.find("::")]
-            CONCEPT_GROUP_MAP[group].append(i)
+            concept_group_map[group].append(i)
 
-        self.concept_group_map = CONCEPT_GROUP_MAP
+        self.concept_group_map = concept_group_map
         self.concept_names = list(np.array(CONCEPT_SEMANTICS)[SELECTED_CONCEPTS])
         self.max_intervene_budget = 29
         self.group_concept_map = {}
@@ -561,11 +567,6 @@ class CUB(L.LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=True,
         )
-
-
-import numpy as np
-from itertools import combinations
-from collections import Counter
 
 
 class CustomCUBDataSet(CUBDataSet):
