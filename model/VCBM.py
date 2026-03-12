@@ -1,9 +1,12 @@
+from typing import Any, Dict, Optional
+
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch import Tensor
 
 from hsic import nhsic, standardize
-from model import CBM
+from model.CBM import CBM
 from mtl import mtl
 from utils import calc_info_loss
 
@@ -26,7 +29,7 @@ class VCBM(CBM):
         self.hsic_weight = hsic_weight
         self.hsic_kernel = hsic_kernel
 
-    def forward(self, x, concept_pred=None):
+    def forward(self, x: Tensor, concept_pred: Optional[Tensor] = None) -> Dict[str, Tensor]:
         features = self.base(x)
         statistics = self.fc(features)
         std, mu = torch.chunk(statistics, 2, dim=1)
@@ -41,7 +44,7 @@ class VCBM(CBM):
 
         return {"label": label_pred, "concept": concept_pred, "mu": mu, "var": std**2}
 
-    def calc_loss(self, gt, pred):
+    def calc_loss(self, gt: Dict[str, Tensor], pred: Dict[str, Tensor]) -> Dict[str, Tensor]:
         label_pred, concept_pred, mu, var = pred["label"], pred["concept"], pred["mu"], pred["var"]
         label, concepts = gt["label"], gt["concept"]
         concept_loss = F.binary_cross_entropy_with_logits(

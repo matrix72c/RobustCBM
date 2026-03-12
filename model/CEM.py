@@ -1,7 +1,10 @@
+from typing import Dict, Optional
+
 import torch
 from torch import nn
+from torch import Tensor
 
-from model import CBM
+from model.CBM import CBM
 from utils import initialize_weights, modify_fc
 
 
@@ -16,7 +19,7 @@ class CEM(CBM):
             embed_dim * self.num_concepts, self.num_classes
         ).apply(initialize_weights)
 
-    def forward(self, x, concept_pred=None):
+    def forward(self, x: Tensor, concept_pred: Optional[Tensor] = None) -> Dict[str, Tensor]:
         concept_context = self.base(x).reshape(
             x.size(0), -1, 2 * self.hparams.embed_dim
         )
