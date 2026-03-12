@@ -1,32 +1,24 @@
 import random
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import lightning as L
+from lightning import LightningDataModule, LightningModule
+from torch import Tensor
 from torchmetrics import Accuracy
 
 from attacks import PGD
 from autoattack import AutoAttack
 from hsic import nhsic, standardize
 from mtl import mtl
+from model.mlp import MLP
 from utils import build_base, cls_wrapper, initialize_weights, suppress_stdout
 
 
-class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super().__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, output_dim)
-
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-
-class CBM(L.LightningModule):
+class CBM(LightningModule):
     def __init__(
         self,
         dm: L.LightningDataModule,
@@ -185,7 +177,7 @@ class CBM(L.LightningModule):
                         )
         return concept_pred
 
-    def forward(self, x, concept_pred=None):
+    def forward(self, x: Tensor, concept_pred: Optional[Tensor] = None) -> Dict[str, Tensor]:
         if concept_pred is None:
             concept_pred = self.base(x)
 
@@ -203,7 +195,7 @@ class CBM(L.LightningModule):
 
         return {"label": label_pred, "concept": concept_pred}
 
-    def calc_loss(self, gt, pred):
+    def calc_loss(self, gt: Dict[str, Tensor], pred: Dict[str, Tensor]) -> Dict[str, Tensor]:
         label_pred, concept_pred = pred["label"], pred["concept"]
         label, concepts = gt["label"], gt["concept"]
 
@@ -274,7 +266,7 @@ class CBM(L.LightningModule):
             raise NotImplementedError
         return adv_img
 
-    def training_step(self, batch, _batch_idx):
+    def training_step(self, batch: tuple[Tensor, Tensor, Tensor], _batch_idx: int) -> Tensor:
         img, label, concepts = batch
         if self.train_mode != "Std":
             bs = img.shape[0] // 2
@@ -297,7 +289,7 @@ class CBM(L.LightningModule):
             if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 sch.step(self.trainer.callback_metrics["acc"])
 
-    def validation_step(self, batch, _batch_idx):
+    def validation_step(self, batch: tuple[Tensor, Tensor, Tensor], _batch_idx: int) -> None:
         img, label, concepts = batch
         if self.train_mode != "Std":
             img = self.generate_adv(img, label, concepts, self.train_mode)
@@ -340,7 +332,7 @@ class CBM(L.LightningModule):
         self.pos_logits = torch.from_numpy(percentiles[1]).to(self.device)
         self.neg_logits = torch.from_numpy(percentiles[0]).to(self.device)
 
-    def test_step(self, batch, _batch_idx):
+    def test_step(self, batch: tuple[Tensor, Tensor, Tensor], _batch_idx: int) -> None:
         img, label, concepts = batch
 
         if self.hparams.get("ignore_adv", False):
