@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, Optional
 
 import torch
@@ -6,6 +7,8 @@ from torch import Tensor
 
 from model.CBM import CBM
 from utils import initialize_weights, modify_fc
+
+logger = logging.getLogger(__name__)
 
 
 class CEM(CBM):
@@ -33,6 +36,8 @@ class CEM(CBM):
         self.classifier = nn.Linear(
             embed_dim * self.num_concepts, self.num_classes
         ).apply(initialize_weights)
+
+        logger.info(f"CEM initialized: embed_dim=%d", embed_dim)
 
     def forward(self, x: Tensor, concept_pred: Optional[Tensor] = None) -> Dict[str, Tensor]:
         """Forward pass through the CEM model.

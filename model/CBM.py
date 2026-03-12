@@ -1,5 +1,8 @@
+import logging
 import random
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import torch
@@ -106,6 +109,14 @@ class CBM(LightningModule):
         self.concept_group_map = dm.concept_group_map
         self.group_concept_map = dm.group_concept_map
         self.base = build_base(base, num_concepts + res_dim, use_pretrained)
+
+        logger.info(
+            f"CBM initialized: num_classes=%d, num_concepts=%d, backbone=%s, cbm_mode=%s",
+            num_classes,
+            num_concepts,
+            base,
+            cbm_mode,
+        )
 
         if hidden_dim > 0:
             self.classifier = MLP(num_concepts + res_dim, hidden_dim, num_classes)
@@ -231,17 +242,22 @@ class CBM(LightningModule):
         """
         if concept_pred is None:
             concept_pred = self.base(x)
+            logger.debug("Computed concept predictions from backbone")
 
         if self.hparams.cbm_mode == "fuzzy":
             concept = torch.sigmoid(concept_pred)
+            logger.debug("Using fuzzy concept mode (sigmoid)")
         elif self.hparams.cbm_mode == "relu":
             concept = torch.relu(concept_pred)
+            logger.debug("Using relu concept mode")
         elif self.hparams.cbm_mode == "bool":
             concept_prob = torch.sigmoid(concept_pred)
             concept_binary = concept_prob.ge(0.5).float()
             concept = concept_prob + (concept_binary - concept_prob).detach()
+            logger.debug("Using boolean concept mode")
         elif self.hparams.cbm_mode == "hybrid":
             concept = concept_pred
+            logger.debug("Using hybrid concept mode (raw logits)")
         label_pred = self.classifier(concept)
 
         return {"label": label_pred, "concept": concept_pred}
@@ -338,6 +354,7 @@ class CBM(LightningModule):
         """
         img, label, concepts = batch
         if self.train_mode != "Std":
+            logger.info(f"Generating {self.train_mode} adversarial examples")
             bs = img.shape[0] // 2
             adv_img = self.generate_adv(
                 img[:bs], label[:bs], concepts[:bs], self.train_mode
@@ -347,6 +364,7 @@ class CBM(LightningModule):
             concepts = torch.cat([concepts[:bs], concepts[:bs]], dim=0)
         losses = self.calc_loss({"label": label, "concept": concepts}, self(img))
         loss = losses["Loss"]
+        logger.debug(f"Training loss: {loss.item():.4f}")
         if self.hparams.mtl_mode != "normal":
             self.optimizers().step()
             self.optimizers().zero_grad()
@@ -377,6 +395,11 @@ class CBM(LightningModule):
         semantic_concept_pred = concept_pred[:, : self.num_concepts]
         self.concept_acc(semantic_concept_pred, concepts)
         self.acc(label_pred, label)
+        logger.debug(
+            "Validation - acc: %.4f, concept_acc: %.4f",
+            self.acc.compute().item(),
+            self.concept_acc.compute().item(),
+        )
         for name, val in losses.items():
             self.log(f"{name}", val, on_step=False, on_epoch=True)
 
