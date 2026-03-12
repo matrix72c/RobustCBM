@@ -14,10 +14,10 @@ Refactoring the existing RobustCBM codebase. Each maps to roadmap phases.
 
 ### Code Cleanup
 
-- [ ] **CLEAN-01**: Remove unused imports across all Python files
-- [ ] **CLEAN-02**: Remove dead code and unreachable code paths
-- [ ] **CLEAN-03**: Fix inconsistent naming conventions
-- [ ] **CLEAN-04**: Extract magic numbers and hardcoded values to constants
+- [x] **CLEAN-01**: Remove unused imports across all Python files
+- [x] **CLEAN-02**: Remove dead code and unreachable code paths
+- [x] **CLEAN-03**: Fix inconsistent naming conventions
+- [x] **CLEAN-04**: Extract magic numbers and hardcoded values to constants
 
 ### Structural Refactoring
 
@@ -75,10 +75,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | FOUND-01 | Phase 1 | Complete |
 | FOUND-02 | Phase 1 | Complete |
-| CLEAN-01 | Phase 2 | Pending |
-| CLEAN-02 | Phase 2 | Pending |
-| CLEAN-03 | Phase 2 | Pending |
-| CLEAN-04 | Phase 2 | Pending |
+| CLEAN-01 | Phase 2 | Complete |
+| CLEAN-02 | Phase 2 | Complete |
+| CLEAN-03 | Phase 2 | Complete |
+| CLEAN-04 | Phase 2 | Complete |
 | STRUCT-01 | Phase 3 | Pending |
 | STRUCT-02 | Phase 3 | Pending |
 | STRUCT-03 | Phase 3 | Pending |
