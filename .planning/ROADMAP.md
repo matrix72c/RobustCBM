@@ -21,7 +21,8 @@
 2. Codebase analysis completed identifying refactoring targets (duplication, hardcoded values, naming issues)
 3. Smoke tests exist for model loading, forward pass, and config loading
 
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 01-PLAN.md — Testing infrastructure + codebase analysis
 
 ---
 
