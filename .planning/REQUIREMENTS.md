@@ -21,9 +21,9 @@ Refactoring the existing RobustCBM codebase. Each maps to roadmap phases.
 
 ### Structural Refactoring
 
-- [ ] **STRUCT-01**: Extract common logic from CBM/VCBM/CEM models into base classes
-- [ ] **STRUCT-02**: Reorganize module structure for better maintainability
-- [ ] **STRUCT-03**: Add type hints to key functions and classes
+- [x] **STRUCT-01**: Extract common logic from CBM/VCBM/CEM models into base classes
+- [x] **STRUCT-02**: Reorganize module structure for better maintainability
+- [x] **STRUCT-03**: Add type hints to key functions and classes
 
 ### Quality Improvements
 
@@ -79,9 +79,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLEAN-02 | Phase 2 | Complete |
 | CLEAN-03 | Phase 2 | Complete |
 | CLEAN-04 | Phase 2 | Complete |
-| STRUCT-01 | Phase 3 | Pending |
-| STRUCT-02 | Phase 3 | Pending |
-| STRUCT-03 | Phase 3 | Pending |
+| STRUCT-01 | Phase 3 | Complete |
+| STRUCT-02 | Phase 3 | Complete |
+| STRUCT-03 | Phase 3 | Complete |
 | QUAL-01 | Phase 4 | Pending |
 | QUAL-02 | Phase 4 | Pending |
 | QUAL-03 | Phase 4 | Pending |
