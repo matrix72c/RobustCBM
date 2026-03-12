@@ -57,7 +57,7 @@
 3. Type hints added to key public functions and classes
 
 **Plans**: 1 plan
-- [ ] 03-01-PLAN.md — Extract common logic, add type hints, reorganize modules
+- [x] 03-01-PLAN.md — Extract common logic, add type hints, reorganize modules
 
 ---
 
@@ -78,7 +78,9 @@
 7. Model checkpoint loading works (backward compatibility preserved)
 8. Results before and after refactoring match (regression test passes)
 
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 04-01-PLAN.md — Add error handling, docstrings, logging to core modules
+- [ ] 04-02-PLAN.md — Add test coverage, verify training/evaluation/checkpoint loading
 
 ---
 
@@ -88,8 +90,8 @@
 |-------|----------------|--------|-----------|
 | 1. Foundation | 1/1 | Complete    | 2026-03-12 |
 | 2. Code Cleanup | 1/1 | Complete    | 2026-03-12 |
-| 3. Structural Refactoring | 0/1 | Complete    | 2026-03-12 |
-| 4. Quality & Validation | 0/1 | Not started | - |
+| 3. Structural Refactoring | 1/1 | Complete    | 2026-03-12 |
+| 4. Quality & Validation | 0/2 | Not started | - |
 
 ---
 
