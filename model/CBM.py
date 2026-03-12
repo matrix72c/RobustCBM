@@ -64,7 +64,7 @@ class CBM(L.LightningModule):
         aa_args: dict = {"eps": 0.0156862745},
         hsic_weight: float = 0,
         hsic_kernel: str = "rbf",
-        **kwargs,
+        **_,
     ):
         super().__init__()
         if mtl_mode != "normal":
@@ -274,7 +274,7 @@ class CBM(L.LightningModule):
             raise NotImplementedError
         return adv_img
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch, _batch_idx):
         img, label, concepts = batch
         if self.train_mode != "Std":
             bs = img.shape[0] // 2
@@ -297,7 +297,7 @@ class CBM(L.LightningModule):
             if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 sch.step(self.trainer.callback_metrics["acc"])
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, _batch_idx):
         img, label, concepts = batch
         if self.train_mode != "Std":
             img = self.generate_adv(img, label, concepts, self.train_mode)
@@ -340,7 +340,7 @@ class CBM(L.LightningModule):
         self.pos_logits = torch.from_numpy(percentiles[1]).to(self.device)
         self.neg_logits = torch.from_numpy(percentiles[0]).to(self.device)
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch, _batch_idx):
         img, label, concepts = batch
 
         if self.hparams.get("ignore_adv", False):
