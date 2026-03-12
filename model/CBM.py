@@ -19,6 +19,12 @@ from utils import build_base, cls_wrapper, initialize_weights, suppress_stdout
 
 
 class CBM(LightningModule):
+    """Concept Bottleneck Model for interpretable image classification.
+
+    This model learns to predict concepts from images and uses these concepts
+    to make class predictions, providing interpretable decisions.
+    """
+
     def __init__(
         self,
         dm: L.LightningDataModule,
@@ -58,6 +64,37 @@ class CBM(LightningModule):
         hsic_kernel: str = "rbf",
         **_,
     ):
+        """Initialize the CBM model.
+
+        Args:
+            dm: LightningDataModule providing dataset info and data loaders.
+            base: Backbone architecture name (e.g., 'resnet50').
+            use_pretrained: Whether to use pretrained ImageNet weights.
+            concept_weight: Weight for concept prediction loss.
+            optimizer: Optimizer class name (e.g., 'SGD', 'Adam').
+            optimizer_args: Dictionary of optimizer hyperparameters.
+            scheduler: Learning rate scheduler class name.
+            scheduler_args: Dictionary of scheduler hyperparameters.
+            plateau_args: Dictionary of ReduceLROnPlateau-specific arguments.
+            hidden_dim: Hidden dimension for MLP classifier (0 uses linear).
+            res_dim: Dimension of residual/virtual concepts.
+            cbm_mode: Concept bottleneck mode ('fuzzy', 'relu', 'bool', 'hybrid').
+            mtl_mode: Multi-task learning mode ('normal' or other).
+            weighted_bce: Whether to use class-weighted BCE loss.
+            ignore_intervenes: Whether to ignore concept intervention during testing.
+            train_mode: Training mode ('Std', 'LPGD', 'CPGD', 'JPGD', 'APGD', 'AA').
+            lpgd_args: Arguments for Label PGD attack.
+            cpgd_args: Arguments for Concept PGD attack.
+            jpgd_args: Arguments for Joint PGD attack.
+            jpgd_lambda: Lambda weight for joint PGD loss.
+            apgd_args: Arguments for AutoPGD attack.
+            aa_args: Arguments for AutoAttack.
+            hsic_weight: Weight for HSIC independence penalty.
+            hsic_kernel: Kernel type for HSIC ('rbf', 'linear').
+
+        Returns:
+            None.
+        """
         super().__init__()
         if mtl_mode != "normal":
             self.automatic_optimization = False
@@ -144,6 +181,11 @@ class CBM(LightningModule):
             )
 
     def configure_optimizers(self):
+        """Configure optimizer and learning rate scheduler.
+
+        Returns:
+            Optimizer config dict or list of optimizers and schedulers.
+        """
         optimizer = getattr(torch.optim, self.hparams.optimizer)(
             self.parameters(), **self.hparams.optimizer_args
         )
@@ -178,6 +220,15 @@ class CBM(LightningModule):
         return concept_pred
 
     def forward(self, x: Tensor, concept_pred: Optional[Tensor] = None) -> Dict[str, Tensor]:
+        """Forward pass through the CBM model.
+
+        Args:
+            x: Input image tensor of shape (batch_size, channels, height, width).
+            concept_pred: Optional pre-computed concept predictions.
+
+        Returns:
+            Dictionary with 'label' (class predictions) and 'concept' (concept logits).
+        """
         if concept_pred is None:
             concept_pred = self.base(x)
 
@@ -196,6 +247,15 @@ class CBM(LightningModule):
         return {"label": label_pred, "concept": concept_pred}
 
     def calc_loss(self, gt: Dict[str, Tensor], pred: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        """Calculate loss for CBM training.
+
+        Args:
+            gt: Ground truth dictionary with 'label' and 'concept' tensors.
+            pred: Prediction dictionary with 'label' and 'concept' tensors.
+
+        Returns:
+            Dictionary of losses including 'Label Loss', 'Concept Loss', and 'Loss'.
+        """
         label_pred, concept_pred = pred["label"], pred["concept"]
         label, concepts = gt["label"], gt["concept"]
 
@@ -267,6 +327,15 @@ class CBM(LightningModule):
         return adv_img
 
     def training_step(self, batch: tuple[Tensor, Tensor, Tensor], _batch_idx: int) -> Tensor:
+        """Training step for CBM model.
+
+        Args:
+            batch: Tuple of (images, labels, concepts).
+            _batch_idx: Index of the batch.
+
+        Returns:
+            Total loss tensor for backpropagation.
+        """
         img, label, concepts = batch
         if self.train_mode != "Std":
             bs = img.shape[0] // 2
@@ -290,6 +359,15 @@ class CBM(LightningModule):
                 sch.step(self.trainer.callback_metrics["acc"])
 
     def validation_step(self, batch: tuple[Tensor, Tensor, Tensor], _batch_idx: int) -> None:
+        """Validation step for CBM model.
+
+        Args:
+            batch: Tuple of (images, labels, concepts).
+            _batch_idx: Index of the batch.
+
+        Returns:
+            None.
+        """
         img, label, concepts = batch
         if self.train_mode != "Std":
             img = self.generate_adv(img, label, concepts, self.train_mode)
@@ -333,6 +411,15 @@ class CBM(LightningModule):
         self.neg_logits = torch.from_numpy(percentiles[0]).to(self.device)
 
     def test_step(self, batch: tuple[Tensor, Tensor, Tensor], _batch_idx: int) -> None:
+        """Test step for CBM model with optional adversarial attacks.
+
+        Args:
+            batch: Tuple of (images, labels, concepts).
+            _batch_idx: Index of the batch.
+
+        Returns:
+            None.
+        """
         img, label, concepts = batch
 
         if self.hparams.get("ignore_adv", False):

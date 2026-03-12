@@ -12,6 +12,12 @@ from utils import calc_info_loss
 
 
 class VCBM(CBM):
+    """Variational Concept Bottleneck Model with variational inference.
+
+    Extends CBM with a variational autoencoder for learning stochastic
+    concept representations.
+    """
+
     def __init__(
         self,
         vib: float = 0.1,
@@ -20,6 +26,18 @@ class VCBM(CBM):
         hsic_kernel: str = "rbf",
         **kwargs,
     ):
+        """Initialize the VCBM model.
+
+        Args:
+            vib: Weight for variational information bottleneck loss.
+            res_dim: Dimension of residual/virtual concepts.
+            hsic_weight: Weight for HSIC independence penalty.
+            hsic_kernel: Kernel type for HSIC ('rbf', 'linear').
+            **kwargs: Arguments passed to parent CBM class.
+
+        Returns:
+            None.
+        """
         super().__init__(res_dim=res_dim, hsic_weight=hsic_weight, hsic_kernel=hsic_kernel, **kwargs)
         self.fc = nn.Linear(self.base.fc.in_features, 2 * (self.num_concepts + res_dim))
         self.base.fc = nn.Identity()
@@ -30,6 +48,15 @@ class VCBM(CBM):
         self.hsic_kernel = hsic_kernel
 
     def forward(self, x: Tensor, concept_pred: Optional[Tensor] = None) -> Dict[str, Tensor]:
+        """Forward pass through the VCBM model.
+
+        Args:
+            x: Input image tensor of shape (batch_size, channels, height, width).
+            concept_pred: Optional pre-computed concept predictions.
+
+        Returns:
+            Dictionary with 'label', 'concept', 'mu', and 'var' tensors.
+        """
         features = self.base(x)
         statistics = self.fc(features)
         std, mu = torch.chunk(statistics, 2, dim=1)
@@ -45,6 +72,15 @@ class VCBM(CBM):
         return {"label": label_pred, "concept": concept_pred, "mu": mu, "var": std**2}
 
     def calc_loss(self, gt: Dict[str, Tensor], pred: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        """Calculate loss for VCBM training including variational terms.
+
+        Args:
+            gt: Ground truth dictionary with 'label' and 'concept' tensors.
+            pred: Prediction dictionary with 'label', 'concept', 'mu', and 'var' tensors.
+
+        Returns:
+            Dictionary of losses including 'Label Loss', 'Concept Loss', 'Info Loss', and 'Loss'.
+        """
         label_pred, concept_pred, mu, var = pred["label"], pred["concept"], pred["mu"], pred["var"]
         label, concepts = gt["label"], gt["concept"]
         concept_loss = F.binary_cross_entropy_with_logits(

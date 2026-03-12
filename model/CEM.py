@@ -9,7 +9,22 @@ from utils import initialize_weights, modify_fc
 
 
 class CEM(CBM):
+    """Concept Embedding Model with probabilistic concept representations.
+
+    Extends CBM with learned concept embeddings for more expressive
+    concept-based predictions.
+    """
+
     def __init__(self, embed_dim: int = 16, **kwargs):
+        """Initialize the CEM model.
+
+        Args:
+            embed_dim: Dimension of concept embeddings.
+            **kwargs: Arguments passed to parent CBM class.
+
+        Returns:
+            None.
+        """
         super().__init__(**kwargs)
         modify_fc(self.base, kwargs["base"], 2 * embed_dim * self.num_concepts)
 
@@ -20,6 +35,15 @@ class CEM(CBM):
         ).apply(initialize_weights)
 
     def forward(self, x: Tensor, concept_pred: Optional[Tensor] = None) -> Dict[str, Tensor]:
+        """Forward pass through the CEM model.
+
+        Args:
+            x: Input image tensor of shape (batch_size, channels, height, width).
+            concept_pred: Optional pre-computed concept predictions.
+
+        Returns:
+            Dictionary with 'label' (class predictions) and 'concept' (concept logits).
+        """
         concept_context = self.base(x).reshape(
             x.size(0), -1, 2 * self.hparams.embed_dim
         )
