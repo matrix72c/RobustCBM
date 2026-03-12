@@ -3,7 +3,7 @@
 ## Phases
 
 - [x] **Phase 1: Foundation** - Establish baseline and analyze codebase (completed 2026-03-12)
-- [ ] **Phase 2: Code Cleanup** - Remove unused imports, dead code, fix naming, extract constants
+- [x] **Phase 2: Code Cleanup** - Remove unused imports, dead code, fix naming, extract constants (completed 2026-03-12)
 - [ ] **Phase 3: Structural Refactoring** - Extract common model logic, reorganize modules, add type hints
 - [ ] **Phase 4: Quality & Validation** - Add error handling, docstrings, logging, tests; verify functionality
 
@@ -22,7 +22,7 @@
 3. Smoke tests exist for model loading, forward pass, and config loading
 
 **Plans**: 1 plan
-- [ ] 01-PLAN.md — Testing infrastructure + codebase analysis
+- [x] 01-PLAN.md — Testing infrastructure + codebase analysis
 
 ---
 
@@ -39,7 +39,8 @@
 3. All naming conventions consistent (snake_case for functions/variables, PascalCase for classes)
 4. All magic numbers and hardcoded values extracted to named constants
 
-**Plans**: TBD
+**Plans**: 1 plan
+- [x] 02-PLAN.md — Remove unused imports, dead code, fix naming, extract constants (COMPLETE)
 
 ---
 
@@ -84,8 +85,8 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/1 | Complete    | 2026-03-12 |
-| 2. Code Cleanup | 0/1 | Not started | - |
+| 1. Foundation | 1/1 | Complete    | 2026-03-12 |
+| 2. Code Cleanup | 1/1 | Complete    | 2026-03-12 |
 | 3. Structural Refactoring | 0/1 | Not started | - |
 | 4. Quality & Validation | 0/1 | Not started | - |
 
