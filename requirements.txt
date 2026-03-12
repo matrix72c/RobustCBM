@@ -9,3 +9,6 @@ swanlab==0.7.5
 torch==2.9.1
 torchmetrics==1.8.2
 torchvision==0.24.1
+pytest>=8.0.0
+ruff>=0.9.0
+vulture>=2.0.0
