@@ -1,9 +1,9 @@
 import argparse
 import hashlib
+import json
 import logging
 import os
 
-import pandas as pd
 import torch
 import yaml
 from lightning.pytorch import seed_everything
@@ -163,14 +163,14 @@ def train(cfg):
         monitor="lr", mode="min", patience=1000, stopping_threshold=1e-4
     )
     callbacks = [checkpoint_callback, early_stopping]
-    logger = WandbLogger(
+    wandb_logger = WandbLogger(
         project="RAIDCXM",
         name=name,
         offline=True,
     )
     trainer = Trainer(
         log_every_n_steps=1,
-        logger=logger,
+        logger=wandb_logger,
         callbacks=callbacks,
         max_epochs=cfg.get("epochs", -1),
         inference_mode=False,
@@ -180,12 +180,12 @@ def train(cfg):
     return model, dm, cfg
 
 def evaluate(model, dm, cfg):
-    logger = WandbLogger(
+    wandb_logger = WandbLogger(
         project="RAIDCXM",
         name=(cfg.get("run_name", "unknown") + "_test"),
         offline=True,
     )
-    trainer = Trainer(logger=logger, inference_mode=False)
+    trainer = Trainer(logger=wandb_logger, inference_mode=False)
     res = trainer.test(model, dm)
     if res:
         result = res[0]
@@ -198,14 +198,20 @@ def evaluate(model, dm, cfg):
         sanitized["name"] = cfg.get("run_name", "unknown")
         sanitized["run_id"] = cfg.get("run_id", "unknown")
 
-        row = pd.DataFrame([sanitized])
-        results_path = "results/result.csv"
+        # Save to JSON instead of CSV
+        results_path = "results/results.json"
+        os.makedirs("results", exist_ok=True)
         if os.path.exists(results_path):
-            df = pd.read_csv(results_path)
-            df = pd.concat([df, row], ignore_index=True)
+            with open(results_path, "r") as f:
+                all_results = json.load(f)
         else:
-            df = row
-        df.to_csv(results_path, index=False)
+            all_results = {}
+
+        run_name = cfg.get("run_name", "unknown")
+        all_results[run_name] = sanitized
+
+        with open(results_path, "w") as f:
+            json.dump(all_results, f, indent=2)
 
 
 if __name__ == "__main__":

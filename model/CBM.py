@@ -2,6 +2,8 @@ import logging
 import random
 from typing import Any, Dict, Optional
 
+import wandb
+
 logger = logging.getLogger(__name__)
 
 import numpy as np
@@ -506,3 +508,71 @@ class CBM(LightningModule):
                     on_step=False,
                     on_epoch=True,
                 )
+
+    def on_test_epoch_end(self) -> None:
+        """Log metrics to wandb.run.summary and wandb.log after test epoch.
+
+        Returns:
+            None.
+        """
+        if wandb.run is None:
+            return
+
+        modes = ["Std", "LPGD", "CPGD", "JPGD", "APGD", "AA"]
+
+        # Log pre-intervention acc to wandb.run.summary
+        for mode in modes:
+            if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
+                continue
+            acc_metric = getattr(self, f"{mode}_acc", None)
+            if acc_metric is not None:
+                summary_key = f"acc/{mode}"
+                acc_value = acc_metric.compute().item()
+                wandb.run.summary[summary_key] = acc_value
+
+        # Skip intervention metrics if not applicable
+        if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
+            return
+
+        # Log intervention metrics as line charts
+        x_values = list(range(0, 110, 10))
+
+        for mode in modes:
+            if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
+                continue
+
+            intervene_accs = []
+            intervene_concept_accs = []
+
+            for i in range(11):
+                intervene_acc_metric = getattr(self, f"intervene_{mode}_accs")[i]
+                intervene_accs.append(intervene_acc_metric.compute().item())
+
+                intervene_concept_metric = getattr(
+                    self, f"intervene_{mode}_concept_accs"
+                )[i]
+                intervene_concept_accs.append(intervene_concept_metric.compute().item())
+
+            # Log intervention accuracy line chart
+            wandb.log({
+                f"intervene_{mode}_acc": wandb.plot.line_series(
+                    xs=x_values,
+                    ys=[intervene_accs],
+                    keys=[f"intervene_{mode}_acc"],
+                    title=f"Intervention Effect ({mode})",
+                    xlabel="Intervention %",
+                    ylabel="Accuracy"
+                )
+            })
+
+            # Log intervention concept accuracy line chart
+            wandb.log({
+                f"intervene_{mode}_concept_acc": wandb.plot.line_series(
+                    xs=x_values,
+                    ys=[intervene_concept_accs],
+                    keys=[f"intervene_{mode}_concept_acc"],
+                    title=f"Concept Acc with Intervention ({mode})",
+                    xlabel="Intervention %",
+                    ylabel="Concept Accuracy"
+                )
+            })
