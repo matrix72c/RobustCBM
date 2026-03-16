@@ -166,7 +166,6 @@ def train(cfg):
     wandb_logger = WandbLogger(
         project="RAIDCXM",
         name=name,
-        offline=True,
     )
     trainer = Trainer(
         log_every_n_steps=1,
@@ -182,8 +181,9 @@ def train(cfg):
 def evaluate(model, dm, cfg):
     wandb_logger = WandbLogger(
         project="RAIDCXM",
-        name=(cfg.get("run_name", "unknown") + "_test"),
-        offline=True,
+        name=cfg.get("run_name", "unknown"),
+        id=cfg.get("run_id", None),
+        resume="allow"
     )
     trainer = Trainer(logger=wandb_logger, inference_mode=False)
     res = trainer.test(model, dm)
