@@ -1,6 +1,5 @@
 import argparse
 import hashlib
-import json
 import logging
 import os
 
@@ -186,32 +185,7 @@ def evaluate(model, dm, cfg):
         resume="allow"
     )
     trainer = Trainer(logger=wandb_logger, inference_mode=False)
-    res = trainer.test(model, dm)
-    if res:
-        result = res[0]
-        sanitized = {}
-        for k, v in result.items():
-            if isinstance(v, torch.Tensor):
-                sanitized[k] = v.item()
-            else:
-                sanitized[k] = v
-        sanitized["name"] = cfg.get("run_name", "unknown")
-        sanitized["run_id"] = cfg.get("run_id", "unknown")
-
-        # Save to JSON instead of CSV
-        results_path = "results/results.json"
-        os.makedirs("results", exist_ok=True)
-        if os.path.exists(results_path):
-            with open(results_path, "r") as f:
-                all_results = json.load(f)
-        else:
-            all_results = {}
-
-        run_name = cfg.get("run_name", "unknown")
-        all_results[run_name] = sanitized
-
-        with open(results_path, "w") as f:
-            json.dump(all_results, f, indent=2)
+    trainer.test(model, dm)
 
 
 if __name__ == "__main__":
