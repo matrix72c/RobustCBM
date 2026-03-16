@@ -155,3 +155,76 @@ def test_checkpoint_loading_imports():
     """Verify checkpoint loading function can be imported."""
     from main import load_checkpoint
     assert load_checkpoint is not None
+
+
+def test_on_test_epoch_end_writes_results(tmp_path, monkeypatch):
+    """Verify on_test_epoch_end writes results.json without errors."""
+    import json
+    from unittest.mock import MagicMock
+    import torch
+    from model import CBM
+
+    mock_dm = MagicMock()
+    mock_dm.num_classes = 5
+    mock_dm.num_concepts = 10
+    mock_dm.max_intervene_budget = 10
+    mock_dm.concept_group_map = {i: i for i in range(10)}
+    mock_dm.group_concept_map = {i: [i] for i in range(10)}
+    mock_dm.imbalance_weights = torch.ones(10)
+
+    cfg = {
+        "model": "CBM",
+        "base": "resnet50",
+        "use_pretrained": False,
+        "concept_weight": 1.0,
+        "optimizer": "SGD",
+        "optimizer_args": {"lr": 0.1},
+        "cbm_mode": "hybrid",
+        "train_mode": "Std",
+        "mtl_mode": "normal",
+        "weighted_bce": False,
+        "hsic_weight": 0,
+        "res_dim": 0,
+        "ignore_intervenes": False,
+        "run_name": "test_run",
+        "run_id": "abc123",
+    }
+
+    model = CBM(dm=mock_dm, **cfg)
+
+    # Pre-populate all metrics with dummy data so .compute() won't raise
+    batch_size = 8
+    num_classes, num_concepts = 5, 10
+    label_preds = torch.randint(0, num_classes, (batch_size,))
+    label_targets = torch.randint(0, num_classes, (batch_size,))
+    concept_preds = torch.rand(batch_size, num_concepts)
+    concept_targets = torch.randint(0, 2, (batch_size, num_concepts))
+
+    modes = ["Std", "LPGD", "CPGD", "JPGD", "APGD", "AA"]
+    for mode in modes:
+        getattr(model, f"{mode}_acc").update(label_preds, label_targets)
+        getattr(model, f"{mode}_concept_acc").update(concept_preds, concept_targets)
+        for i in range(11):
+            getattr(model, f"intervene_{mode}_accs")[i].update(label_preds, label_targets)
+            getattr(model, f"intervene_{mode}_concept_accs")[i].update(concept_preds, concept_targets)
+
+    # Redirect results.json to tmp_path
+    monkeypatch.chdir(tmp_path)
+
+    model.on_test_epoch_end()
+
+    results_path = tmp_path / "results" / "results.json"
+    assert results_path.exists()
+    with open(results_path) as f:
+        data = json.load(f)
+
+    assert "test_run" in data
+    run = data["test_run"]
+    assert "Std Acc" in run
+    assert "Std Concept Acc" in run
+    assert "intervene_Std_accs" in run
+    assert "intervene_Std_concept_accs" in run
+    assert len(run["intervene_Std_accs"]) == 11
+    assert len(run["intervene_Std_concept_accs"]) == 11
+    assert run["name"] == "test_run"
+    assert run["run_id"] == "abc123"

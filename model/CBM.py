@@ -1,4 +1,6 @@
+import json
 import logging
+import os
 import random
 from typing import Any, Dict, Optional
 
@@ -491,88 +493,83 @@ class CBM(LightningModule):
                 cur_label_pred = forward_outputs["label"]
                 intervene_acc_metric = getattr(self, f"intervene_{mode}_accs")[i]
                 intervene_acc_metric(cur_label_pred, label)
-                self.log(
-                    f"{mode} Acc with {i}0% Intervene",
-                    intervene_acc_metric,
-                    on_step=False,
-                    on_epoch=True,
-                )
                 semantic_cur_concept_pred = cur_concept_pred[:, : self.num_concepts]
                 intervene_concept_metric = getattr(
                     self, f"intervene_{mode}_concept_accs"
                 )[i]
                 intervene_concept_metric(semantic_cur_concept_pred, concepts)
-                self.log(
-                    f"{mode} Concept Acc with {i}0% Intervene",
-                    intervene_concept_metric,
-                    on_step=False,
-                    on_epoch=True,
-                )
 
     def on_test_epoch_end(self) -> None:
-        """Log metrics to wandb.run.summary and wandb.log after test epoch.
+        """Collect all test metrics, log to wandb, and save results to JSON.
 
         Returns:
             None.
         """
-        if wandb.run is None:
-            return
-
         modes = ["Std", "LPGD", "CPGD", "JPGD", "APGD", "AA"]
+        results = {}
 
-        # Log pre-intervention acc to wandb.run.summary
+        # Collect pre-intervention metrics
         for mode in modes:
             if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
                 continue
             acc_metric = getattr(self, f"{mode}_acc", None)
             if acc_metric is not None:
-                summary_key = f"acc/{mode}"
                 acc_value = acc_metric.compute().item()
-                wandb.run.summary[summary_key] = acc_value
+                results[f"{mode} Acc"] = acc_value
+                if wandb.run is not None:
+                    wandb.run.summary[f"acc/{mode}"] = acc_value
+            concept_acc_metric = getattr(self, f"{mode}_concept_acc", None)
+            if concept_acc_metric is not None:
+                results[f"{mode} Concept Acc"] = concept_acc_metric.compute().item()
 
-        # Skip intervention metrics if not applicable
-        if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
-            return
+        # Collect intervention metrics
+        if not (self.hparams.model == "backbone" or self.hparams.ignore_intervenes):
+            if wandb.run is not None:
+                for mode in modes:
+                    wandb.define_metric(f"intervene_{mode}_acc", step_metric="intervene_pct")
+                    wandb.define_metric(f"intervene_{mode}_concept_acc", step_metric="intervene_pct")
 
-        # Log intervention metrics as line charts
-        x_values = list(range(0, 110, 10))
+            for mode in modes:
+                if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
+                    continue
 
-        for mode in modes:
-            if self.hparams.model == "backbone" and (mode == "CPGD" or mode == "JPGD"):
-                continue
+                intervene_accs = []
+                intervene_concept_accs = []
 
-            intervene_accs = []
-            intervene_concept_accs = []
+                for i in range(11):
+                    intervene_acc_metric = getattr(self, f"intervene_{mode}_accs")[i]
+                    intervene_accs.append(intervene_acc_metric.compute().item())
 
-            for i in range(11):
-                intervene_acc_metric = getattr(self, f"intervene_{mode}_accs")[i]
-                intervene_accs.append(intervene_acc_metric.compute().item())
+                    intervene_concept_metric = getattr(self, f"intervene_{mode}_concept_accs")[i]
+                    intervene_concept_accs.append(intervene_concept_metric.compute().item())
 
-                intervene_concept_metric = getattr(
-                    self, f"intervene_{mode}_concept_accs"
-                )[i]
-                intervene_concept_accs.append(intervene_concept_metric.compute().item())
+                results[f"intervene_{mode}_accs"] = intervene_accs
+                results[f"intervene_{mode}_concept_accs"] = intervene_concept_accs
 
-            # Log intervention accuracy line chart
-            wandb.log({
-                f"intervene_{mode}_acc": wandb.plot.line_series(
-                    xs=x_values,
-                    ys=[intervene_accs],
-                    keys=[f"intervene_{mode}_acc"],
-                    title=f"Intervention Effect ({mode})",
-                    xlabel="Intervention %",
-                    ylabel="Accuracy"
-                )
-            })
+                if wandb.run is not None:
+                    for i, (acc, concept_acc) in enumerate(zip(intervene_accs, intervene_concept_accs)):
+                        wandb.log({
+                            "intervene_pct": i * 10,
+                            f"intervene_{mode}_acc": acc,
+                            f"intervene_{mode}_concept_acc": concept_acc,
+                        })
 
-            # Log intervention concept accuracy line chart
-            wandb.log({
-                f"intervene_{mode}_concept_acc": wandb.plot.line_series(
-                    xs=x_values,
-                    ys=[intervene_concept_accs],
-                    keys=[f"intervene_{mode}_concept_acc"],
-                    title=f"Concept Acc with Intervention ({mode})",
-                    xlabel="Intervention %",
-                    ylabel="Concept Accuracy"
-                )
-            })
+        # Add run metadata
+        run_name = self.hparams.get("run_name", None)
+        if run_name is None and wandb.run is not None:
+            run_name = wandb.run.name
+        run_name = run_name or "unknown"
+        results["name"] = run_name
+        results["run_id"] = self.hparams.get("run_id", "unknown")
+
+        # Save to results.json
+        results_path = "results/results.json"
+        os.makedirs("results", exist_ok=True)
+        if os.path.exists(results_path):
+            with open(results_path, "r") as f:
+                all_results = json.load(f)
+        else:
+            all_results = {}
+        all_results[run_name] = results
+        with open(results_path, "w") as f:
+            json.dump(all_results, f, indent=2)
