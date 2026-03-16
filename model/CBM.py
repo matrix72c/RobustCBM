@@ -466,20 +466,8 @@ class CBM(LightningModule):
             semantic_concept_pred = concept_pred[:, : self.num_concepts]
             acc_metric = getattr(self, f"{mode}_acc")
             acc_metric(label_pred, label)
-            self.log(
-                f"{mode} Acc",
-                acc_metric,
-                on_step=False,
-                on_epoch=True,
-            )
             concept_metric = getattr(self, f"{mode}_concept_acc")
             concept_metric(semantic_concept_pred, concepts)
-            self.log(
-                f"{mode} Concept Acc",
-                concept_metric,
-                on_step=False,
-                on_epoch=True,
-            )
 
             if self.hparams.model == "backbone" or self.hparams.ignore_intervenes:
                 continue
