@@ -19,9 +19,7 @@ from torchmetrics import Accuracy
 
 from attacks import PGD
 from autoattack import AutoAttack
-from hsic import nhsic, standardize
-from mtl import mtl
-from model.mlp import MLP
+from hsic import compute_hsic_loss
 from utils import build_base, cls_wrapper, initialize_weights, suppress_stdout
 
 
@@ -57,7 +55,6 @@ class CBM(LightningModule):
         hidden_dim: int = 0,
         res_dim: int = 0,
         cbm_mode: str = "hybrid",
-        mtl_mode: str = "normal",
         weighted_bce: bool = True,
         ignore_intervenes: bool = False,
         train_mode: str = "Std",
@@ -86,7 +83,6 @@ class CBM(LightningModule):
             hidden_dim: Hidden dimension for MLP classifier (0 uses linear).
             res_dim: Dimension of residual/virtual concepts.
             cbm_mode: Concept bottleneck mode ('fuzzy', 'relu', 'bool', 'hybrid').
-            mtl_mode: Multi-task learning mode ('normal' or other).
             weighted_bce: Whether to use class-weighted BCE loss.
             ignore_intervenes: Whether to ignore concept intervention during testing.
             train_mode: Training mode ('Std', 'LPGD', 'CPGD', 'JPGD', 'APGD', 'AA').
@@ -103,8 +99,6 @@ class CBM(LightningModule):
             None.
         """
         super().__init__()
-        if mtl_mode != "normal":
-            self.automatic_optimization = False
         self.save_hyperparameters(ignore="dm")
         num_classes = dm.num_classes
         num_concepts = dm.num_concepts
@@ -123,7 +117,11 @@ class CBM(LightningModule):
         )
 
         if hidden_dim > 0:
-            self.classifier = MLP(num_concepts + res_dim, hidden_dim, num_classes)
+            self.classifier = nn.Sequential(
+                nn.Linear(num_concepts + res_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, num_classes),
+            ).apply(initialize_weights)
         else:
             self.classifier = nn.Linear(num_concepts + res_dim, num_classes).apply(
                 initialize_weights
@@ -301,30 +299,13 @@ class CBM(LightningModule):
 
         # add HSIC constraint
         if self.hparams.hsic_weight > 0 and self.hparams.res_dim > 0:
-            # separate semantic and virtual concepts
-            semantic_concepts = concept_pred[:, : self.num_concepts]
-            virtual_concepts = concept_pred[:, self.num_concepts :]
-
-            # standardize semantic and virtual concepts
-            semantic_std = standardize(semantic_concepts)
-            virtual_std = standardize(virtual_concepts)
-
-            # compute normalized HSIC
-            hsic_loss = nhsic(
-                semantic_std,
-                virtual_std,
-                kernel_c=self.hparams.hsic_kernel,
-                kernel_v=self.hparams.hsic_kernel,
+            hsic_loss = compute_hsic_loss(
+                concept_pred, self.num_concepts, self.hparams.hsic_kernel
             )
-
             loss = loss + self.hparams.hsic_weight * hsic_loss
             losses["HSIC Loss"] = hsic_loss
             losses["Loss"] = loss
 
-        if self.hparams.mtl_mode != "normal":
-            g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
-            for name, param in self.named_parameters():
-                param.grad = g[name]
         return losses
 
     @suppress_stdout
@@ -369,9 +350,6 @@ class CBM(LightningModule):
         losses = self.calc_loss({"label": label, "concept": concepts}, self(img))
         loss = losses["Loss"]
         logger.debug(f"Training loss: {loss.item():.4f}")
-        if self.hparams.mtl_mode != "normal":
-            self.optimizers().step()
-            self.optimizers().zero_grad()
         return loss
 
     def on_train_epoch_end(self):

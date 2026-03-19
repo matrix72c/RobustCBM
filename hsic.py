@@ -87,3 +87,21 @@ def nhsic(zc, zv, kernel_c='rbf', kernel_v='rbf', sigma_c=None, sigma_v=None, ep
 
 def standardize(z, eps=1e-5):
     return (z - z.mean(dim=0, keepdim=True)) / (z.std(dim=0, keepdim=True) + eps)
+
+
+def compute_hsic_loss(concept_pred, num_concepts, hsic_kernel):
+    """Compute normalized HSIC between semantic and virtual concepts.
+
+    Args:
+        concept_pred: Concatenated concept predictions [B, num_concepts + res_dim].
+        num_concepts: Number of semantic concepts.
+        hsic_kernel: Kernel type ('rbf' or 'linear').
+
+    Returns:
+        Scalar HSIC loss value.
+    """
+    semantic_concepts = concept_pred[:, :num_concepts]
+    virtual_concepts = concept_pred[:, num_concepts:]
+    semantic_std = standardize(semantic_concepts)
+    virtual_std = standardize(virtual_concepts)
+    return nhsic(semantic_std, virtual_std, kernel_c=hsic_kernel, kernel_v=hsic_kernel)

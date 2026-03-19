@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch import Tensor
 
-from hsic import nhsic, standardize
+from hsic import compute_hsic_loss
 from model.CBM import CBM
 from mtl import mtl
 from utils import calc_info_loss
@@ -118,25 +118,11 @@ class VCBM(CBM):
 
         # add HSIC constraint
         if self.hsic_weight > 0 and self.res_dim > 0:
-            # separate semantic and virtual concepts
-            semantic_concepts = concept_pred[:, : self.num_concepts]
-            virtual_concepts = concept_pred[:, self.num_concepts :]
-            
-            # standardize semantic and virtual concepts
-            semantic_std = standardize(semantic_concepts)
-            virtual_std = standardize(virtual_concepts)
-            
-            # compute normalized HSIC
-            hsic_loss = nhsic(semantic_std, virtual_std, 
-                            kernel_c=self.hsic_kernel, 
-                            kernel_v=self.hsic_kernel)
-            
+            hsic_loss = compute_hsic_loss(
+                concept_pred, self.num_concepts, self.hsic_kernel
+            )
             loss = loss + self.hsic_weight * hsic_loss
             losses["HSIC Loss"] = hsic_loss
             losses["Loss"] = loss
 
-        if self.hparams.mtl_mode != "normal":
-            g = mtl([label_loss, concept_loss], self, self.hparams.mtl_mode)
-            for name, param in self.named_parameters():
-                param.grad = g[name]
         return losses
