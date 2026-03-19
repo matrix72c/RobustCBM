@@ -12,11 +12,6 @@ from torch.utils.data import DataLoader, Dataset
 
 from utils import cal_class_imbalance_weights
 
-# Constants
-DEFAULT_RESOLUTION = 224
-IMAGENET_MEAN = [0.485, 0.456, 0.406]
-IMAGENET_STD = [0.229, 0.224, 0.225]
-DEFAULT_BATCH_SIZE = 512
 
 # Set of CUB attributes selected by original CBM paper
 SELECTED_CONCEPTS = [
@@ -511,7 +506,7 @@ class CUB(L.LightningDataModule):
         self,
         data_path: str = "./data",
         resol: int = 224,
-        batch_size: int = 512,
+        batch_size: int = 128,
         num_workers: int = 12,
         **kwargs,
     ):

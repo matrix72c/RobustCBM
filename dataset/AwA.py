@@ -107,7 +107,7 @@ class AwA(L.LightningDataModule):
         self,
         data_path: str = "./data",
         resol: int = 224,
-        batch_size: int = 512,
+        batch_size: int = 128,
         num_workers: int = 12,
         **kwargs,
     ):
