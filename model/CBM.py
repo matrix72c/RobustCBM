@@ -352,12 +352,6 @@ class CBM(LightningModule):
         logger.debug(f"Training loss: {loss.item():.4f}")
         return loss
 
-    def on_train_epoch_end(self):
-        if self.hparams.mtl_mode != "normal" and self.global_rank == 0:
-            sch = self.lr_schedulers()
-            if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                sch.step(self.trainer.callback_metrics["acc"])
-
     def validation_step(self, batch: tuple[Tensor, Tensor, Tensor], _batch_idx: int) -> None:
         """Validation step for CBM model.
 

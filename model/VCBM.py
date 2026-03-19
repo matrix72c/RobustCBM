@@ -8,7 +8,6 @@ from torch import Tensor
 
 from hsic import compute_hsic_loss
 from model.CBM import CBM
-from mtl import mtl
 from utils import calc_info_loss
 
 logger = logging.getLogger(__name__)
