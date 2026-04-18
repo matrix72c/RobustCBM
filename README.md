@@ -21,7 +21,7 @@ python main.py --config tmp.yaml --task_id 0
 5. Omit `--task_id` to run all entries.
 
 ## Configuration System
-Defaults reside in `config.yaml`. Override file must be a YAML list; each element merges with defaults (recursive) via `utils.yaml_merge`. The merged config and checkpoint are stored under `checkpoints/`; run logs go to `logs/<run_name>/<run_id>/` with deterministic `run_name` + hashed `run_id`.
+Defaults reside in class definitions. Override file must be a YAML list; each element merges with defaults (recursive) via `utils.yaml_merge`. The merged config and checkpoint are stored under `checkpoints/`; run logs go to `logs/<run_name>/<run_id>/` with deterministic `run_name` + hashed `run_id`.
 
 ## Running Experiments
 Example `cfg.yaml`:
