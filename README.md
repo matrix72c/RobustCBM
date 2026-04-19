@@ -9,7 +9,7 @@ Prior work emphasized concept prediction robustness but rarely measured the end-
 ## Quick Start
 1. Install dependencies:
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 2. Prepare datasets (see Dataset Preparation).
 3. Create override YAML list (e.g., `tmp.yaml`).
