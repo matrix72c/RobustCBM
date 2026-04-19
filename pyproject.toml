@@ -1,0 +1,19 @@
+[project]
+name = "robustcbm"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "autoattack",
+    "lightning>=2.6.1",
+    "numpy>=2.4.4",
+    "pandas>=3.0.2",
+    "pillow>=12.2.0",
+    "pyyaml>=6.0.3",
+    "scikit-learn>=1.8.0",
+    "torch>=2.11.0",
+    "torchmetrics>=1.9.0",
+    "torchvision>=0.26.0",
+]
+
+[tool.uv.sources]
+autoattack = { git = "https://gitee.com/matrix72/auto-attack.git" }
