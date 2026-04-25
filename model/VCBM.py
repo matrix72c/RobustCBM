@@ -10,8 +10,6 @@ from hsic import compute_hsic_loss
 from model.CBM import CBM
 from utils import calc_info_loss
 
-logger = logging.getLogger(__name__)
-
 
 class VCBM(CBM):
     """Variational Concept Bottleneck Model with variational inference.
@@ -48,13 +46,6 @@ class VCBM(CBM):
         self.res_dim = res_dim
         self.hsic_weight = hsic_weight
         self.hsic_kernel = hsic_kernel
-
-        logger.info(
-            f"VCBM initialized: vib=%.4f, res_dim=%d, hsic_weight=%.4f",
-            vib,
-            res_dim,
-            hsic_weight,
-        )
 
     def forward(self, x: Tensor, concept_pred: Optional[Tensor] = None) -> Dict[str, Tensor]:
         """Forward pass through the VCBM model.
